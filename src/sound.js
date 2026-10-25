@@ -1333,22 +1333,24 @@
     if (L < 4 * sr) return null;   // too short to loop
     // Kept at BED_SR like the synthesized beds: the loops run to minutes, and a 128 kbps mp3 holds
     // nothing above 16 kHz, so linear resampling loses nothing audible and saves a third of memory.
-    const k = sr / BED_SR, Lo = Math.floor(L / k);
-    const out = ctx.createBuffer(2, Lo, BED_SR);
-    let sum = 0, peak = 0;
+    // Mono: all seven songs decoded held about 170 MB in stereo, enough for an older phone to reload
+    // the page; through a phone speaker the difference does not show.
+    const k = sr / BED_SR, Lo = Math.floor(L / k), nch = Math.min(2, buf.numberOfChannels);
+    const out = ctx.createBuffer(1, Lo, BED_SR), d = out.getChannelData(0);
     const tmp = new Float32Array(L);
-    for (let ch = 0; ch < 2; ch++) {
-      const src = buf.getChannelData(Math.min(ch, buf.numberOfChannels - 1)), d = out.getChannelData(ch);
-      for (let i = 0; i < L; i++) tmp[i] = src[start + i];
-      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); tmp[i] = src[start + i] * Math.sin(x) + src[start + L + i] * Math.cos(x); }
-      for (let i = 0; i < Lo; i++) {
-        const p = i * k, j = Math.floor(p), f = p - j;
-        d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0);
-      }
-      for (let i = 0; i < Lo; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
+    for (let ch = 0; ch < nch; ch++) {
+      const src = buf.getChannelData(ch);
+      for (let i = 0; i < L; i++) tmp[i] += src[start + i] / nch;
+      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); tmp[i] += (src[start + L + i] * Math.cos(x) - src[start + i] * (1 - Math.sin(x))) / nch; }
     }
-    const rms = Math.sqrt(sum / (2 * Lo)), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
-    for (let ch = 0; ch < 2; ch++) { const d = out.getChannelData(ch); for (let i = 0; i < Lo; i++) d[i] *= g; }
+    let sum = 0, peak = 0;
+    for (let i = 0; i < Lo; i++) {
+      const p = i * k, j = Math.floor(p), f = p - j;
+      const v = (d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0));
+      sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m;
+    }
+    const rms = Math.sqrt(sum / Lo), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
+    for (let i = 0; i < Lo; i++) d[i] *= g;
     return out;
   }
   // Decode a fetched track once; when it is ready it replaces the synthesized bed (and the

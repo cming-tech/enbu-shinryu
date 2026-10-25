@@ -490,8 +490,6 @@
     battle: "vid_battle.mp4", lose: "vid_lose.mp4", round4: "vid_round4.mp4", round5: "vid_round5.mp4", round6: "vid_round6.mp4",
     awaken: "vid_awaken.mp4" };
   const ROUND_CLIPS = ["round", "round2", "round3", "round4", "round5", "round6"];
-  // Where the canvas carries the key content (777, the RUSH logo) the clip is screened over it.
-  const VID_SCREEN = { jackpot: true, rush: true };
   const VID = {};
   let vidLayer = null;
   // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
@@ -503,7 +501,6 @@
       const v = document.createElement("video");
       v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "metadata";
       v.className = "pkl-vid";
-      if (VID_SCREEN[k]) { v.style.mixBlendMode = "screen"; v.classList.add("scr"); }
       if (k.startsWith("round")) v.classList.add("pip");   // bonus rounds: a framed window, the boss stays in view
       // Usable at once: iOS Safari loads no media data before play(), so waiting for loadeddata
       // would skip every clip there. A missing or unplayable file fires error and is dropped.
@@ -525,6 +522,12 @@
     const p = v.play();
     if (p && p.catch) p.catch(() => { v.classList.remove("on"); v.dispatchEvent(new Event("ended")); });
     return v;
+  }
+  // Fades a clip out early (the canvas under it shows again) and stops it.
+  function hideClip(v) {
+    if (!v) return;
+    v.classList.remove("on");
+    setTimeout(() => v.pause(), 400);
   }
   // Plays a clip and resolves when it ends (or after max seconds); null when there is no clip.
   function playClipToEnd(name, max) {
@@ -1645,7 +1648,6 @@
 .pkl-vid{position:absolute;left:0;top:0;width:${W}px;height:${H}px;object-fit:cover;opacity:0;transition:opacity .25s;pointer-events:none;}
 .pkl-vid.on{opacity:1;}
 .pkl-white{position:absolute;left:0;top:0;width:${W}px;height:${H}px;background:#fff;opacity:0;pointer-events:none;}
-.pkl-vid.scr.on{opacity:.6;}   /* screened clips are bright: keep the 777 under them readable */
 .pkl-vid.pip{left:${Math.round(W * 0.03)}px;top:${Math.round(H * 0.19)}px;width:${Math.round(W * 0.6)}px;height:${Math.round(H * 0.56)}px;border:2px solid #ffd27a;border-radius:10px;box-shadow:0 0 18px rgba(255,170,50,.75);}
 .pkl-t{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.08;pointer-events:none;font-family:${FONT_DIGIT};
   will-change:transform,opacity;opacity:0;letter-spacing:.02em;}
@@ -1943,7 +1945,7 @@
   function clipCovers() {
     for (const k in VID) {
       const v = VID[k];
-      if (v && !VID_SCREEN[k] && !k.startsWith("round") && v.classList.contains("on") && !v.paused && v.readyState >= 2) return true;
+      if (v && !k.startsWith("round") && v.classList.contains("on") && !v.paused && v.readyState >= 2) return true;
     }
     return false;
   }
@@ -2141,9 +2143,12 @@
       if (d.gold) return goldDragon() ? tinted(goldDragon(), "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
       return d.z < 0.35 ? tinted(IMG.rival, "#2a0604", 0.55) : d.z < 0.7 ? tinted(IMG.rival, "#ff7a1a", 0.18) : tinted(IMG.rival, "#000", 0);
     };
+    // gold ones are the long 神龍 when its parts exist: it flies on until its tail has left too
+    const serpent = (d) => d.gold && IMG.fly_head && IMG.fly_body && IMG.fly_tail;
     const pos = (d, age) => {
       const u = ((age - d.dl) / 1.2) * d.sp, a = u * 6 + d.ph;
-      return { u, x: lerp(-120, W + 120, u), y: d.y + Math.sin(a) * d.amp - u * 26, tilt: Math.atan2(Math.cos(a) * d.amp * 6 - 26, W + 240) };
+      const x = serpent(d) ? lerp(-30, W + 30 + 600 * d.sc * 0.9, u) : lerp(-120, W + 120, u);
+      return { u, x, y: d.y + Math.sin(a) * d.amp - u * 26, tilt: Math.atan2(Math.cos(a) * d.amp * 6 - 26, W + 240) };
     };
     addActor("front", 2.0, (ctx, age) => {
       const k = Math.sin(clamp(age / 2, 0, 1) * Math.PI);
@@ -2152,7 +2157,12 @@
       for (const d of ds) {
         const p = pos(d, age);
         if (p.u < 0 || p.u > 1) continue;
-        if (IMG.rival) {   // flying right, nose following its path
+        if (serpent(d)) {   // mirrored: the serpent's head leads to the right, its body behind
+          ctx.save(); ctx.globalAlpha = lerp(0.75, 1, d.z);
+          ctx.translate(p.x, p.y); ctx.rotate(p.tilt); ctx.scale(-0.9 * d.sc, 0.9 * d.sc);
+          drawFlyDragon(ctx, 0, 0, age * 1.2 + d.ph);
+          ctx.restore();
+        } else if (IMG.rival) {   // flying right, nose following its path
           ctx.save(); ctx.globalAlpha = lerp(0.75, 1, d.z);
           ctx.translate(p.x, p.y); ctx.rotate(p.tilt); ctx.translate(-p.x, -p.y);
           drawArtDragon(ctx, art(d), p.x - 60 * d.sc, p.y, 270 * d.sc, true);
@@ -2419,7 +2429,7 @@
     const big = telop(T("lcd.spsp"), { x: CX, y: 172, size: 112, cls: "rainbow", font: FONT_BRUSH, anim: "slam", stay: true, inD: 0.3, jitter: 4 });
     fireBurst(CX, 180, 40, 300, "front");
     await wait(1.7);
-    if (clip) { clip.classList.remove("on"); setTimeout(() => clip.pause(), 400); }   // back to the reels
+    hideClip(clip);   // back to the reels
     telopOut(big, 0.2);
     telop(T("lcd.spspReach"), { x: CX, y: 54, size: 30, cls: "rainbow", anim: "drop", stay: true, inD: 0.5 });
     layout("spFinal", 0.45, E.back);
@@ -2746,7 +2756,8 @@
     hudHide = true;
     flash(C.white, 1, 1.4); shake(10);
     setScene("jackpot", 0);
-    playClip("jackpot");
+    const clip = playClip("jackpot");   // fills the LCD under 大当り!!, then shows the 777
+    wait(1.0).then(() => hideClip(clip));
     tween(fx, { logoA: 0 }, 0.1);
     reels.forEach((r, i) => { reelSet(r, S.final[i]); r.glow = 1; r.dim = 0; });
     hitPulse.on = true; hitPulse.t0 = clk.t;
@@ -2821,6 +2832,11 @@
     const hp = Math.max(1, (rounds - round) * BOSS_HP_PER_ROUND), k = minionN++ % MINIONS;
     Object.assign(boss, { on: true, hp, max: hp, down: false, hitT: -9, pops: [], k, flee: false });
     telop(T("lcd.bossHint", { name: minionName(k) }), { x: CX, y: 108, size: 19, cls: "red", anim: "pop", dur: 2.6, inD: 0.6 });   // under the life bar
+    addActor("top", 3.2, (ctx, age) => {   // a dark band under it, so it reads on the bright scenes
+      ctx.globalAlpha = 0.55 * clamp((age - 0.6) / 0.2, 0, 1) * clamp((3.2 - age) / 0.4, 0, 1);
+      ctx.fillStyle = "#000"; roundRect(ctx, CX - 150, 94, 300, 28, 10); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
   }
   const minionName = (k) => T("lcd.minions").split("|")[k] || T("lcd.rival");
   function minionArt(k) {
@@ -2850,6 +2866,8 @@
     ctx.fillStyle = lg; roundRect(ctx, x0, y0, Math.max(0.001, bw * f), 10, 4); ctx.fill();
     ctx.strokeStyle = "#ffd27a"; ctx.lineWidth = 1.5; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.stroke();
     ctx.font = "900 12px " + FONT_TC; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";   // readable on bright scenes
+    ctx.strokeText(minionName(boss.k), x0, y0 - 5);
     ctx.fillText(minionName(boss.k), x0, y0 - 5);
     ctx.restore();
     drawPops(ctx, boss.pops, al);
@@ -3016,7 +3034,8 @@
     layout("hidden", 0.2);
     if (next === "rush") {
       setScene("rush", 0.1);
-      playClip("rush");
+      const clip = playClip("rush");   // fills the LCD under 炎舞RUSH突入, then shows the logo
+      wait(1.3).then(() => hideClip(clip));
       flash(C.white, 1, 1.6); shake(12);
       burst("front", CX, 160, 60, { cols: [C.cyan, C.gold, C.white], v0: 200, v1: 600, s0: 1.6, s1: 3.6, len: 34 });
       addActor("mid", Infinity, (ctx, age) => {

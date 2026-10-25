@@ -3031,7 +3031,7 @@
         resize(); render();
       },
       render() { resize(); render(); },
-      state() { return { t: clk.t, mode, scene: scene.id, actors: actors.length, particles: P.back.length + P.front.length, telops: telops.length, reels: reels.map((r) => ({ st: r.st, d: digitAt(r.pos) })) }; },
+      state() { return { t: clk.t, mode, scene: scene.id, renda: renda.on, actors: actors.length, particles: P.back.length + P.front.length, telops: telops.length, reels: reels.map((r) => ({ st: r.st, d: digitAt(r.pos) })) }; },
       imagesSettled() { return imgPending === 0; },
       seed(n) { rng = mulberry32(n | 0); },
     },

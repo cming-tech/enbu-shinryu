@@ -576,9 +576,10 @@
     }
     [[392, 26], [398, 54], [394, 80], [196, 26], [190, 54], [194, 80]].forEach((p) => ART.sprites.push({ x: p[0], y: p[1], r: 26, g: 0.9 }));
     [[430, 14], [440, 46], [148, 46], [158, 14]].forEach((p) => ART.sprites.push({ x: p[0], y: p[1], r: 18, g: 0.8 }));
-    // LED strip below the crest (along s=31 across the top).
+    // LED strip below the crest (along s=31 across the top); the AI crest breaks it in the middle.
     for (let k = 0; k < 15; k++) {
       const a = 249 + (k * 42) / 14, p = fpt(a, 31.5);
+      if (S.crestImg && p[0] > CREST_ART.x + 6 && p[0] < CREST_ART.x + CREST_ART.w - 6) continue;
       ART.leds.push({ x: p[0], y: p[1], u: angU(p[0], p[1]), k });
       holes.push(`<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="3.6"/>`);
       acr.push(`<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="3.6" fill="url(#pkc-ledGlass)"/>`);

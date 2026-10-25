@@ -463,7 +463,7 @@
   // ------------------------------------------------------------------ image slots
   const IMG = {};
   const IMG_FILES = { bg_normal: "bg_normal.jpg", bg_rush: "bg_rush.jpg", hero: "hero.png", rival: "rival.png", cutin_hero: "cutin_hero.png", jackpot: "jackpot.png", cab_dragon: "cab_dragon.png",
-    pose_slash: "pose_slash.png", pose_victory: "pose_victory.png",
+    pose_slash: "pose_slash.png", pose_victory: "pose_victory.png", step1: "step1.jpg", step2: "step2.jpg", step3: "step3.jpg",
     bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg" };
   let imgPending = 0;
   function loadImages(base) {
@@ -478,17 +478,23 @@
   // ------------------------------------------------------------------ video slots (optional AI clips)
   // assets/vid_<name>.mp4 plays muted behind the telops during a key 演出; a missing file is skipped.
   const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4",
-    sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4" };
+    sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4", round2: "vid_round2.mp4", round3: "vid_round3.mp4",
+    battle: "vid_battle.mp4", lose: "vid_lose.mp4" };
   // Where the canvas carries the key content (777, the RUSH logo) the clip is screened over it.
   const VID_SCREEN = { jackpot: true, rush: true, sp: true, spsp: true };
   const VID = {};
   let vidLayer = null;
+  // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
+  // first, so a phone does not fetch every clip at once on opening the page.
+  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "round", "round2", "round3"];
+  const VID_GAP = 2.5;   // seconds between preloads
   function loadVideos(base) {
     for (const k in VID_FILES) {
       const v = document.createElement("video");
-      v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "auto";
+      v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "metadata";
       v.className = "pkl-vid";
       if (VID_SCREEN[k]) { v.style.mixBlendMode = "screen"; v.classList.add("scr"); }
+      if (k.startsWith("round")) v.classList.add("pip");   // bonus rounds: a framed window, the boss stays in view
       // Usable at once: iOS Safari loads no media data before play(), so waiting for loadeddata
       // would skip every clip there. A missing or unplayable file fires error and is dropped.
       VID[k] = v;
@@ -497,14 +503,36 @@
       v.src = base + VID_FILES[k];
       vidLayer.appendChild(v);
     }
+    const order = VID_ORDER.concat(Object.keys(VID_FILES).filter((k) => VID_ORDER.indexOf(k) < 0));
+    order.forEach((k, i) => setTimeout(() => { if (VID[k]) VID[k].preload = "auto"; }, (2 + i * VID_GAP) * 1000));
   }
   function playClip(name) {
     const v = VID[name];
-    if (!v) return;
+    if (!v) return null;
     try { v.currentTime = 0; } catch (e) { /* not seekable yet: plays from where it is */ }
+    v.playbackRate = clamp(clk.scale, 0.5, 4);   // keeps pace with the 演出 speed setting
     v.classList.add("on");
     const p = v.play();
-    if (p && p.catch) p.catch(() => v.classList.remove("on"));
+    if (p && p.catch) p.catch(() => { v.classList.remove("on"); v.dispatchEvent(new Event("ended")); });
+    return v;
+  }
+  // Plays a clip and resolves when it ends (or after max seconds); null when there is no clip.
+  function playClipToEnd(name, max) {
+    const v = playClip(name);
+    if (!v) return null;
+    return new Promise((res) => {
+      let done = false;
+      const fin = () => { if (done) return; done = true; v.removeEventListener("ended", fin); v.classList.remove("on"); res(); };
+      v.addEventListener("ended", fin);
+      wait(max).then(fin);
+    });
+  }
+  // A white flash above the clips (the canvas flash sits under them).
+  let whiteEl = null;
+  function white(a, sec) {
+    if (!whiteEl) return;
+    whiteEl.style.transition = "opacity " + (sec / clk.scale).toFixed(3) + "s";
+    whiteEl.style.opacity = String(a);
   }
   function drawCover(ctx, im, x, y, w, h) {
     const s = Math.max(w / im.naturalWidth, h / im.naturalHeight);
@@ -1461,6 +1489,7 @@
         drawRays(ctx, CX, 150, C.gold, age * 0.18, 0.4, 440, 18, true);
         if (gal.cur) drawGallery(ctx);
         else drawWarrior(ctx, { x: CX - 10, y: H + 34, sc: 1.02, t: age, rim: "gold", aura: 1, sword: -1.25 + Math.sin(age * 1.5) * 0.04 });
+        if (boss.on) drawBoss(ctx);
         ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.orange, CX, H + 20, 240, 0.35); ctx.restore();
       },
       emit(dt) {
@@ -1569,7 +1598,9 @@
 .pkl-ov{position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;}
 .pkl-vid{position:absolute;left:0;top:0;width:${W}px;height:${H}px;object-fit:cover;opacity:0;transition:opacity .25s;pointer-events:none;}
 .pkl-vid.on{opacity:1;}
+.pkl-white{position:absolute;left:0;top:0;width:${W}px;height:${H}px;background:#fff;opacity:0;pointer-events:none;}
 .pkl-vid.scr.on{opacity:.6;}   /* screened clips are bright: keep the 777 under them readable */
+.pkl-vid.pip{left:${Math.round(W * 0.03)}px;top:${Math.round(H * 0.19)}px;width:${Math.round(W * 0.6)}px;height:${Math.round(H * 0.56)}px;border:2px solid #ffd27a;border-radius:10px;box-shadow:0 0 18px rgba(255,170,50,.75);}
 .pkl-t{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.08;pointer-events:none;font-family:${FONT_DIGIT};
   will-change:transform,opacity;opacity:0;letter-spacing:.02em;}
 .pkl-t>span{position:relative;display:block;color:var(--bk);-webkit-text-stroke:var(--sw,.22em) var(--bk);
@@ -1741,7 +1772,7 @@
   let rushInfo = { st: 11, streak: 0, gained: 0 };
   let curOpts = null;
   let pushWaiter = null;
-  const renda = { on: false, n: 0, g: 0, auto: false, lastAuto: 0 };
+  const renda = { on: false, n: 0, g: 0, auto: false, lastAuto: 0, onHit: null };
   let kpx = 2, lastW = 0, frameN = 0;
 
   // ------------------------------------------------------------------ logo + overlays
@@ -1892,7 +1923,8 @@
     tween(fx, { dim: 0, gray: 0, vign: 0, tint: 0 }, 0.2);
     fx.vignP = 0; hitPulse.on = false;
     reels.forEach((r) => { r.glow = 0; r.dim = 0; });
-    renda.on = false; pushWaiter = null;
+    renda.on = false; renda.onHit = null; pushWaiter = null;
+    white(0, 0.1);
     if (!keepScene) setScene(modeScene(), 0.25);
   }
   function pedIn(c) { ped.c = c; ped.a = 1; ped.t0 = clk.t; ped.s = 1; }
@@ -1915,6 +1947,7 @@
     const bx = rand(220, 340), by = rand(110, 210);
     burst("front", bx, by, 6, { cols: [C.gold, C.white, C.orange], v0: 80, v1: 220, l0: 0.2, l1: 0.45, s0: 1, s1: 2.4, len: 14 });
     shake(1.5);
+    if (renda.onHit) renda.onHit();
     if (!auto && curOpts && curOpts.onPush) try { curOpts.onPush("renda"); } catch (e) { /* ignore */ }
   }
 
@@ -1945,8 +1978,14 @@
     speedLines(ctx, 0, 0, 26, C.white, 0.25, 30, Math.floor(clk.t * 20));
     // content per level (each step hotter than the last)
     const tt = clk.t;
+    const art = lv <= 3 && IMG["step" + lv];
+    if (art) {   // AI art for STEP 1-3, breathing slightly (the drawn flames looked plain)
+      const z = 1.04 + 0.03 * Math.sin(tt * 3);
+      ctx.save(); ctx.scale(z, z); drawCover(ctx, art, -w / 2, -h / 2, w, h); ctx.restore();
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, c === "rainbow" ? C.gold : c, 0, 0, 120, 0.25); ctx.restore();
+    }
     ctx.globalCompositeOperation = "lighter";
-    if (lv === 1) {
+    if (art) { /* drawn above */ } else if (lv === 1) {
       for (let i = 0; i < 7; i++) flameShape(ctx, -84 + i * 28, 62, 34, 70 + 26 * Math.sin(tt * 9 + i * 1.7), Math.sin(tt * 5 + i) * 6, 0.85, FLAME_BLUE);
     } else if (lv === 2) {
       for (let i = 0; i < 7; i++) flameShape(ctx, -84 + i * 28, 62, 34, 80 + 26 * Math.sin(tt * 10 + i * 1.3), Math.sin(tt * 6 + i) * 8, 0.85, FLAME_GREEN);
@@ -2023,11 +2062,34 @@
     }
     panel.out = clk.t; await wait(0.2); panel.kill = true;
   }
+  // Tinted, downsized copy of an art image (cached), so the 群龍 swarm is not 13 clones.
+  function tinted(im, col, a) {
+    const key = "tint" + im.src + col + a;
+    if (cache[key]) return cache[key];
+    const h = Math.min(320, im.naturalHeight), w = (h * im.naturalWidth) / im.naturalHeight;
+    const c = mkCanvas(w, h), g = c.getContext("2d");
+    g.drawImage(im, 0, 0, c.width, c.height);
+    if (a > 0) { g.globalCompositeOperation = "source-atop"; g.globalAlpha = a; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height); }
+    c.naturalWidth = c.width; c.naturalHeight = c.height;   // drawn like an <img> by drawArtDragon
+    return (cache[key] = c);
+  }
   function gunFx(ctxs) {
     const ds = [];
-    for (let i = 0; i < 13; i++) ds.push({ y: 96 + (i % 7) * 26 + rand(-10, 10), ph: rand(0, TAU), sc: rand(0.26, 0.42), dl: (i % 5) * 0.11 + rand(0, 0.12), sp: rand(0.9, 1.15), pal: i % 4 === 0 ? "gold" : "fire" });
-    ds.sort((a, b) => a.sc - b.sc);
-    const pos = (d, age) => { const u = ((age - d.dl) / 1.2) * d.sp; return { u, x: lerp(-120, W + 120, u), y: d.y + Math.sin(u * 6 + d.ph) * 14 - u * 26 }; };
+    // depth: far ones small, dark and slow; near ones big and bright; every fourth one gold
+    for (let i = 0; i < 13; i++) {
+      const z = rand(0, 1);
+      ds.push({ y: 96 + (i % 7) * 26 + rand(-10, 10), ph: rand(0, TAU), z, sc: lerp(0.2, 0.52, z), dl: (i % 5) * 0.11 + rand(0, 0.12),
+        sp: lerp(0.8, 1.25, z) * rand(0.95, 1.05), amp: rand(8, 22), gold: i % 4 === 0 });
+    }
+    ds.sort((a, b) => a.z - b.z);
+    const art = (d) => {
+      if (d.gold) return IMG.cab_dragon ? tinted(IMG.cab_dragon, "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
+      return d.z < 0.35 ? tinted(IMG.rival, "#2a0604", 0.55) : d.z < 0.7 ? tinted(IMG.rival, "#ff7a1a", 0.18) : tinted(IMG.rival, "#000", 0);
+    };
+    const pos = (d, age) => {
+      const u = ((age - d.dl) / 1.2) * d.sp, a = u * 6 + d.ph;
+      return { u, x: lerp(-120, W + 120, u), y: d.y + Math.sin(a) * d.amp - u * 26, tilt: Math.atan2(Math.cos(a) * d.amp * 6 - 26, W + 240) };
+    };
     addActor("front", 2.0, (ctx, age) => {
       const k = Math.sin(clamp(age / 2, 0, 1) * Math.PI);
       ctx.globalAlpha = 0.6 * k; ctx.fillStyle = "#1a0200"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
@@ -2035,8 +2097,13 @@
       for (const d of ds) {
         const p = pos(d, age);
         if (p.u < 0 || p.u > 1) continue;
-        if (IMG.rival) drawArtDragon(ctx, d.pal === "gold" && IMG.cab_dragon ? IMG.cab_dragon : IMG.rival, p.x - 60 * d.sc, p.y, 270 * d.sc, true);   // flying right
-        else drawDragon(ctx, { x: p.x, y: p.y, sc: d.sc, dir: 1, simple: true, pal: d.pal, t: age * 2.5 + d.ph, len: 260, amp: 0.5, wave: 1.4, spd: 6, glow: 1.6, ang: -0.15 });
+        if (IMG.rival) {   // flying right, nose following its path
+          ctx.save(); ctx.globalAlpha = lerp(0.75, 1, d.z);
+          ctx.translate(p.x, p.y); ctx.rotate(p.tilt); ctx.translate(-p.x, -p.y);
+          drawArtDragon(ctx, art(d), p.x - 60 * d.sc, p.y, 270 * d.sc, true);
+          ctx.restore();
+        }
+        else drawDragon(ctx, { x: p.x, y: p.y, sc: d.sc, dir: 1, simple: true, pal: d.gold ? "gold" : "fire", t: age * 2.5 + d.ph, len: 260, amp: 0.5, wave: 1.4, spd: 6, glow: 1.6, ang: -0.15 });
       }
     }, {
       seq: true,
@@ -2111,7 +2178,7 @@
     ped.c = to; ped.chT0 = clk.t;
     burst("front", ped.x, ped.y - 4, 22, { cols: [HOLD_RGB[to] || C.white, C.white], v0: 60, v1: 200, l0: 0.3, l1: 0.7, s0: 1, s1: 2.4 });
     flash(HOLD_RGB[to] || C.white, 0.25, 4); shake(2);
-    telop(T("lcd.holdChange"), { x: CX, y: 262, size: 18, cls: to === "rainbow" ? "rainbow" : to === "gold" ? "gold" : to === "red" ? "red" : to === "green" ? "green" : "blue", anim: "pop", dur: 1.0 });
+    telop(T("lcd.holdChange"), { x: CX, y: 246, size: 30, dur: 1.4, cls: to === "rainbow" ? "rainbow" : to === "gold" ? "gold" : to === "red" ? "red" : to === "green" ? "green" : "blue", anim: "pop" });
     ctxs.emit("holdChange");
   }
   function sealFx(n) {
@@ -2285,22 +2352,39 @@
   async function battleSeq(S, r, ctxs) {
     setScene("battle", 0.15);
     const B = { hx: -140, hy: H + 26, hsc: 1.0, hs: -1.05, hRot: 0, hDim: 0, hAura: 0.4, hRim: "fire", hA: 1,
-      dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0 };
+      dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0,
+      dash: 0, pose: null, dHitT: -9, hHitT: -9, pops: [] };
     let dHead = { mx: 0, my: 0 };
+    const kick = (t0, px) => { const k = clk.t - t0; return k < 0.35 ? px * Math.exp(-k * 9) : 0; };   // knocked back by a hit
     addActor("back", Infinity, (ctx, age) => {
       if (B.dA > 0.01) {
-        if (IMG.rival) { ctx.globalAlpha = B.dA; drawContain(ctx, IMG.rival, B.dx - 150, 50, 300, 270, true); ctx.globalAlpha = 1; }
-        else dHead = drawDragon(ctx, { x: B.dx, y: B.dy, sc: B.dsc, dir: -1, t: age * 1.2, len: 400, w0: 18, ang: 0.35, curl: -2.2, amp: 0.3, wave: 1.1, spd: 2.6, pal: "fire", glow: true, alpha: B.dA, jaw: B.dJaw });
-        if (IMG.rival) dHead = { mx: B.dx - 80, my: 170 };
-        if (B.dDim > 0) { ctx.globalAlpha = B.dDim * 0.5; ctx.fillStyle = "#000"; ctx.fillRect(B.dx - 80, 0, W, H); ctx.globalAlpha = 1; }
+        const dx = B.dx + kick(B.dHitT, 16), lit = 1 - (clk.t - B.dHitT) / 0.12;
+        if (IMG.rival) {
+          ctx.globalAlpha = B.dA; drawContain(ctx, IMG.rival, dx - 150, 50, 300, 270, true);
+          if (lit > 0) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = B.dA * 0.6 * lit; drawContain(ctx, IMG.rival, dx - 150, 50, 300, 270, true); ctx.globalCompositeOperation = "source-over"; }
+          ctx.globalAlpha = 1;
+          dHead = { mx: dx - 80, my: 170 };
+        }
+        else dHead = drawDragon(ctx, { x: dx, y: B.dy, sc: B.dsc, dir: -1, t: age * 1.2, len: 400, w0: 18, ang: 0.35, curl: -2.2, amp: 0.3, wave: 1.1, spd: 2.6, pal: "fire", glow: true, alpha: B.dA, jaw: B.dJaw });
+        if (B.dDim > 0) { ctx.globalAlpha = B.dDim * 0.5; ctx.fillStyle = "#000"; ctx.fillRect(dx - 80, 0, W, H); ctx.globalAlpha = 1; }
       }
+      const hx = B.hx + kick(B.hHitT, -14);
       if (IMG.hero) {   // pivots at its feet and sinks like the drawn warrior (敗北: hy, hRot)
-        ctx.save(); ctx.globalAlpha = B.hA * (1 - B.hDim * 0.6);
-        ctx.translate(B.hx, H); ctx.rotate(B.hRot); ctx.translate(0, B.hy - (H + 26));
-        drawContain(ctx, IMG.hero, -120, 40 - H, 240, 280, true);
-        ctx.restore();
+        const im = (B.pose === "slash" && IMG.pose_slash) || IMG.hero;
+        const one = (x, a) => {
+          ctx.save(); ctx.globalAlpha = a;
+          ctx.translate(x, H); ctx.rotate(B.hRot); ctx.translate(0, B.hy - (H + 26));
+          drawContain(ctx, im, -120, 40 - H, 240, 280, true);
+          ctx.restore();
+        };
+        if (B.dash > 0.02) {   // afterimages while dashing
+          ctx.save(); ctx.globalCompositeOperation = "lighter";
+          for (let i = 3; i >= 1; i--) one(hx - i * 22, B.dash * 0.22 * (1 - i / 4));
+          ctx.restore();
+        }
+        one(hx, B.hA * (1 - B.hDim * 0.6));
       }
-      else drawWarrior(ctx, { x: B.hx, y: B.hy, sc: B.hsc, t: age, sword: B.hs, rot: B.hRot, dim: B.hDim, aura: B.hAura, rim: B.hRim, alpha: B.hA });
+      else drawWarrior(ctx, { x: hx, y: B.hy, sc: B.hsc, t: age, sword: B.hs, rot: B.hRot, dim: B.hDim, aura: B.hAura, rim: B.hRim, alpha: B.hA });
     }, { seq: true });
     // HP bars
     addActor("top", Infinity, (ctx) => {
@@ -2321,6 +2405,8 @@
       ctx.font = "16px " + FONT_DIGIT; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.fillStyle = "#ffd24a";
       ctx.strokeText("VS", CX, 29); ctx.fillText("VS", CX, 29);
     }, { seq: true });
+    addActor("top", Infinity, (ctx) => drawPops(ctx, B.pops), { seq: true });
+    const pop = (v, x, y, size, col) => { B.pops.push({ v, x, y, t: clk.t, size, col }); if (B.pops.length > 16) B.pops.shift(); };
     // fire breath emitter
     addActor("top", Infinity, () => {}, {
       seq: true,
@@ -2330,9 +2416,11 @@
         for (let i = 0; i < n; i++) emit("front", { x: dHead.mx, y: dHead.my, vx: rand(-420, -300), vy: rand(-50, 60), ay: -40, drag: 0.8, life: rand(0.45, 0.7), s0: rand(6, 10), s1: rand(26, 40), a0: 0.95, a1: 0, type: "fire" });
       },
     });
-    telop(T("lcd.battle"), { x: CX, y: 112, size: 44, cls: "fire", anim: "slam", dur: 1.3 });
+    const film = playClipToEnd("battle", 3.4);   // the face-off on film, when there is a clip
+    telop(T("lcd.battle"), { x: CX, y: 112, size: 44, cls: "fire", anim: "slam", dur: film ? 2.4 : 1.3 });
     tween(B, { hx: 96 }, 0.5, E.out); tween(B, { dx: 312 }, 0.55, E.out);
     await wait(0.9);
+    if (film) await film;
     telop("VS", { x: CX, y: 176, size: 70, cls: "gold", anim: "stamp", dur: 0.8, rot: -8 });
     flash(C.white, 0.6, 4); shake(6);
     addActor("mid", 0.4, (ctx, age) => { for (let i = 0; i < 3; i++) lightning(ctx, CX, 40, CX + (i - 1) * 60, 300, i * 5 + Math.floor(age * 30), C.gold, 2, 1 - age / 0.4); }, { seq: true });
@@ -2347,40 +2435,73 @@
       ctx.fillStyle = gr; roundRect(ctx, 108, 270, 176 * renda.g, 8, 4); ctx.fill();
       ctx.strokeStyle = "#ffe08a"; ctx.lineWidth = 1.4; roundRect(ctx, 106, 268, 180, 12, 6); ctx.stroke();
     }, { seq: true });
-    for (let k = 0; k < 4; k++) {
-      if (k % 2 === 0) {
-        // hero slash
-        tween(B, { hx: 150, hs: 0.45 }, 0.16, E.out);
-        await wait(0.16);
-        const cx0 = rand(250, 320), cy0 = rand(110, 170);
-        addActor("mid", 0.45, (ctx, age) => slashArc(ctx, cx0 - 40, cy0 + 40, 110, -2.4, -0.4, 22, age / 0.45, C.cyan), { seq: true });
-        burst("front", cx0, cy0, 22, { cols: [C.white, C.gold, C.cyan], v0: 100, v1: 360, s0: 1.2, s1: 2.8, len: 22 });
-        flash(C.white, 0.3, 6); shake(5);
-        B.hp2 = Math.max(0.3, B.hp2 - 0.14);
-        await wait(0.18);
-        tween(B, { hx: 96, hs: -1.05 }, 0.3, E.out);
-        await wait(0.3);
-      } else {
-        // dragon breath
-        tween(B, { dJaw: 0.55, dx: 300 }, 0.15);
-        B.breath = 1;
-        await wait(0.5);
-        B.breath = 0; tween(B, { dJaw: 0.2, dx: 312 }, 0.25);
-        tween(B, { hx: 76 }, 0.12); shake(4); flash(C.orange, 0.3, 5);
-        B.hp1 = Math.max(0.35, B.hp1 - 0.16);
-        await wait(0.18);
-        tween(B, { hx: 96 }, 0.25);
-        await wait(0.12);
+    renda.onHit = () => {   // every PUSH lands a small hit of its own
+      B.dHitT = clk.t; B.hp2 = Math.max(0.3, B.hp2 - 0.006);
+      pop(10 + Math.floor(rng() * 90), rand(250, 330), rand(90, 180), 15);
+    };
+    // the hero dashes in with a flame slash
+    const heroStrike = async () => {
+      ctxs.emit("atk:hero");
+      B.pose = "slash"; B.dash = 1;
+      tween(B, { hx: 168, hs: 0.45 }, 0.16, E.out); tween(B, { dash: 0 }, 0.45);
+      await wait(0.16);
+      const cx0 = rand(260, 320), cy0 = rand(110, 170);
+      addActor("mid", 0.45, (ctx, age) => slashArc(ctx, cx0 - 40, cy0 + 40, 110, -2.4, -0.4, 22, age / 0.45, C.orange), { seq: true });
+      fireBurst(cx0, cy0, 14, 160, "front");
+      burst("front", cx0, cy0, 22, { cols: [C.white, C.gold, C.orange], v0: 100, v1: 360, s0: 1.2, s1: 2.8, len: 22 });
+      flash(C.white, 0.3, 6); shake(5);
+      B.dHitT = clk.t; B.hp2 = Math.max(0.3, B.hp2 - 0.14);
+      pop(800 + Math.floor(rng() * 700), cx0, cy0 - 24, 28);
+      await wait(0.2);
+      B.pose = null; tween(B, { hx: 96, hs: -1.05 }, 0.3, E.out);
+      await wait(0.3);
+    };
+    // the dragon hits back: fire breath, then a claw swipe
+    const dragonBreath = async () => {
+      ctxs.emit("atk:dragon");
+      tween(B, { dJaw: 0.55, dx: 300 }, 0.15);
+      B.breath = 1;
+      await wait(0.5);
+      B.breath = 0; tween(B, { dJaw: 0.2, dx: 312 }, 0.25);
+      shake(4); flash(C.orange, 0.3, 5);
+      B.hHitT = clk.t; B.hp1 = Math.max(0.35, B.hp1 - 0.16);
+      pop(300 + Math.floor(rng() * 400), 110, 130, 24, "#ff8a7a");
+      await wait(0.3);
+    };
+    const dragonClaw = async () => {
+      ctxs.emit("atk:dragon");
+      tween(B, { dx: 236 }, 0.16, E.in);
+      await wait(0.16);
+      for (let i = 0; i < 3; i++) {
+        const o = (i - 1) * 18;
+        addActor("mid", 0.35, (ctx, age) => slashArc(ctx, 150 + o, 110 + o, 70, -0.9, 1.3, 12, age / 0.35, C.red), { seq: true });
       }
-    }
-    renda.on = false; telopOut(rtp, 0.15); gauge.kill = true;
+      flash(C.red, 0.35, 5); shake(6);
+      B.hHitT = clk.t; B.hp1 = Math.max(0.35, B.hp1 - 0.16);
+      pop(400 + Math.floor(rng() * 400), 104, 120, 24, "#ff8a7a");
+      await wait(0.2);
+      tween(B, { dx: 312 }, 0.3, E.out);
+      await wait(0.25);
+    };
+    await heroStrike(); await dragonBreath(); await heroStrike(); await dragonClaw();
+    renda.on = false; renda.onHit = null; telopOut(rtp, 0.15); gauge.kill = true;
     // ---- PUSH finish
     if (r.push) await pushFinish(ctxs); else await wait(0.3);
     const win = S.hit && !r.revive;
-    // final exchange: both charge
+    // final exchange in slow motion: both charge, the frame holds as they meet, then the blow
+    const sc0 = clk.scale;
+    ctxs.emit("slowmo");
+    tween(fx, { dim: 0.3 }, 0.1);
+    const lines = addActor("top", Infinity, (ctx, age) => speedLines(ctx, CX, 170, 36, C.white, 0.35, 70, Math.floor(age * 40)), { seq: true });
+    clk.scale = sc0 * 0.3;
+    B.pose = "slash"; B.dash = 1;
     tween(B, { hx: 200, hs: 0.6 }, 0.22, E.in);
     tween(B, { dx: 260, dJaw: 0.6 }, 0.22, E.in);
     await wait(0.22);
+    clk.scale = sc0 * 0.04; await wait(0.016);   // about 0.4 s frozen
+    clk.scale = sc0;
+    lines.kill = true; tween(fx, { dim: 0 }, 0.15);
+    ctxs.emit("finalBlow");
     flash(C.white, 1, 2); shake(12);
     addActor("mid", 0.7, (ctx, age) => {
       const u = age / 0.7;
@@ -2388,18 +2509,23 @@
       speedLines(ctx, CX, 170, 40, C.white, 0.5 * (1 - u), 50, Math.floor(age * 30));
     }, { seq: true });
     await wait(0.6);
+    B.dash = 0;
     if (win) await battleWinFx(B, ctxs);
     else {
-      // lose
+      // lose: the dragon's fire (on film, when there is a clip) and the hero falls
+      B.pose = null;
       B.breath = 1.4; tween(B, { dx: 300, dJaw: 0.6, hx: 70 }, 0.2);
+      const fire = playClipToEnd("lose", 3.4);
       await wait(0.6); B.breath = 0;
       tween(B, { hRot: -0.25, hy: H + 90, hDim: 0.85, hAura: 0, hp1: 0 }, 0.5, E.out);
       tween(B, { dJaw: 0.2, dx: 312 }, 0.4);
       shake(6);
+      if (fire) await wait(1.0);   // 敗北 lands over the clip's last second
       telop(T("lcd.lose"), { x: CX, y: 150, size: 54, cls: "gray", anim: "drop", dur: S.hit ? 1.5 : 1.9, inD: 0.5 });
       tween(fx, { gray: 0.85, dim: 0.25 }, 0.4);
       ctxs.emit("battleLose");
       await wait(1.6);
+      if (fire) await fire;
       if (S.hit && r.revive) {
         tween(fx, { gray: 0, dim: 0.5 }, 0.2);
         await wait(0.3);
@@ -2429,17 +2555,33 @@
     if (!S.hit) { reels.forEach((rr) => (rr.dim = 0.5)); }
   }
   async function battleWinFx(B, ctxs) {
-    playClip("win");
-    // dragon explodes
+    B.pose = null; B.hRim = "gold";
+    const victory = () => {
+      addActor("back", 2.0, (ctx, age) => drawRays(ctx, 120, 180, C.gold, age * 1.2, 0.6, 460, 18, true), { seq: true });
+      telop(T("lcd.win"), { x: CX + 30, y: 142, size: 66, cls: "gold", anim: "slam", dur: 1.6, inD: 0.2 });
+      ctxs.emit("battleWin");
+    };
+    if (VID.win) {
+      // the final blow on film: white in, the whole clip, white out onto 勝利!!
+      white(1, 0.12); await wait(0.14);
+      Object.assign(B, { dA: 0, hp2: 0, hAura: 1.3, hx: 120, hs: -1.25 });
+      const film = playClipToEnd("win", 3.6);
+      white(0, 0.3);
+      await film;
+      white(1, 0.1); await wait(0.12);
+      white(0, 0.5);
+      victory();
+      await wait(1.5);
+      return;
+    }
+    // no clip: the dragon explodes on the canvas
     const ex = B.dx - 40, ey = B.dy + 20;
     fireBurst(ex, ey, 60, 320, "front");
     burst("front", ex, ey, 40, { cols: [C.gold, C.white, C.orange], v0: 150, v1: 480, s0: 1.5, s1: 3.5, len: 26 });
     shake(14); flash(C.gold, 0.9, 2.5);
     tween(B, { dA: 0, hpA: 1, hp2: 0 }, 0.6);
-    B.hRim = "gold"; tween(B, { hAura: 1.3, hx: 120, hs: -1.25 }, 0.4, E.out);
-    addActor("back", 2.0, (ctx, age) => drawRays(ctx, 120, 180, C.gold, age * 1.2, 0.6, 460, 18, true), { seq: true });
-    telop(T("lcd.win"), { x: CX + 30, y: 142, size: 66, cls: "gold", anim: "slam", dur: 1.6, inD: 0.2 });
-    ctxs.emit("battleWin");
+    tween(B, { hAura: 1.3, hx: 120, hs: -1.25 }, 0.4, E.out);
+    victory();
     await wait(1.5);
   }
 
@@ -2457,13 +2599,13 @@
       ctxs.emit("spinStart");
       pedIn(S.holdColor);
       const rushy = S.mode !== "normal";
+      const heavy = !!(S.reach || S.pseudo || S.stepup || S.gun || S.cutin || S.kokuchi || S.holdChangeTo);
+      const fast = S.fast && !heavy;
       if (opts.skip) {
         reels.forEach((r) => reelSpin(r, 20));
         await wait(0.18);
         await Promise.all([stopE(0, S.final[0], 0.16, ctxs), stopE(2, S.final[2], 0.18, ctxs), stopE(1, S.final[1], 0.2, ctxs)]);
       } else {
-        const heavy = !!(S.reach || S.pseudo || S.stepup || S.gun || S.cutin || S.kokuchi || S.holdChangeTo);
-        const fast = S.fast && !heavy;
         reels.forEach((r) => reelSpin(r, fast ? 20 : 16));
         if (fast) {
           await wait(rushy ? 0.3 : 0.38);
@@ -2492,7 +2634,7 @@
       else {
         ctxs.emit("miss");
         if (S.reach) { reels.forEach((r) => (r.dim = 0.5)); tween(fx, { vign: 0 }, 0.3); }
-        await wait(S.reach ? 0.6 : 0.2);
+        await wait(S.reach ? 0.6 : fast ? 0.08 : 0.2);   // 保留短縮: the next spin follows almost at once
       }
     } finally {
       clk.scale = 1;
@@ -2564,10 +2706,11 @@
     const im = IMG[key];
     if (!im || a <= 0.01) return;
     const z = 1 + 0.07 * Math.min(1, t / 9), px = (gal.n % 2 ? 1 : -1) * 10 * Math.min(1, t / 9);
+    const gx = boss.on ? W * 0.33 : CX, bw = boss.on ? W * 0.66 : W - 48;   // the boss takes the right third
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.translate(CX + px, H); ctx.scale(z, z); ctx.translate(-CX, -H);
-    drawContain(ctx, im, 24, 26, W - 48, H - 26, true);
+    ctx.translate(gx + px, H); ctx.scale(z, z); ctx.translate(-gx, -H);
+    drawContain(ctx, im, gx - bw / 2, 26, bw, H - 26, true);
     ctx.restore();
   }
   function drawGallery(ctx) {
@@ -2575,6 +2718,69 @@
     if (gal.prev && f < 1) drawGalleryImg(ctx, gal.prev, 1 - f, t + 9);
     drawGalleryImg(ctx, gal.cur, f, t);
   }
+  // 打倒炎龍王: in a bonus the rival waits on the right with a life bar; every PUSH hits it
+  // (LCD.push), and knocking it out before the bonus ends earns a reward the shell pays. Its life
+  // grows with the rounds, so a 3R bonus needs a quick hand and a 10R one a steady one.
+  const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [] };
+  const BOSS_HP_PER_ROUND = 9;
+  function bossStart(rounds) {
+    Object.assign(boss, { on: true, hp: rounds * BOSS_HP_PER_ROUND, max: rounds * BOSS_HP_PER_ROUND, down: false, hitT: -9, pops: [] });
+    telop(T("lcd.bossHint"), { x: CX, y: 64, size: 22, cls: "red", anim: "pop", dur: 2.6, inD: 0.6 });
+  }
+  function drawBoss(ctx) {
+    const t = clk.t, bx = W - 84, by = 160;
+    let al = 1;
+    if (boss.down) { al = 1 - (t - boss.downT) / 1.1; if (al <= 0) return; }
+    const k = t - boss.hitT, sh = k < 0.25 ? Math.sin(k * 90) * 9 * (1 - k / 0.25) : 0;
+    ctx.save();
+    ctx.globalAlpha = al;
+    if (IMG.rival) drawArtDragon(ctx, IMG.rival, bx + sh, by + Math.sin(t * 1.8) * 4, 205, false);
+    else drawDragon(ctx, { x: bx - 50 + sh, y: by - 40, sc: 0.55, dir: -1, t: t, len: 260, amp: 0.3, pal: "fire", glow: true, jaw: 0.3 });
+    if (k < 0.14) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, bx, by - 20, 90, 0.8 * (1 - k / 0.14)); }
+    ctx.restore();
+    // life bar
+    const x0 = W - 164, y0 = 70, bw = 150, f = boss.hp / boss.max;   // below the ROUND header
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.fillStyle = "rgba(0,0,0,0.65)"; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.fill();
+    const lg = ctx.createLinearGradient(x0, 0, x0 + bw, 0);
+    lg.addColorStop(0, "#ff2a1a"); lg.addColorStop(1, "#ffb21a");
+    ctx.fillStyle = lg; roundRect(ctx, x0, y0, Math.max(0.001, bw * f), 10, 4); ctx.fill();
+    ctx.strokeStyle = "#ffd27a"; ctx.lineWidth = 1.5; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.stroke();
+    ctx.font = "900 12px " + FONT_TC; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(T("lcd.rival"), x0, y0 - 5);
+    ctx.restore();
+    drawPops(ctx, boss.pops, al);
+  }
+  // Damage numbers rising from hits: { v, x, y, t, size?, col? }.
+  function drawPops(ctx, pops, al) {
+    ctx.save();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 4; ctx.strokeStyle = "#3a0000";
+    for (const p of pops) {
+      const a = clk.t - p.t;
+      if (a > 0.7 || a < 0) continue;
+      ctx.font = "900 " + (p.size || 22) + "px " + FONT_DIGIT;
+      ctx.globalAlpha = (al == null ? 1 : al) * (1 - a / 0.7);
+      const y = p.y - a * 46;
+      ctx.strokeText(String(p.v), p.x, y); ctx.fillStyle = p.col || "#ffe14a"; ctx.fillText(String(p.v), p.x, y);
+    }
+    ctx.restore();
+  }
+  function bossHit() {
+    if (!boss.on || boss.down) return null;
+    boss.hp = Math.max(0, boss.hp - 1); boss.hitT = clk.t;
+    boss.pops.push({ v: 80 + Math.floor(rng() * 170), t: clk.t, x: W - 96 + rand(-34, 34), y: 120 + rand(-24, 24) });
+    if (boss.pops.length > 14) boss.pops.shift();
+    burst("front", W - 100 + rand(-20, 20), 150 + rand(-30, 30), 10, { cols: [C.gold, C.white, C.orange], v0: 80, v1: 220, s0: 1, s1: 2.4, len: 16 });
+    shake(2);
+    if (boss.hp > 0) return "boss";
+    boss.down = true; boss.downT = clk.t;
+    fireBurst(W - 84, 150, 50, 260, "front"); flash(C.gold, 0.8, 3); shake(10);
+    telop(T("lcd.bossDown"), { x: W - 96, y: 118, size: 44, cls: "gold", anim: "slam", dur: 1.8 });
+    telop(T("lcd.bossReward", { n: 100 }), { x: W - 96, y: 166, size: 24, cls: "rainbow", anim: "pop", dur: 1.8, inD: 0.3 });
+    return "bossDown";
+  }
+  let roundClipN = 0;
   function showRoundImpl(round, rounds, gained) {
     if (mode !== "bonus") mode = "bonus";
     killSeqActors(); clearTelops();
@@ -2590,10 +2796,11 @@
     if (changed) {
       hudState.roundPopT = clk.t;
       galleryNext();
-      if (round % 3 === 2) playClip("round");   // rounds 2, 5, 8: the hero's flaming sword
+      if (!boss.on) bossStart(rounds);
+      if (round % 2 === 0) playClip(["round", "round2", "round3"][roundClipN++ % 3]);   // every other round, in turn
       const lines = T("lcd.roundLines").split("|");
       const line = round === rounds && rounds > 1 ? T("lcd.finalRound") : lines[(round - 1) % lines.length];
-      telop(line, { x: CX, y: 200, size: 28, cls: round === rounds ? "rainbow" : "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });
+      telop(line, { x: boss.on ? W * 0.33 : CX, y: 200, size: 26, cls: round === rounds ? "rainbow" : "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });
     }
     gained = gained || 0;
     if (gained !== hudState.gainTo) {
@@ -2602,8 +2809,9 @@
     }
   }
   async function playRoundBreakImpl(round) {
-    telop("ROUND " + round, { x: CX, y: 148, size: 40, cls: "gold", anim: "slam", dur: 1.1 });
-    telop("CLEAR!", { x: CX, y: 192, size: 34, cls: "red", anim: "pop", dur: 1.1, inD: 0.3 });
+    const rx = boss.on ? W * 0.33 : CX;   // above the picture, clear of the life bar and the 獲得 count
+    telop("ROUND " + round, { x: rx, y: 96, size: 34, cls: "gold", anim: "slam", dur: 1.1 });
+    telop("CLEAR!", { x: rx, y: 134, size: 28, cls: "red", anim: "pop", dur: 1.1, inD: 0.3 });
     flash(C.gold, 0.45, 4); shake(3);
     burst("front", CX, 170, 30, { cols: [C.gold, C.white], v0: 100, v1: 300, s0: 1.3, s1: 3 });
     await wait(1.15);
@@ -2613,6 +2821,7 @@
     const next = o.next || "normal", gained = o.gained || 0;
     killSeqActors(); clearTelops();
     hudState.bonusOn = false;
+    boss.on = false;
     layout("hidden", 0.2);
     if (next === "rush") {
       setScene("rush", 0.1);
@@ -2632,6 +2841,16 @@
     } else if (next === "jitan") {
       setScene("jitan", 0.15);
       flash(C.white, 0.8, 2); shake(6);
+      addActor("mid", Infinity, (ctx, age) => {   // the hero rises behind the text
+        const im = IMG.pose_victory || IMG.hero, u = E.out(clamp(age / 0.5, 0, 1));
+        ctx.globalAlpha = 0.85 * u;
+        if (im) drawContain(ctx, im, CX - 140, 40 + 40 * (1 - u), 280, H - 40, true);
+        else drawWarrior(ctx, { x: CX, y: H + 40 + 40 * (1 - u), sc: 0.95, t: age, rim: "gold", aura: 1, sword: -1.25 });
+        ctx.globalAlpha = 1;
+        const g = ctx.createLinearGradient(0, H - 120, 0, H);   // keeps TOTAL readable
+        g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.55)");
+        ctx.fillStyle = g; ctx.fillRect(0, H - 120, W, 120);
+      }, { seq: true });
       telop(T("lcd.chanceTime"), { x: CX, y: 96, size: 30, cls: "fire", anim: "slam", stay: true });
       await wait(0.4);
       telop(T("lcd.jitanN"), { x: CX, y: 166, size: 54, cls: "gold", anim: "slam", stay: true });
@@ -2705,7 +2924,8 @@
       ov = document.createElement("div"); ov.className = "pkl-ov";
       telLayer = document.createElement("div"); telLayer.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;";
       vidLayer = document.createElement("div");
-      root.appendChild(cv); root.appendChild(vidLayer); root.appendChild(ov);
+      whiteEl = document.createElement("div"); whiteEl.className = "pkl-white";
+      root.appendChild(cv); root.appendChild(vidLayer); root.appendChild(whiteEl); root.appendChild(ov);
       lcdEl.appendChild(root);
       buildHud();
       ov.appendChild(telLayer);
@@ -2753,7 +2973,10 @@
       setHoldView(useRush ? holdSrc.rush : holdSrc.holds);
     },
     playSpin(script, opts) { return enqueue(() => playSpinImpl(script, opts)); },
+    // Returns true when a prompt or 連打 took the press, "boss" / "bossDown" when it hit the boss
+    // of a bonus (bossDown: knocked out, the shell pays the reward), else false.
     push() {
+      if (mode === "bonus" && boss.on && !boss.down && !pushWaiter && !renda.on) return bossHit();
       if (pushWaiter) {
         const w = pushWaiter; pushWaiter = null;
         if (curOpts && curOpts.onPush) try { curOpts.onPush("prompt"); } catch (e) { /* ignore */ }
@@ -2762,6 +2985,7 @@
       if (renda.on) { rendaHit(false); return true; }
       return false;
     },
+    bossActive() { return mode === "bonus" && boss.on && !boss.down; },
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
     showRound(round, rounds, gained) { enqueue(() => showRoundImpl(round, rounds, gained)); },
     playRoundBreak(round) { return enqueue(() => playRoundBreakImpl(round)); },

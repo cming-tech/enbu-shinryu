@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0a0204"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="炎舞神龍"><link rel="icon" href="img/icon/icon_192.png"><link rel="apple-touch-icon" href="img/icon/icon_180.png"></head><body>
 <title>炎舞神龍</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -170,7 +170,7 @@
   .seg button { height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--metal); color: var(--dim); font-weight: 700; }
   .seg button[aria-pressed="true"] { background: var(--ice); border-color: var(--ice); color: #04203a; }
   input[type="range"] { flex: none; width: 140px; accent-color: var(--gold); }
-  #glList h3 { margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line);
+  #glList h3, #records h3 { margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line);
     font: 900 17px/1.3 var(--f-display); color: var(--ice); letter-spacing: 1px; }
   .flow { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; }
   .flow li { padding: 4px 9px; border-radius: 999px; background: var(--metal); border: 1px solid var(--line); font-weight: 700; font-size: 13px; }
@@ -179,6 +179,18 @@
   dt { font: 900 14px/1.5 var(--f-body); color: var(--gold); }
   dd { margin: 0; color: var(--ink); min-width: 0; }
   @media (max-width: 360px) { dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } dd { margin-bottom: 8px; } }
+  #recStats { grid-template-columns: 8.5em minmax(0, 1fr); }
+  #recAch { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  #recAch li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; background: var(--metal); border: 1px solid var(--line); }
+  #recAch li > i { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 16px; color: var(--dim); border: 1px solid var(--line); }
+  #recAch li > div { min-width: 0; }
+  #recAch b { display: block; color: var(--dim); }
+  #recAch small { display: block; color: var(--dim); font-size: 12px; }
+  #recAch li.got { border-color: var(--gold); }
+  #recAch li.got > i { background: linear-gradient(#ffcf5a, #e08a12); border-color: #ffd86e; color: #2a1500; }
+  #recAch li.got b { color: var(--gold); }
+  #recAch li.got small { color: var(--ink); }
+  .card p.note { margin: 12px 0 0; color: var(--dim); font-size: 12px; }
   .tutArt { display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: 320 / 170; border-radius: 12px; background: #0b0d14; border: 1px solid var(--line); margin-bottom: 12px; }
   .tutDots { display: flex; gap: 6px; justify-content: center; margin: 4px 0 12px; }
   .tutDots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
@@ -229,6 +241,7 @@
   <h2 data-t="menu.title"></h2>
   <div class="list">
     <button class="big primary" id="mRefill" type="button" data-t="menu.refill"></button>
+    <button class="big" id="mRecords" type="button" data-t="menu.records"></button>
     <button class="big" id="mSettings" type="button" data-t="menu.settings"></button>
     <button class="big" id="mGlossary" type="button" data-t="menu.glossary"></button>
     <button class="big" id="mTutorial" type="button" data-t="menu.tutorial"></button>
@@ -253,6 +266,15 @@
     </div>
     <button class="big" data-close type="button" data-t="ui.close"></button>
   </div>
+</div></div>
+
+<div class="sheet" id="records" hidden><div class="card">
+  <h2 data-t="rec.title"></h2>
+  <dl id="recStats"></dl>
+  <h3 id="recAchHead"></h3>
+  <ul id="recAch"></ul>
+  <p class="note" data-t="rec.note"></p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button" data-t="ui.close"></button></div>
 </div></div>
 
 <div class="sheet" id="glossary" hidden><div class="card">

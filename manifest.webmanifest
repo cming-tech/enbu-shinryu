@@ -1,0 +1,23 @@
+{
+ "name": "炎舞神龍",
+ "short_name": "炎舞神龍",
+ "lang": "zh-Hant",
+ "start_url": "./",
+ "scope": "./",
+ "display": "fullscreen",
+ "orientation": "portrait",
+ "background_color": "#0a0204",
+ "theme_color": "#0a0204",
+ "icons": [
+  {
+   "src": "img/icon/icon_192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "img/icon/icon_512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  }
+ ]
+}

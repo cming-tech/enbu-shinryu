@@ -54,7 +54,7 @@
   const GLOSSARY = [
     ["glg.buttons", ["gl.handle", "gl.push", "gl.auto", "gl.right"]],
     ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
-    ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.rush", "gl.rate", "gl.jitan"]],
+    ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.boss", "gl.rush", "gl.rate", "gl.jitan"]],
     ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive"]],
   ];
 
@@ -97,6 +97,62 @@
     el.textContent = msg; el.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+  }
+
+  // ---------------------------------------------------------------- 我的紀錄 + 成就
+  // Kept apart from the game save: 重新開始 starts a new game but keeps the player's records.
+  const KEY_REC = "pk." + M.id + ".records";
+  const ACH = ["first", "rush", "s3", "s5", "s10", "r10", "boss", "boss10", "spsp", "rainbow", "revive", "rich", "hits100"];
+  const rec = (function () {
+    const r = Object.assign({ hits: 0, rushes: 0, bestStreak: 0, bestBonus: 0, bestRush: 0, boss: 0, got: {} }, parse(load(KEY_REC)));
+    const keep = () => store(KEY_REC, JSON.stringify(r));
+    const best = (k, v) => { if (v > r[k]) r[k] = v; };
+    // unlock toasts wait their turn, so two at once are both read
+    const queue = [];
+    function nextToast() {
+      if (!queue.length) return;
+      snd("coin"); toast(queue[0]);
+      setTimeout(() => { queue.shift(); nextToast(); }, 2500);
+    }
+    function ach(id) {
+      if (r.got[id]) return;
+      r.got[id] = Date.now();
+      queue.push(t("rec.unlocked", { name: t("ach." + id).split("|")[0] }));
+      if (queue.length === 1) nextToast();
+    }
+    return {
+      data: r, ach: (id) => { ach(id); keep(); },
+      hit(kind, streak, reach) {
+        r.hits++; best("bestStreak", streak);
+        ach("first");
+        if (streak >= 3) ach("s3");
+        if (streak >= 5) ach("s5");
+        if (streak >= 10) ach("s10");
+        if (kind === "10R") ach("r10");
+        if (reach && reach.type === "spsp") ach("spsp");
+        if (r.hits >= 100) ach("hits100");
+        keep();
+      },
+      rush() { r.rushes++; ach("rush"); keep(); },
+      bonusEnd(gained) { best("bestBonus", gained); keep(); },
+      rushEnd(streak, gained) { best("bestStreak", streak); best("bestRush", gained); if (gained >= 10000) ach("rich"); keep(); },
+      boss() { r.boss++; ach("boss"); if (r.boss >= 10) ach("boss10"); keep(); },
+    };
+  })();
+  function showRecords() {
+    const r = rec.data, dl = $("recStats"), ul = $("recAch");
+    dl.innerHTML = ""; ul.innerHTML = "";
+    const add = (parent, tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return parent.appendChild(e); };
+    [["rec.hits", "rec.times", r.hits], ["rec.rushes", "rec.times", r.rushes], ["rec.bestStreak", "rec.streak", r.bestStreak],
+      ["rec.bestBonus", "rec.balls", r.bestBonus], ["rec.bestRush", "rec.balls", r.bestRush], ["rec.boss", "rec.times", r.boss]].forEach(([k, u, v]) => {
+      add(dl, "dt", null, t(k)); add(dl, "dd", null, t(u, { n: fmt(v) }));
+    });
+    $("recAchHead").textContent = t("rec.achHead", { n: ACH.filter((id) => r.got[id]).length, m: ACH.length });
+    ACH.forEach((id) => {
+      const [name, how] = t("ach." + id).split("|"), li = add(ul, "li", r.got[id] ? "got" : null);
+      add(li, "i", null, r.got[id] ? "★" : "☆").setAttribute("aria-hidden", "true");
+      const d = add(li, "div"); add(d, "b", null, name); add(d, "small", null, how);
+    });
   }
 
   // ---------------------------------------------------------------- sound helpers
@@ -199,6 +255,9 @@
 
     // ---- shooting
     const FIRE_GAP = 0.6;   // seconds between balls: 100 a minute, like a real machine
+    const BONUS_GAP = FIRE_GAP / 3;   // bonus rounds run three times as fast (the player found them long)
+    const AUTO_TAP = 0.33;   // AUTO PUSH hits the bonus boss three times a second
+    let tapAcc = 0;
     let fireAcc = 0, lastTs = 0;
     function setFiring(on) {
       if (on && eng.state.chips < 1) { openRefill(); on = false; }
@@ -214,9 +273,15 @@
       requestAnimationFrame(loop);
       const dt = lastTs ? Math.min(0.25, (ts - lastTs) / 1000) : 0;
       lastTs = ts;
-      if (!firing || holdFire || document.hidden) return;
+      if (document.hidden) return;
+      if (set.autoPush && PK.LCD.bossActive()) {
+        tapAcc += dt;
+        if (tapAcc >= AUTO_TAP) { tapAcc = 0; doPush(); }
+      } else tapAcc = 0;
+      if (!firing || holdFire) return;
+      const gap = mode === "bonus" ? BONUS_GAP : FIRE_GAP;
       fireAcc += dt;
-      while (fireAcc >= FIRE_GAP && firing) { fireAcc -= FIRE_GAP; fireOne(); }
+      while (fireAcc >= gap && firing) { fireAcc -= gap; fireOne(); }
     }
     function fireOne() {
       const b = eng.fireBall();
@@ -270,9 +335,13 @@
       } else if (n === "reachUp") { snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "pushPrompt") { snd("push"); pushPrompt(true); caption("push"); }
       else if (n === "pushHit") { snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
+      else if (n === "atk:hero") snd("slash");
+      else if (n === "atk:dragon") snd("gun");
+      else if (n === "slowmo") snd("reachUp");
+      else if (n === "finalBlow") snd("cutin");
       else if (n === "battleWin") snd("win");
       else if (n === "battleLose") snd("lose");
-      else if (n === "revive") { snd("kokuchi"); lights("rainbow"); caption("revive"); }
+      else if (n === "revive") { snd("kokuchi"); lights("rainbow"); caption("revive"); rec.ach("revive"); }
       else if (n === "kokuchi") { snd("kokuchi"); lights("rainbow"); PK.Cabinet.flash("#ffffff"); caption("kokuchi"); }
       else if (n === "hitConfirm") { lights("bonus"); PK.Cabinet.flash("#ffd84a"); }
       else if (n === "miss") { pushPrompt(false); modeLook(); }
@@ -283,6 +352,7 @@
       bonusFlow = true; holdFire = true;
       if (day.date !== today()) day = { date: today(), hits: 0 };
       day.hits++; dirty = true;
+      rec.hit(sc.kind, eng.state.rushStreak, sc.reach);
       showCounter();
       snd("jackpot");
       lights("bonus"); PK.Cabinet.flash("#ffd84a");
@@ -303,6 +373,7 @@
     });
     eng.on("bonusEnd", (e) => {
       holdFire = true;
+      rec.bonusEnd(e.gained);
       if (e.next === "rush") snd("rushIn");
       PK.LCD.playBonusEnd({ gained: e.gained, next: e.next }).then(() => {
         eng.finishBonus();
@@ -311,6 +382,7 @@
       });
     });
     eng.on("rushEnd", (e) => {
+      rec.rushEnd(e.streak, e.gained);
       snd("rushEnd");
       PK.LCD.playRushEnd({ streak: e.streak, gained: e.gained });
       caption("rushEnd");
@@ -332,15 +404,18 @@
           const c = a[a.length - 1].color;
           if (c === "red") caption("holdHot");
           else if (c === "gold") caption("holdGold");
-          else if (c === "rainbow") caption("holdRainbow");
+          else if (c === "rainbow") { caption("holdRainbow"); rec.ach("rainbow"); }
         }
         prevHolds[q] = a.length;
       });
       kick();
     });
+    let rushCounted = false;   // one 進入 RUSH per chain, not one per hit inside it
     eng.on("mode", (e) => {
       dirty = true;
       mode = e.to;
+      if (mode === "rush" && !rushCounted) { rushCounted = true; rec.rush(); }
+      else if (mode === "normal") rushCounted = false;
       applyMode(true);
       kick();
     });
@@ -375,7 +450,14 @@
       toast(t(set.autoPush ? "ui.autoOnHint" : "ui.autoOffHint"));
     }
     $("autoBtn").addEventListener("click", () => { snd("button"); toggleAuto(); });
-    function doPush() { snd("button"); PK.LCD.push(); }
+    // PUSH: answers a prompt or 連打, or hits the boss in a bonus (knocking it out pays BOSS_REWARD).
+    const BOSS_REWARD = 100;
+    function doPush() {
+      const r = PK.LCD.push();
+      if (r === "bossDown") { eng.refill(BOSS_REWARD); snd("win"); PK.Cabinet.flash("#ffd84a"); rec.boss(); }
+      else if (r === "boss") snd("slash");
+      else snd("button");
+    }
     $("push").addEventListener("pointerdown", doPush);           // pointerdown: fast enough for 連打
     $("push").addEventListener("click", (e) => { if (e.detail === 0) doPush(); });   // keyboard
     $("infoBtn").addEventListener("click", () => openSheet("glossary"));
@@ -395,6 +477,7 @@
     $("mSettings").addEventListener("click", () => { $("resetBox").hidden = false; $("resetAsk").hidden = true; openSheet("settings"); });
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
+    $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); });
 
     function openRefill() {
       $("refillTitle").textContent = t(eng.state.chips < 1 ? "refill.title" : "refill.titleMenu");

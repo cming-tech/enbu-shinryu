@@ -289,10 +289,10 @@
     // A ball bouncing off a brass pin: a tiny, quiet "tik" at a random pitch. Several balls hit
     // pins every second, so together they make the machine's soft metallic rattle.
     tick(k, o, r, t) {
-      const f = rnd(0.85, 1.15), a = rnd(0.5, 1);
-      let e = blip(k, o, "sine", 4300 * f, 0, t, 0.0005, 0.018, 0.045 * a);
-      e = M(e, blip(k, o, "sine", 6850 * f, 0, t, 0.0005, 0.01, 0.025 * a));
-      hiss(k, o, "highpass", 6000, 0, 0.7, t, 0.0003, 0.004, 0.04 * a);
+      const f = rnd(0.85, 1.15), a = rnd(0.7, 1);
+      let e = blip(k, o, "sine", 4300 * f, 0, t, 0.0005, 0.022, 0.05 * a);
+      e = M(e, blip(k, o, "sine", 6850 * f, 0, t, 0.0005, 0.012, 0.028 * a));
+      hiss(k, o, "highpass", 6000, 0, 0.7, t, 0.0003, 0.004, 0.045 * a);
       return e;
     },
     // Reel stop: firm "kachi".
@@ -1020,6 +1020,32 @@
   // first use, and preferred over the synthesized bed of the same name.
   let fileBase = null;
   const fileRaw = {}, fileBuf = {}, fileJobs = {};
+  // The long beds have a second song (bgm_<name>2.mp3): they alternate, and after SONG_SWITCH
+  // seconds of one song the bed crossfades to the other (the user found one song too repetitive).
+  const ALT = ["normal", "bonus"];
+  const SONG_SWITCH = 150, SONG_FADE = 2;
+  const altBuf = {}, lastAlt = {};
+  // Files are fetched one at a time, the bed in use first, so its first notes do not wait behind
+  // the rest of the music.
+  const fileFetch = {};
+  let fileQueue = [], fileBusy = false;
+  function fetchFile(key) {
+    if (fileFetch[key]) return Promise.resolve();
+    fileFetch[key] = true;
+    return fetch(fileBase + "bgm_" + key + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).then((ab) => {
+      if (!ab || !ab.byteLength) return;
+      fileRaw[key] = ab;
+      if (bedWant === key.replace(/2$/, "")) decodeFile(key);
+    }, () => { /* no file: synthesized bed */ });
+  }
+  function pumpFiles() {
+    if (fileBusy || !fileQueue.length) return;
+    let i = bedWant ? fileQueue.indexOf(bedWant) : -1;
+    if (i < 0) i = 0;
+    const key = fileQueue.splice(i, 1)[0];
+    fileBusy = true;
+    fetchFile(key).then(() => { fileBusy = false; setTimeout(pumpFiles, 300); });
+  }
 
   const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
@@ -1078,7 +1104,7 @@
   function killBed(b) {
     if (b.dead) return;
     b.dead = true;
-    clearTimeout(b.timer);
+    clearTimeout(b.timer); clearTimeout(b.switchT);
     b.src.onended = null;
     try { b.src.disconnect(); } catch (e) { /* ignore */ }
     try { b.g.disconnect(); } catch (e) { /* ignore */ }
@@ -1086,29 +1112,39 @@
     if (i >= 0) bedsAlive.splice(i, 1);
   }
 
-  function fadeOutBed(b) {
+  function fadeOutBed(b, fade) {
     if (b.dead || b.fading) return;
+    fade = fade || FADE;
     b.fading = true;
+    clearTimeout(b.switchT);
     try {
-      fadeParam(b.g.gain, 0, FADE);
-      b.src.stop(ctx.currentTime + FADE + 0.03);
+      fadeParam(b.g.gain, 0, fade);
+      b.src.stop(ctx.currentTime + fade + 0.03);
     } catch (e) { killBed(b); return; }
     b.src.onended = () => killBed(b);
-    b.timer = setTimeout(() => killBed(b), (FADE + 0.5) * 1000);
+    b.timer = setTimeout(() => killBed(b), (fade + 0.5) * 1000);
   }
 
-  function startBed(name) {
+  function startBed(name, fade) {
+    fade = fade || FADE;
+    const two = !!(altBuf[name] && fileBuf[name]);
+    const alt = two ? (lastAlt[name] = lastAlt[name] === undefined ? false : !lastAlt[name]) : false;
     const src = ctx.createBufferSource();
-    src.buffer = bedBuf[name];
+    src.buffer = alt ? altBuf[name] : bedBuf[name];
     src.loop = true;
     const g = ctx.createGain();
     g.gain.value = 0;
     src.connect(g);
     g.connect(rig.bgm);
-    fadeParam(g.gain, 1, FADE);
+    fadeParam(g.gain, 1, fade);
     src.start(ctx.currentTime + 0.005);
-    bedCur = { name, src, g, dead: false, fading: false, timer: 0 };
-    bedsAlive.push(bedCur);
+    const b = bedCur = { name, src, g, dead: false, fading: false, timer: 0, switchT: 0, alt };
+    bedsAlive.push(b);
+    if (two) {
+      b.switchT = setTimeout(() => {
+        if (bedCur === b && !b.dead && !b.fading) { fadeOutBed(b, SONG_FADE); bedCur = null; startBed(name, SONG_FADE); }
+      }, Math.max(SONG_SWITCH, 2 * src.buffer.duration) * 1000);
+    }
   }
 
   function ensureBed(name) {
@@ -1295,32 +1331,44 @@
     const X = lp ? Math.min(lp.blend, Math.round(3 * sr)) : Math.round(FILE_XFADE * sr);
     const start = lp ? lp.start : a, L = lp ? lp.len : end - a - X;
     if (L < 4 * sr) return null;   // too short to loop
-    const out = ctx.createBuffer(2, L, sr);
+    // Kept at BED_SR like the synthesized beds: the loops run to minutes, and a 128 kbps mp3 holds
+    // nothing above 16 kHz, so linear resampling loses nothing audible and saves a third of memory.
+    const k = sr / BED_SR, Lo = Math.floor(L / k);
+    const out = ctx.createBuffer(2, Lo, BED_SR);
     let sum = 0, peak = 0;
+    const tmp = new Float32Array(L);
     for (let ch = 0; ch < 2; ch++) {
       const src = buf.getChannelData(Math.min(ch, buf.numberOfChannels - 1)), d = out.getChannelData(ch);
-      for (let i = 0; i < L; i++) d[i] = src[start + i];
-      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); d[i] = src[start + i] * Math.sin(x) + src[start + L + i] * Math.cos(x); }
-      for (let i = 0; i < L; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
+      for (let i = 0; i < L; i++) tmp[i] = src[start + i];
+      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); tmp[i] = src[start + i] * Math.sin(x) + src[start + L + i] * Math.cos(x); }
+      for (let i = 0; i < Lo; i++) {
+        const p = i * k, j = Math.floor(p), f = p - j;
+        d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0);
+      }
+      for (let i = 0; i < Lo; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
     }
-    const rms = Math.sqrt(sum / (2 * L)), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
-    for (let ch = 0; ch < 2; ch++) { const d = out.getChannelData(ch); for (let i = 0; i < L; i++) d[i] *= g; }
+    const rms = Math.sqrt(sum / (2 * Lo)), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
+    for (let ch = 0; ch < 2; ch++) { const d = out.getChannelData(ch); for (let i = 0; i < Lo; i++) d[i] *= g; }
     return out;
   }
   // Decode a fetched track once; when it is ready it replaces the synthesized bed (and the
   // playing bed if it is this one).
-  function decodeFile(name) {
-    if (fileJobs[name] || !fileRaw[name] || !ctx) return;
-    fileJobs[name] = new Promise((res, rej) => {
-      const p = ctx.decodeAudioData(fileRaw[name].slice(0), res, rej);
+  // key is a bed name, or a bed name + "2" for its second song.
+  function decodeFile(key) {
+    if (fileJobs[key] || !fileRaw[key] || !ctx) return;
+    const name = key.replace(/2$/, ""), second = key !== name;
+    fileJobs[key] = new Promise((res, rej) => {
+      const p = ctx.decodeAudioData(fileRaw[key].slice(0), res, rej);
       if (p && p.then) p.then(res, rej);
     }).then((buf) => {
       const loop = loopFromTrack(buf);
       if (!loop) return;
+      delete fileRaw[key];
+      if (second) { altBuf[name] = loop; return; }   // used from the next start of the bed
+      const wasSynth = !fileBuf[name];
       fileBuf[name] = bedBuf[name] = loop;
-      delete fileRaw[name];
-      if (bedCur && bedCur.name === name && !bedCur.dead) { fadeOutBed(bedCur); bedCur = null; applyBed(); }
-    }, () => { delete fileRaw[name]; });   // unreadable file: keep the synthesized bed
+      if (wasSynth && bedCur && bedCur.name === name && !bedCur.dead) { fadeOutBed(bedCur); bedCur = null; applyBed(); }
+    }, () => { delete fileRaw[key]; });   // unreadable file: keep the synthesized bed
   }
 
   // Bring the playing bed in line with bedWant.
@@ -1331,6 +1379,8 @@
     const name = bedWant;
     if (!name) return;
     decodeFile(name);
+    if (ALT.includes(name)) decodeFile(name + "2");
+    pumpFiles();
     if (bedBuf[name]) { startBed(name); return; }
     ensureBed(name).then(() => {
       if (bedWant === name && !bedCur && rig && unlocked && enabled) startBed(name);
@@ -1433,13 +1483,8 @@
       try {
         if (fileBase != null || typeof fetch !== "function") return;
         fileBase = String(base == null ? "assets/" : base);
-        for (const n of BGM_NAMES) {
-          fetch(fileBase + "bgm_" + n + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).then((ab) => {
-            if (!ab || !ab.byteLength) return;
-            fileRaw[n] = ab;
-            if (bedWant === n) decodeFile(n);
-          }, () => { /* no file: synthesized bed */ });
-        }
+        fileQueue = BGM_NAMES.concat(ALT.map((n) => n + "2"));
+        pumpFiles();
       } catch (e) { /* never throw */ }
     },
     names: SFX_NAMES.slice(),
@@ -1453,7 +1498,7 @@
     voices: rig ? rig.voices.length : 0, made: rig ? rig.made : 0, finished: rig ? rig.finished : 0,
     bed: bedCur && !bedCur.dead ? bedCur.name : null, bedsAlive: bedsAlive.length, want: bedWant,
     ready: Object.keys(bedBuf),
-    files: Object.keys(fileBuf),
+    files: Object.keys(fileBuf).concat(Object.keys(altBuf).map((n) => n + "2")),
   });
   Sound._test = {
     SFX_NAMES, BGM_NAMES, MAX_VOICES, BED_SR, RULES, RULE_DEFAULT, activeRange, findLoop, loopFromTrack: (buf) => loopFromTrack(buf),

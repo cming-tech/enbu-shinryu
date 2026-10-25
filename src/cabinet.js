@@ -230,9 +230,10 @@
       }
     }
     PINS.R.push(add(514, 450, "R"), add(543, 450, "R")); // 電チュー gate
-    // Road (道釘): left lane bottom down to the heso.
-    for (let i = 0; i <= 16; i++) {
-      const t = i / 16;
+    // Road (道釘): left lane bottom down to the heso. 9 pins 21 apart (17 at 10.5 read as a
+    // dotted line to the user).
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
       PINS.road.push(add(84 + 168 * t, 486 + 32 * t + 3 * Math.sin(Math.PI * t), "road"));
     }
     PINS.yori = [add(262, 522, "yori"), add(271, 527, "yori")];
@@ -1484,14 +1485,14 @@
     const road = PINS.road;
     let i0 = 0;
     while (i0 < road.length - 1 && road[i0].x < pb.x + 5) i0++;
-    i0 = Math.min(i0, 4);
+    i0 = Math.min(i0, 2);
     pb.hop(road[i0].x + 1, road[i0].y - CD, pb.side > 0 ? -60 : -110);
     // Roll along the road tops.
-    const falloff = !isHeso && rnd() < 0.35 ? Math.floor(rr(5, 12)) : -1;
+    const falloff = !isHeso && rnd() < 0.35 ? Math.floor(rr(3, 6.5)) : -1;
     const iEnd = falloff > 0 ? Math.max(i0 + 2, falloff) : road.length - 1;
     const pts = [];
     for (let i = i0 + 1; i <= iEnd; i++) pts.push([road[i].x, road[i].y - CD]);
-    if (pts.length) pb.roll(pts, rr(150, 200), rr(300, 360), 1.8, 10.5);
+    if (pts.length) pb.roll(pts, rr(150, 200), rr(300, 360), 2.4, 21);
     if (falloff > 0) {
       // Drop through a gap under the road, then roll to the centre out.
       pb.hop(pb.x + rr(5, 9), 633, -40);

@@ -1426,7 +1426,8 @@
         if (clr >= CD - 1.4) break;
       }
       if (best.clr < CD - 2.6) break; // nothing clean: leave the lane walk here
-      pb.hop(best.x1, best.y1, best.vy0);
+      const hop = pb.hop(best.x1, best.y1, best.vy0);
+      if (cur) hop.pin = 1;   // this hop starts with the ball bouncing off a pin
       if (o.onPin) o.onPin(best.q, pb.segs[pb.segs.length - 1]);
       cur = best.q;
       side = best.ns;
@@ -1615,6 +1616,7 @@
         const s = b.segs[b.idx];
         if (!s.fired) {
           s.fired = true;
+          if (s.pin && S.onPin) { try { S.onPin(); } catch (e) { /* a sound must never stop the balls */ } }
           if (s.cb) s.cb();
           if (s.arrive) arrive(b, s.arrive);
         }
@@ -2109,6 +2111,8 @@
 
   PK.Cabinet = {
     mount, launch, setLights, flash, setAttacker, setDenchu, setSub, pause,
+    // fn() is called each time a ball bounces off a pin (the shell plays a soft metallic tick).
+    onPin(fn) { S.onPin = typeof fn === "function" ? fn : null; },
     // Dev/test hooks (not part of the contract): step the simulation by ms and render.
     _advance(ms) {
       if (!S.mounted) return;

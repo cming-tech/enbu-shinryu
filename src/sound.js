@@ -32,7 +32,7 @@
 
   // Per-name rate limits: min gap between starts (s) and max simultaneous voices of that name.
   const RULES = {
-    fire: [0.045, 3], tick: [0.02, 4], pocket: [0.04, 3], payout: [0.04, 3], coin: [0.03, 4],
+    fire: [0.045, 3], tick: [0.03, 3], pocket: [0.04, 3], payout: [0.04, 3], coin: [0.03, 4],
     stop: [0.03, 3], button: [0.04, 2], lost: [0.06, 2], spin: [0.05, 2], stepup: [0.08, 3],
     pseudo: [0.15, 2], push: [0.1, 2],
   };
@@ -253,11 +253,16 @@
   // ---------------------------------------------------------------- sound effects
   // Each: (kit, voiceOut, rig, startTime) -> end time.
   const SFX = {
-    // Ball launch: soft spring "kash" — subtle, it repeats ~3 times a second.
+    // Ball launch: the hammer flicks a steel ball up the rail — a bright metallic "chik" and a
+    // short rattle, no low thump (the old 240->90 Hz thump sounded like a drum, not a ball).
+    // Repeats 100 times a minute, so it stays small.
     fire(k, o, r, t) {
-      const f = rnd(0.9, 1.1);
-      hiss(k, o, "bandpass", 2600 * f, 1400 * f, 1.4, t, 0.001, 0.04, 0.2);
-      return M(blip(k, o, "triangle", 240 * f, 90, t, 0.002, 0.05, 0.18), t + 0.07);
+      const f = rnd(0.95, 1.05);
+      hiss(k, o, "highpass", 3800 * f, 0, 0.7, t, 0.0004, 0.008, 0.13);
+      let e = blip(k, o, "sine", 3150 * f, 0, t, 0.0004, 0.03, 0.05);
+      e = M(e, blip(k, o, "sine", 5230 * f, 0, t, 0.0004, 0.02, 0.035));
+      hiss(k, o, "bandpass", 5200 * f, 4200 * f, 1.6, t + 0.012, 0.012, 0.09, 0.025);
+      return M(e, t + 0.13);
     },
     // Start-pocket entry: bright two-note glass chime.
     pocket(k, o, r, t) {
@@ -281,12 +286,14 @@
       blip(k, lp, "square", 320, 1280, t, 0.01, 0.14, 0.1);
       return M(e, t + 0.3);
     },
-    // Metallic tick (balls on pins, reel ticks).
+    // A ball bouncing off a brass pin: a tiny, quiet "tik" at a random pitch. Several balls hit
+    // pins every second, so together they make the machine's soft metallic rattle.
     tick(k, o, r, t) {
-      const f = rnd(0.94, 1.06);
-      let e = blip(k, o, "sine", 5400 * f, 0, t, 0.0008, 0.025, 0.1);
-      e = M(e, blip(k, o, "sine", 7900 * f, 0, t, 0.0008, 0.015, 0.06));
-      return M(e, blip(k, o, "triangle", 2200 * f, 0, t, 0.0008, 0.012, 0.05));
+      const f = rnd(0.85, 1.15), a = rnd(0.5, 1);
+      let e = blip(k, o, "sine", 4300 * f, 0, t, 0.0005, 0.018, 0.045 * a);
+      e = M(e, blip(k, o, "sine", 6850 * f, 0, t, 0.0005, 0.01, 0.025 * a));
+      hiss(k, o, "highpass", 6000, 0, 0.7, t, 0.0003, 0.004, 0.04 * a);
+      return e;
     },
     // Reel stop: firm "kachi".
     stop(k, o, r, t) {

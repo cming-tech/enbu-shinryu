@@ -453,6 +453,7 @@
 
     // ---- boot the modules
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase });
+    PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     const s0 = eng.state;

@@ -1139,21 +1139,161 @@
     }
     return [b0 * W, b1 * W];
   }
-  // A generated track as a seamless loop: its longest stretch of sound (activeRange), with the
-  // last FILE_XFADE seconds folded over the start with an equal-power crossfade, normalized like
-  // the synthesized beds.
+  // Where to loop a generated track so the seam falls on the beat: { start, len } in frames.
+  // An AI track has its own intro and ending; wrapping the whole track played the ending, then
+  // jumped back into the intro off the beat (the user heard it). Instead:
+  //  1. the beat period and phase from the onset envelope (10 ms hops);
+  //  2. per beat: harmony (12-bin chroma from a 2048-point FFT of a 12 kHz copy), loudness, onsets;
+  //  3. a long loop of whole 2-bar steps (4-bar phrases preferred) starting in the first half,
+  //     whose two ends match over 4 beats either side (same chord, same loudness, same rhythm), so
+  //     the music after the loop sounds like its start.
+  function findLoop(buf, a, end) {
+    const sr = buf.sampleRate, H = Math.round(sr * 0.01), n = Math.floor((end - a) / H);
+    if (n < 1600) return null;   // under 16 s: not worth a search
+    const chs = [];
+    for (let c = 0; c < buf.numberOfChannels; c++) chs.push(buf.getChannelData(c));
+    // 1. onset strength (rise of the high-passed log energy) per 10 ms hop
+    const on = new Float32Array(n);
+    let prev = 0;
+    for (let k = 0; k < n; k++) {
+      let hi = 0;
+      for (const d of chs) for (let i = a + k * H, j = i + H; i < j; i++) { const dv = i ? d[i] - d[i - 1] : 0; hi += dv * dv; }
+      const lh = Math.log(1e-9 + hi);
+      on[k] = k ? Math.max(0, lh - prev) : 0;
+      prev = lh;
+    }
+    let mean = 0;
+    for (let k = 0; k < n; k++) mean += on[k];
+    mean /= n;
+    const ac = (l) => { let s = 0; for (let k = 0; k + l < n; k++) s += (on[k] - mean) * (on[k + l] - mean); return s / (n - l); };
+    let lag = 32, top = -Infinity;
+    for (let l = 32; l <= 86; l++) { const v = ac(l); if (v > top) { top = v; lag = l; } }   // 70-190 BPM
+    const y0 = ac(lag - 1), y2 = ac(lag + 1), den = y0 - 2 * top + y2;
+    const beat = lag + (den < 0 ? 0.5 * (y0 - y2) / den : 0);   // hops
+    let phase = 0, pbest = -1;
+    for (let ph = 0; ph < beat; ph++) {
+      let s = 0;
+      for (let t = ph; t < n; t += beat) s += on[Math.round(t)] || 0;
+      if (s > pbest) { pbest = s; phase = ph; }
+    }
+    const nb = Math.floor((n - phase) / beat);   // beats in the range
+    if (nb < 40) return null;
+    const beatAt = (b) => a + Math.round((phase + b * beat) * H);   // frame where beat b starts
+    // 2. per-beat features from a 12 kHz mono copy
+    const D = Math.max(1, Math.round(sr / 12000)), r12 = sr / D, N = 2048;
+    const mono = new Float32Array(Math.floor((end - a) / D));
+    for (let i = 0; i < mono.length; i++) {
+      let v = 0;
+      for (let k = 0; k < D; k++) for (const d of chs) v += d[a + i * D + k];
+      mono[i] = v / (D * chs.length);
+    }
+    const win = new Float32Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+    const pcOf = new Int8Array(N / 2);
+    for (let k = 1; k < N / 2; k++) {
+      const f = (k * r12) / N;
+      pcOf[k] = f < 80 || f > 3000 ? -1 : ((Math.round(12 * Math.log2(f / 440)) % 12) + 12) % 12;
+    }
+    const re = new Float64Array(N), im = new Float64Array(N);
+    const chroma = new Float32Array(nb * 12), loud = new Float32Array(nb), hit = new Float32Array(nb);
+    for (let b = 0; b < nb; b++) {
+      const f0 = beatAt(b) - a, f1 = beatAt(b + 1) - a;
+      const c0 = Math.min(mono.length - N, Math.max(0, Math.round((f0 + f1) / 2 / D) - N / 2));
+      for (let i = 0; i < N; i++) { re[i] = mono[c0 + i] * win[i]; im[i] = 0; }
+      fft(re, im);
+      let tot = 0;
+      for (let k = 1; k < N / 2; k++) {
+        const pc = pcOf[k];
+        if (pc < 0) continue;
+        const m = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+        chroma[b * 12 + pc] += m; tot += m;
+      }
+      for (let p = 0; p < 12; p++) chroma[b * 12 + p] /= tot || 1;
+      let e = 0, h = 0;
+      for (let i = Math.round(f0 / D); i < Math.round(f1 / D); i++) e += mono[i] * mono[i];
+      for (let k = Math.round(f0 / H); k < Math.round(f1 / H) && k < n; k++) h += on[k];
+      loud[b] = 10 * Math.log10(1e-12 + e / Math.max(1, (f1 - f0) / D));
+      hit[b] = h;
+    }
+    // 3. compare 4 beats either side of a start beat i and an end beat j
+    const W = 4;
+    const match = (i, j) => {
+      let cs = 0, dl = 0, hx = 0, hy = 0, hxy = 0;
+      for (let k = -W; k < W; k++) {
+        let xy = 0, xx = 0, yy = 0;
+        for (let p = 0; p < 12; p++) { const x = chroma[(i + k) * 12 + p], y = chroma[(j + k) * 12 + p]; xy += x * y; xx += x * x; yy += y * y; }
+        cs += xy / Math.sqrt(xx * yy + 1e-12);
+        dl += Math.abs(loud[i + k] - loud[j + k]);
+        hx += hit[i + k] * hit[i + k]; hy += hit[j + k] * hit[j + k]; hxy += hit[i + k] * hit[j + k];
+      }
+      return { chord: cs / (2 * W), dB: dl / (2 * W), rhythm: hxy / Math.sqrt(hx * hy + 1e-12) };
+    };
+    // A seam is good with the same chord, loudness within 3 dB and the same rhythm; take the
+    // longest good one, else the best-scoring one (and blend it over a whole bar instead of a beat).
+    let best = null, good = null;
+    const iMax = Math.floor(nb / 2);
+    for (let i = W; i < iMax; i++) {
+      for (let len = 8; i + len + W <= nb; len += 8) {
+        const m = match(i, i + len);
+        const sec = (len * beat) / 100;
+        // a good seam first (same chord, loudness within ~3 dB, same rhythm), then a long loop
+        const score = 2 * m.chord + 0.5 * m.rhythm - 0.15 * m.dB + 0.012 * Math.min(sec, 50) + (len % 16 ? 0 : 0.05);
+        if (sec < 12) continue;
+        const c = { score, i, len, m, sec };
+        if (!best || score > best.score) best = c;
+        if (m.chord >= 0.85 && m.dB <= 3 && m.rhythm >= 0.85 && (!good || len > good.len || (len === good.len && score > good.score))) good = c;
+      }
+    }
+    if (good) best = good;
+    if (!best) return null;
+    const t1 = beatAt(best.i), t2 = beatAt(best.i + best.len), d0 = chs[0], W2 = Math.round(sr * 0.02);
+    // line the end up with the start to the sample (best waveform match within ±10 ms)
+    let bc = -Infinity, bo = 0;
+    for (let off = -H; off <= H; off++) {
+      let c = 0;
+      for (let i = 0; i < W2; i++) c += d0[t1 + i] * d0[t2 + off + i];
+      if (c > bc) { bc = c; bo = off; }
+    }
+    return { start: t1, len: t2 + bo - t1, blend: Math.round((good ? 1 : 4) * beat * H), bpm: 6000 / beat, bars: best.len / 4, good: !!good, chord: best.m.chord, dB: best.m.dB, rhythm: best.m.rhythm };
+  }
+  // In-place radix-2 FFT (re, im of a power-of-two length).
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const ang = (-2 * Math.PI) / size, wr = Math.cos(ang), wi = Math.sin(ang), half = size >> 1;
+      for (let s = 0; s < n; s += size) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < half; k++) {
+          const p = s + k, q = p + half;
+          const tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
+          re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
+          const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+        }
+      }
+    }
+  }
+  // A generated track as a seamless loop (findLoop, else its longest stretch of sound), with the
+  // audio that follows the loop folded over its start (findLoop's beat or bar, at most 3 s; else
+  // FILE_XFADE seconds), normalized like the synthesized beds.
   const FILE_XFADE = 2;
   function loopFromTrack(buf) {
     const [a, end] = activeRange(buf);
-    const sr = buf.sampleRate, X = Math.round(FILE_XFADE * sr);
-    const L = end - a - X;
+    const sr = buf.sampleRate, lp = findLoop(buf, a, end);
+    const X = lp ? Math.min(lp.blend, Math.round(3 * sr)) : Math.round(FILE_XFADE * sr);
+    const start = lp ? lp.start : a, L = lp ? lp.len : end - a - X;
     if (L < 4 * sr) return null;   // too short to loop
     const out = ctx.createBuffer(2, L, sr);
     let sum = 0, peak = 0;
     for (let ch = 0; ch < 2; ch++) {
       const src = buf.getChannelData(Math.min(ch, buf.numberOfChannels - 1)), d = out.getChannelData(ch);
-      for (let i = 0; i < L; i++) d[i] = src[a + i];
-      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); d[i] = src[a + i] * Math.sin(x) + src[a + L + i] * Math.cos(x); }
+      for (let i = 0; i < L; i++) d[i] = src[start + i];
+      for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); d[i] = src[start + i] * Math.sin(x) + src[start + L + i] * Math.cos(x); }
       for (let i = 0; i < L; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
     }
     const rms = Math.sqrt(sum / (2 * L)), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
@@ -1309,7 +1449,7 @@
     files: Object.keys(fileBuf),
   });
   Sound._test = {
-    SFX_NAMES, BGM_NAMES, MAX_VOICES, BED_SR, RULES, RULE_DEFAULT, activeRange,
+    SFX_NAMES, BGM_NAMES, MAX_VOICES, BED_SR, RULES, RULE_DEFAULT, activeRange, findLoop, loopFromTrack: (buf) => loopFromTrack(buf),
     beds: BGM_NAMES.map((n) => ({ name: n, bpm: BEDS[n].bpm, bars: BEDS[n].bars, frames: bedLoopFrames(n, BED_SR) })),
     makeRig: (ac) => makeRig(ac, false),
     startRendering,

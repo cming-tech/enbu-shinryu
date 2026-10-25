@@ -1116,9 +1116,10 @@
   // The part of a generated track worth looping, as [start, end) in frames: the longest stretch
   // of sound. AI tracks can open with 10 s of near-silence or stop half-way and stay silent
   // (the first ACE-Step run did both). "Sound" is a 50 ms window within 30 dB of the loudest
-  // one; gaps up to 0.4 s count as part of the stretch.
+  // one; gaps up to 0.8 s (a breath in a calm track) count as part of the stretch, longer ones
+  // (a real stop) end it.
   function activeRange(buf) {
-    const W = Math.round(0.05 * buf.sampleRate), n = Math.floor(buf.length / W), GAP = 8;
+    const W = Math.round(0.05 * buf.sampleRate), n = Math.floor(buf.length / W), GAP = 16;
     const chs = [];
     for (let c = 0; c < buf.numberOfChannels; c++) chs.push(buf.getChannelData(c));
     const rms = new Float32Array(n);

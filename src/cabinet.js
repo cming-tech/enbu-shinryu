@@ -316,9 +316,10 @@
     teethLo: [[26, 13], [40, 7], [54, 7], [68, 6], [82, 6], [96, 5], [110, 5]],
   };
   const headPt = (x, y) => [HEAD_T.x + x * HEAD_T.s, HEAD_T.y + y * HEAD_T.s];
-  // Optional AI art <assetsBase>cab_dragon.png replaces the vector dragon: fitted into this box,
-  // against its right and top edges (the playfield is to its left).
-  const DRAGON_ART = { file: "cab_dragon.png", x: 388, y: 0, w: 212, h: 700 };
+  // Optional AI art <assetsBase>cab_dragon.png replaces the vector dragon: fitted into this box
+  // against its right and top edges, head top-left facing the playfield. Only the part outside the
+  // window shows, so it sits on the frame's top-right corner and right side.
+  const DRAGON_ART = { file: "cab_dragon.png", x: 380, y: -8, w: 216, h: 380 };
 
   // Dragon body pieces: neck, coils over the right ring, tail. Built at mount.
   function dragonBody() {
@@ -681,7 +682,7 @@
     // --- dragon
     const A = DRAGON_ART;
     const dragon = S.dragonImg
-      ? `<image href="${S.dragonImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMaxYMin meet"/>`
+      ? `<g clip-path="url(#pkc-outWin)"><image href="${S.dragonImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMaxYMin meet" filter="url(#pkc-statueShadow)"/></g>`
       : buildDragonSVG(holes, acr);
 
     // --- sub display
@@ -730,6 +731,7 @@
     let s = `<defs>${frontDefs()}
 <mask id="pkc-bodyMask" maskUnits="userSpaceOnUse" x="0" y="0" width="588" height="860">
 <rect width="588" height="860" fill="#fff"/><g fill="#000">${holes.join("")}</g></mask>
+<filter id="pkc-statueShadow" x="-10%" y="-10%" width="125%" height="125%"><feDropShadow dx="-3" dy="5" stdDeviation="3.5" flood-color="#000" flood-opacity=".7"/></filter>
 <clipPath id="pkc-outWin"><path clip-rule="evenodd" d="M0,0H588V860H0Z ${win0}"/></clipPath>
 <clipPath id="pkc-aboveConsole"><path d="${CONSOLE_TOP} L588,0 L0,0 Z"/></clipPath>
 </defs>`;

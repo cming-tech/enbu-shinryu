@@ -1391,9 +1391,12 @@
       draw(ctx, age) {
         if (IMG.bg_normal) drawCover(ctx, IMG.bg_normal, -12, -12, W + 24, H + 24); else drawBg(ctx, "normal");
         drawRays(ctx, CX, 150, C.orange, age * 0.05, 0.16, 430, 18, true);
-        // a shadow dragon drifting through the clouds
-        const u = ((age * 0.035) % 1);
-        drawDragon(ctx, { x: lerp(W + 140, -160, u), y: 112 + Math.sin(age * 0.5) * 10, sc: 0.62, dir: -1, t: age * 0.9, len: 360, amp: 0.4, wave: 1.2, spd: 2, pal: "shadow", alpha: 0.55, simple: false });
+        // a shadow dragon drifting through the clouds of the drawn sky (the AI background has its
+        // own scenery, and the drawn dragon looked out of place on it)
+        if (!IMG.bg_normal) {
+          const u = ((age * 0.035) % 1);
+          drawDragon(ctx, { x: lerp(W + 140, -160, u), y: 112 + Math.sin(age * 0.5) * 10, sc: 0.62, dir: -1, t: age * 0.9, len: 360, amp: 0.4, wave: 1.2, spd: 2, pal: "shadow", alpha: 0.55, simple: false });
+        }
         ctx.save(); ctx.globalCompositeOperation = "lighter";
         drawGlow(ctx, C.orange, CX, H + 30, 230, 0.22 + 0.08 * Math.sin(age * 2.2));
         ctx.restore();

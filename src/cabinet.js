@@ -316,6 +316,9 @@
     teethLo: [[26, 13], [40, 7], [54, 7], [68, 6], [82, 6], [96, 5], [110, 5]],
   };
   const headPt = (x, y) => [HEAD_T.x + x * HEAD_T.s, HEAD_T.y + y * HEAD_T.s];
+  // Optional AI art <assetsBase>cab_dragon.png replaces the vector dragon: fitted into this box,
+  // against its right and top edges (the playfield is to its left).
+  const DRAGON_ART = { file: "cab_dragon.png", x: 388, y: 0, w: 212, h: 700 };
 
   // Dragon body pieces: neck, coils over the right ring, tail. Built at mount.
   function dragonBody() {
@@ -483,7 +486,7 @@
     const holes = []; // black shapes in the body mask (acrylic / window)
     const acr = []; // translucent acrylic drawings
     let deco = ""; // everything on top
-    ART.strokes = []; ART.sprites = []; ART.leds = [];
+    ART.strokes = []; ART.sprites = []; ART.leds = []; ART.fills = [];
 
     const win0 = loopPath(0, 3);
     holes.push(`<path d="${win0}"/>`);
@@ -596,9 +599,23 @@
       holes.push(`<path d="${dr}" fill-rule="evenodd"/>`);
       addFill(dr, 0.5, { rule: "evenodd" });
       acr.push(`<path d="${dr}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
-      speakers += `<path d="${d}" fill="url(#pkc-mesh)" stroke="url(#pkc-chrome)" stroke-width="4"/>`;
+      // Perforated metal grille, pressed rings, a chrome bezel with screws and a crest cap, so it
+      // reads as a speaker rather than a hole.
+      const ring = (k, sw, col, op) => `<g transform="translate(68,91) scale(${k}) translate(-68,-91)"><path d="${d}" fill="none" stroke="${col}" stroke-opacity="${op}" stroke-width="${f1(sw / k)}"/></g>`;
+      speakers += `<path d="${d}" fill="url(#pkc-grilleMetal)"/>`;
+      speakers += `<path d="${d}" fill="url(#pkc-grille)"/>`;
+      speakers += ring(0.74, 2.2, "#000", 0.55) + ring(0.735, 0.9, "#c9d2de", 0.35);
+      speakers += ring(0.46, 2.2, "#000", 0.55) + ring(0.455, 0.9, "#c9d2de", 0.35);
       speakers += `<path d="${d}" fill="url(#pkc-spkShade)"/>`;
+      speakers += `<path d="${d}" fill="none" stroke="#050607" stroke-width="9"/>`;
+      speakers += `<path d="${d}" fill="none" stroke="url(#pkc-chrome)" stroke-width="5.5"/>`;
+      speakers += `<path d="${d}" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8" transform="translate(-.6,-.8)"/>`;
       speakers += `<path d="${m ? mir(spkRing.split(" M")[0]) : spkRing.split(" M")[0]}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.8"/>`;
+      [[40, 64], [110, 76], [92, 120], [28, 110]].forEach((q) => {
+        speakers += `<g transform="translate(${q[0]},${q[1]})"><circle r="3.4" fill="url(#pkc-chromeV)" stroke="#000" stroke-width=".7"/><path d="M-2,0 H2 M0,-2 V2" stroke="#2a2e35" stroke-width="1"/></g>`;
+      });
+      speakers += `<circle cx="68" cy="91" r="13" fill="#050607"/><circle cx="68" cy="91" r="11.5" fill="url(#pkc-chromeV)" stroke="url(#pkc-goldU)" stroke-width="2"/>`;
+      speakers += `<text x="68" y="92" font-family="'Yuji Syuku','Noto Serif TC',serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="url(#pkc-gold)" stroke="#2a1404" stroke-width=".5">${PK.t ? PK.t("lcd.crest") : "?lcd.crest"}</text>`;
     });
     [[30, 80], [60, 52], [100, 56], [120, 90], [96, 128], [52, 130], [20, 110]].forEach((p) => {
       ART.sprites.push({ x: p[0], y: p[1], r: 14, g: 0.8 });
@@ -662,7 +679,10 @@
     deco += cons;
 
     // --- dragon
-    const dragon = buildDragonSVG(holes, acr);
+    const A = DRAGON_ART;
+    const dragon = S.dragonImg
+      ? `<image href="${S.dragonImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMaxYMin meet"/>`
+      : buildDragonSVG(holes, acr);
 
     // --- sub display
     const Sd = L.sub;
@@ -780,6 +800,11 @@
  <stop offset="0" stop-color="#fff2b8"/><stop offset=".3" stop-color="#d89a28"/><stop offset=".5" stop-color="#ffe08a"/><stop offset=".75" stop-color="#7a4a0c"/><stop offset="1" stop-color="#e8b44a"/></linearGradient>
 <pattern id="pkc-mesh" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
  <rect width="5" height="5" fill="#16181c"/><circle cx="2.5" cy="2.5" r="1.45" fill="#000"/><circle cx="2" cy="2" r=".6" fill="#5a606a" opacity=".6"/></pattern>
+<linearGradient id="pkc-grilleMetal" x1="0" y1="0" x2=".6" y2="1">
+ <stop offset="0" stop-color="#6a7380"/><stop offset=".35" stop-color="#3a414c"/><stop offset=".75" stop-color="#1e232b"/><stop offset="1" stop-color="#101318"/></linearGradient>
+<pattern id="pkc-grille" width="6" height="10.392" patternUnits="userSpaceOnUse">
+ <g fill="#020304"><circle cx="0" cy="0" r="1.75"/><circle cx="6" cy="0" r="1.75"/><circle cx="3" cy="5.196" r="1.75"/><circle cx="0" cy="10.392" r="1.75"/><circle cx="6" cy="10.392" r="1.75"/></g>
+ <g fill="none" stroke="#fff" stroke-opacity=".22" stroke-width=".5"><path d="M-1.4,1.1 A1.75,1.75 0 0 0 1.4,1.1 M4.6,1.1 A1.75,1.75 0 0 0 7.4,1.1 M1.6,6.3 A1.75,1.75 0 0 0 4.4,6.3"/></g></pattern>
 <radialGradient id="pkc-spkShade" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
 <linearGradient id="pkc-console" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#2c3038"/><stop offset=".25" stop-color="#1a1d22"/><stop offset=".7" stop-color="#121418"/><stop offset="1" stop-color="#08090b"/></linearGradient>
@@ -2000,6 +2025,15 @@
       measure();
     }
     S.mounted = true;
+    // The AI dragon, if there is one: the front is rebuilt when it has loaded.
+    if (typeof els.assetsBase === "string" && !S.dragonImg) {
+      const im = new Image();
+      im.onload = () => {
+        S.dragonImg = im;
+        if (S.front) { buildFront(S.front); prepFills(); setSub(S.subStr, S.subCol); }
+      };
+      im.src = els.assetsBase + DRAGON_ART.file;
+    }
     setSub(S.subStr != null ? S.subStr : PK.t ? PK.t("cab.subDefault") : "?cab.subDefault", S.subCol);
     if (!S._vis) {
       S._vis = true;

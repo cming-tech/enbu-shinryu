@@ -178,9 +178,12 @@
     const rushy = () => mode === "rush" || mode === "jitan";
     const bonusy = () => mode === "bonus" || mode === "bonusPending";
     function lights(theme) { PK.Cabinet.setLights(theme); $("app").dataset.theme = theme; }   // the hall glows with it
+    // Music waits for the first PLAY: the page stays quiet until the player starts.
+    let musicOn = false, bgmWant = null;
+    function bgm(name) { bgmWant = name; if (musicOn) PK.Sound.bgm(name); }
     function modeLook() {
       lights(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
-      PK.Sound.bgm(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
+      bgm(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
     }
     function pushPrompt(on) { $("push").classList.toggle("prompt", on); }
 
@@ -191,6 +194,7 @@
       if (on && eng.state.chips < 1) { openRefill(); on = false; }
       firing = on;
       if (on) fireAcc = FIRE_GAP;   // first ball right away
+      if (on && !musicOn) { musicOn = true; if (bgmWant) PK.Sound.bgm(bgmWant); }
       $("handle").classList.toggle("on", on);
       $("handle").setAttribute("aria-pressed", String(on));
       $("handleBig").textContent = t(on ? "ui.stopBig" : "ui.play");
@@ -250,7 +254,7 @@
       else if (n === "holdChange") { snd("holdChange"); caption("holdChange"); }
       else if (n === "reach") {
         snd("reach");
-        PK.Sound.bgm(r.type === "battle" ? "battle" : "reach");
+        bgm(r.type === "battle" ? "battle" : "reach");
         lights(r.color === "rainbow" ? "rainbow" : r.color === "gold" || r.type === "spsp" ? "hot" : "reach");
         caption(r.type === "battle" ? "battle" : r.type === "spsp" ? "spsp" : "reach");
       } else if (n === "reachUp") { snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
@@ -272,7 +276,7 @@
       showCounter();
       snd("jackpot");
       lights("bonus"); PK.Cabinet.flash("#ffd84a");
-      PK.Sound.bgm("bonus");
+      bgm("bonus");
       caption("jackpot");
       PK.LCD.playJackpot(sc).then(() => eng.beginBonus());
     }
@@ -448,7 +452,7 @@
     $("tutColors").innerHTML = t("tut.colors").split("|").map((name, i) => '<span style="color:' + HOLD_COLS[i] + '">● ' + name + "</span>").join("");
 
     // ---- boot the modules
-    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront") });
+    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase });
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     const s0 = eng.state;

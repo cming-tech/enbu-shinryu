@@ -463,6 +463,7 @@
   // ------------------------------------------------------------------ image slots
   const IMG = {};
   const IMG_FILES = { bg_normal: "bg_normal.jpg", bg_rush: "bg_rush.jpg", hero: "hero.png", rival: "rival.png", cutin_hero: "cutin_hero.png", jackpot: "jackpot.png", cab_dragon: "cab_dragon.png",
+    pose_slash: "pose_slash.png", pose_victory: "pose_victory.png",
     bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg" };
   let imgPending = 0;
   function loadImages(base) {
@@ -1457,7 +1458,7 @@
       draw(ctx, age) {
         sceneBg(ctx, "bonus");
         drawRays(ctx, CX, 150, C.gold, age * 0.18, 0.4, 440, 18, true);
-        if (IMG.hero) { ctx.globalAlpha = 0.9; drawContain(ctx, IMG.hero, 60, 40, 272, 280, true); }
+        if (gal.cur) drawGallery(ctx);
         else drawWarrior(ctx, { x: CX - 10, y: H + 34, sc: 1.02, t: age, rim: "gold", aura: 1, sword: -1.25 + Math.sin(age * 1.5) * 0.04 });
         ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.orange, CX, H + 20, 240, 0.35); ctx.restore();
       },
@@ -2547,6 +2548,30 @@
     await wait(0.6);
     hudHide = false;
   }
+  // Bonus rounds: each round shows another piece of the AI art, slowly zooming (crossfaded), with
+  // a line of its own (the round screen used to be one still picture: the user found it dull).
+  const GALLERY = ["hero", "pose_slash", "jackpot", "cutin_hero", "pose_victory", "cab_dragon"];
+  const gal = { cur: null, prev: null, t0: 0, n: 0 };
+  function galleryNext() {
+    const have = GALLERY.filter((k) => IMG[k]);
+    if (!have.length) return;
+    gal.prev = gal.cur; gal.cur = have[gal.n++ % have.length]; gal.t0 = clk.t;
+  }
+  function drawGalleryImg(ctx, key, a, t) {
+    const im = IMG[key];
+    if (!im || a <= 0.01) return;
+    const z = 1 + 0.07 * Math.min(1, t / 9), px = (gal.n % 2 ? 1 : -1) * 10 * Math.min(1, t / 9);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(CX + px, H); ctx.scale(z, z); ctx.translate(-CX, -H);
+    drawContain(ctx, im, 24, 26, W - 48, H - 26, true);
+    ctx.restore();
+  }
+  function drawGallery(ctx) {
+    const t = clk.t - gal.t0, f = Math.min(1, t / 0.6);
+    if (gal.prev && f < 1) drawGalleryImg(ctx, gal.prev, 1 - f, t + 9);
+    drawGalleryImg(ctx, gal.cur, f, t);
+  }
   function showRoundImpl(round, rounds, gained) {
     if (mode !== "bonus") mode = "bonus";
     killSeqActors(); clearTelops();
@@ -2559,7 +2584,13 @@
     hud._round = round;
     setText(hud.bRound, "ROUND " + round);
     setText(hud.bOf, "/" + rounds + "R");
-    if (changed) hudState.roundPopT = clk.t;
+    if (changed) {
+      hudState.roundPopT = clk.t;
+      galleryNext();
+      const lines = T("lcd.roundLines").split("|");
+      const line = round === rounds && rounds > 1 ? T("lcd.finalRound") : lines[(round - 1) % lines.length];
+      telop(line, { x: CX, y: 200, size: 28, cls: round === rounds ? "rainbow" : "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });
+    }
     gained = gained || 0;
     if (gained !== hudState.gainTo) {
       hudState.gainFrom = hudState.gainDisp > gained ? 0 : hudState.gainDisp; hudState.gainTo = gained; hudState.gainT0 = clk.t;

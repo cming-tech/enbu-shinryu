@@ -45,6 +45,8 @@
     "lcd.chanceTime": "機會時間",
     "lcd.jitanN": "時短 20轉",
     "lcd.bonusOver": "BONUS 結束",
+    "lcd.roundLines": "燃起來吧！|神龍之力！|一刀兩斷！|火焰更旺！|勝利在望！|炎舞不息！|再接再厲！|龍神護體！|一氣呵成！|乘勝追擊！",
+    "lcd.finalRound": "最終 ROUND！",
     "lcd.toNormal": "回到通常模式",
     "lcd.rushOver": "炎舞RUSH 結束",
     "lcd.gainN": "獲得 {n}",

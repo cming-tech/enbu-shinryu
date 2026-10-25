@@ -321,6 +321,10 @@
   // against its right and top edges, head top-left facing the playfield. Only the part outside the
   // window shows, so it sits on the frame's top-right corner and right side.
   const DRAGON_ART = { file: "cab_dragon.png", x: 380, y: -8, w: 216, h: 380 };
+  // Optional AI art for the top medallion (replaces the drawn ring and flame; the wings stay) and
+  // for the board painting behind the pins.
+  const CREST_ART = { file: "cab_crest.png", x: 222, y: -10, w: 144, h: 120 };
+  const BOARD_ART = { file: "board.jpg" };
 
   // Dragon body pieces: neck, coils over the right ring, tail. Built at mount.
   function dragonBody() {
@@ -368,7 +372,10 @@
     s += `<rect width="588" height="860" fill="#030407"/>`;
     s += `<g clip-path="url(#pkc-bWin)">`;
     s += `<rect width="588" height="860" fill="url(#pkc-board)"/>`;
-    s += `<rect width="588" height="860" fill="url(#pkc-scale)"/>`;
+    if (S.boardImg) {   // the AI board painting, darkened so the gold pins stay clear
+      s += `<image href="${S.boardImg.src}" x="0" y="96" width="588" height="580" preserveAspectRatio="xMidYMid slice" opacity=".85"/>`;
+      s += `<rect width="588" height="860" fill="#020614" opacity=".35"/>`;
+    } else s += `<rect width="588" height="860" fill="url(#pkc-scale)"/>`;
     s += `<rect y="430" width="588" height="260" fill="url(#pkc-floor)"/>`;
     // Sunburst from the heso.
     let rays = "";
@@ -581,6 +588,10 @@
     addFill("M267,50 a27,27 0 1 0 54,0 a27,27 0 1 0 -54,0 Z", 0.75, { u: 0 });
     acr.push(`<circle cx="294" cy="50" r="27" fill="url(#pkc-gem)"/>`);
     ART.sprites.push({ x: 294, y: 50, r: 48, g: 1.1, core: 1 });
+    if (S.crestImg) {
+      const A = CREST_ART;
+      crest += `<image href="${S.crestImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMidYMid meet" filter="url(#pkc-statueShadow)"/>`;
+    } else {
     crest += `<path d="M262,30 L272,4 L282,22 L294,-4 L306,22 L316,4 L326,30 Z" fill="url(#pkc-gold)" stroke="#3a2006" stroke-width="1.4"/>`;
     crest += `<circle cx="294" cy="50" r="36" fill="none" stroke="#120d06" stroke-width="10"/>`;
     crest += `<circle cx="294" cy="50" r="36" fill="none" stroke="url(#pkc-goldU)" stroke-width="7"/>`;
@@ -591,6 +602,7 @@
     crest += `<path d="${facets}" stroke="#fff" stroke-opacity=".16" stroke-width=".8"/>`;
     crest += `<path d="M294,27 C304,40 313,48 311,61 C310,71 303,77 294,79 C285,77 278,71 277,61 C276,51 285,43 287,35 C289,43 291,47 295,49 C297,41 296,33 294,27 Z" fill="url(#pkc-gold)" stroke="#2a1404" stroke-width="1.4"/>`;
     crest += `<path d="M294,52 C299,58 301,63 299,68 C297,72 291,72 289,68 C287,63 290,58 294,52 Z" fill="#fff6d0" opacity=".8"/>`;
+    }
 
     // --- speaker (top-left corner; the top-right corner belongs to the dragon head)
     const spk = "M24,96 C28,70 50,56 80,56 C100,56 114,66 114,84 C114,106 96,124 66,126 C40,128 22,116 24,96 Z";
@@ -2030,14 +2042,18 @@
       measure();
     }
     S.mounted = true;
-    // The AI dragon, if there is one: the front is rebuilt when it has loaded.
-    if (typeof els.assetsBase === "string" && !S.dragonImg) {
-      const im = new Image();
-      im.onload = () => {
-        S.dragonImg = im;
-        if (S.front) { buildFront(S.front); prepFills(); setSub(S.subStr, S.subCol); }
-      };
-      im.src = els.assetsBase + DRAGON_ART.file;
+    // AI art, if there is any: the layer that shows it is rebuilt when it has loaded.
+    if (typeof els.assetsBase === "string") {
+      [["dragonImg", DRAGON_ART.file, "front"], ["crestImg", CREST_ART.file, "front"], ["boardImg", BOARD_ART.file, "back"]].forEach(([key, file, layer]) => {
+        if (S[key]) return;
+        const im = new Image();
+        im.onload = () => {
+          S[key] = im;
+          if (layer === "back") { if (S.back) buildBack(S.back); }
+          else if (S.front) { buildFront(S.front); prepFills(); setSub(S.subStr, S.subCol); }
+        };
+        im.src = els.assetsBase + file;
+      });
     }
     setSub(S.subStr != null ? S.subStr : PK.t ? PK.t("cab.subDefault") : "?cab.subDefault", S.subCol);
     if (!S._vis) {

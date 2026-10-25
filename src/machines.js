@@ -16,10 +16,16 @@
     serial: "0888",          // 台號 shown on the data counter
     assetsBase: "assets/",   // optional image slots (see dev/CONTRACT.md "Image slots")
     refill: 10000,           // free refill amount, in balls
-    text: {},
-    // Livelier than the engine's 1/99.9 default (the user felt hits were too rare): in a 33-hour
-    // simulation a first hit comes every ~4 min of normal play instead of ~9, a reach every ~20 s
-    // instead of ~50 s. RUSH (1/7.3 x ST 11, about 80% continuation) is unchanged.
-    engine: { spec: { normalChance: 1 / 49.9 }, units: { hesoRate: 1 / 7 } },
+    // The RUSH continuation shown to the player follows the engine numbers below.
+    text: {
+      "lcd.rushRate": "連莊率 約61%",
+      "cab.subDefault": "連莊率\n約61%",
+      "gl.rate": "連莊率|在 RUSH 裡再中一次的機會。約 61% 就是 10 次有 6 次會繼續；沒中的話 RUSH 就結束。",
+    },
+    // Livelier than the engine's 1/99.9 default (the user felt hits were too rare), with a shorter
+    // RUSH (the user found its 80% run of hits odd). In a 33-hour simulation of the engine-test
+    // driver: a first hit every ~4 min of normal play (was ~9), a reach every ~19 s (was ~47),
+    // RUSH 1/9 x ST 8 = about 61% continuation, about 3 hits per RUSH (was ~6).
+    engine: { spec: { normalChance: 1 / 49.9, rushChance: 1 / 9, st: 8 }, units: { hesoRate: 1 / 7 } },
   };
 })();

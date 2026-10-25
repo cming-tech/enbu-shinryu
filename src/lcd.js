@@ -299,14 +299,6 @@
     const c = mkCanvas(cw * K, ch * K), g = c.getContext("2d");
     g.scale(K, K);
     const ox = pad + bl, oy = pad + asc;
-    if (deco === "seven") { // premium: flame halo behind the 7
-      g.save(); g.globalCompositeOperation = "lighter";
-      for (let i = 0; i < 9; i++) {
-        const fx0 = pad + gw * (0.1 + 0.8 * (i / 8)), hh = gh * (0.35 + 0.3 * Math.sin(i * 1.7) * Math.sin(i * 1.7));
-        flameShape(g, fx0, oy - gh * 0.15, gw * 0.22, hh + gh * 0.25, (i - 4) * 1.5, 0.55);
-      }
-      g.restore();
-    }
     fancyText(g, text, ox, oy, {
       K, size: fs, font, face: pal.face, rim: pal.rim, inner: pal.inner, ext: pal.ext, glow: pal.glow,
       glowBlur: 0.15, depth: 0.07, outline: 0.11,
@@ -467,7 +459,10 @@
     bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg",
     // 神龍 (the living gold dragon: the good omen), the jackpot illustration, the 龍兵 and the
     // round-by-round journey scenes of the bonus
-    shinryu: "shinryu.png", jackpot_art: "jackpot_art.jpg" };
+    shinryu: "shinryu.png", jackpot_art: "jackpot_art.jpg", fly: "fly_shinryu.webp" };
+  // The flying 神龍 of 龍神リーチ: a sprite sheet made by dev/make_fly_sprite.py from the PC's vid_fly
+  // clip (frames COLS to a row there). It crosses the LCD in dur seconds, h units tall.
+  const FLY = { cols: 8, frames: 73, fps: 24, dur: 3.4, h: 210, maxW: 520 };
   for (let i = 1; i <= 6; i++) IMG_FILES["minion" + i] = "minion" + i + ".png";
   for (let i = 1; i <= 10; i++) IMG_FILES["round" + i] = "round" + i + ".jpg";
   // the gold dragon on the LCD: the living 神龍, else the cabinet's statue
@@ -490,7 +485,7 @@
     awaken: "vid_awaken.mp4" };
   const ROUND_CLIPS = ["round", "round2", "round3", "round4", "round5", "round6"];
   // Where the canvas carries the key content (777, the RUSH logo) the clip is screened over it.
-  const VID_SCREEN = { jackpot: true, rush: true, sp: true, spsp: true };
+  const VID_SCREEN = { jackpot: true, rush: true };
   const VID = {};
   let vidLayer = null;
   // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
@@ -1553,16 +1548,16 @@
         drawRays(ctx, CX, 190, C.red, -age * 0.32, 0.35, 450, 12, true);
         // rainbow halo
         ctx.save(); ctx.globalCompositeOperation = "lighter";
-        for (let i = 0; i < 24; i++) {
-          const a = (i / 24) * TAU + age * 0.8;
-          drawGlow(ctx, hueRgb((i * 15 + age * 120) % 360), CX + Math.cos(a) * 128, 186 + Math.sin(a) * 104, 22, 0.35);
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * TAU + age * 0.8;
+          drawGlow(ctx, hueRgb((i * 22.5 + age * 120) % 360), CX + Math.cos(a) * 128, 186 + Math.sin(a) * 104, 26, 0.38);
         }
         ctx.restore();
       },
       emit(dt) {
-        const n = dt * 60;
+        const n = dt * 40;   // fewer, a touch bigger: lighter for a phone
         for (let i = 0; i < Math.floor(n) + (rng() < n % 1 ? 1 : 0); i++)
-          emit("back", { x: rand(-20, W + 20), y: H + 20, vx: rand(-10, 10), vy: rand(-90, -170), ay: -20, life: rand(0.9, 1.6), s0: rand(16, 26), s1: rand(30, 46), a0: 0.7, a1: 0, type: "fire" });
+          emit("back", { x: rand(-20, W + 20), y: H + 20, vx: rand(-10, 10), vy: rand(-90, -170), ay: -20, life: rand(0.9, 1.6), s0: rand(18, 28), s1: rand(32, 50), a0: 0.72, a1: 0, type: "fire" });
       },
     },
     jackpot: {
@@ -1905,7 +1900,16 @@
     lastTs = ts;
     if (++frameN % 60 === 0) resize();
     step(dt);
-    render();
+    if (!clipCovers()) render();
+  }
+  // An opaque clip that fills the LCD hides the canvas, so it is not drawn meanwhile (a phone then
+  // only plays the video). Screened clips and the round window show the canvas, so they keep it.
+  function clipCovers() {
+    for (const k in VID) {
+      const v = VID[k];
+      if (v && !VID_SCREEN[k] && !k.startsWith("round") && v.classList.contains("on") && !v.paused && v.readyState >= 2) return true;
+    }
+    return false;
   }
   function resize() {
     if (!root) return;
@@ -2313,17 +2317,42 @@
   }
   async function spSeq(S, r, ctxs) {
     setScene("sp", 0.15, { c: r.color });
-    playClip("sp");   // the 神龍 through the storm, screened over the scene
+    // The 神龍 flies across, right to left, its body moving (the fly sprite). Without it, the clip
+    // of the 神龍 in the storm fills the LCD instead.
+    const fly = IMG.fly;
+    const clip = fly ? null : playClip("sp");
     const pal = r.color === "gold" || r.color === "rainbow" ? "gold" : r.color === "blue" ? "azure" : "fire";
+    const glowCol = pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange;
     addActor("back", 4.4, (ctx, age, a) => {
       const u = clamp(age / 4.1, 0, 1), ue = 0.35 * u + 0.65 * E.io(u);
-      const x = lerp(W + 90, -330, ue), y = 176 + Math.sin(age * 1.6) * 20 - Math.sin(u * Math.PI) * 34;
       let d;
       const sd = IMG.shinryu || IMG.rival;
-      if (sd) {   // the 神龍 (龍神), lit in the reach colour
-        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange, x + 120, y, 210, 0.5); ctx.restore();
-        d = drawArtDragon(ctx, sd, x + 120, y + Math.sin(age * 2.2) * 6, 270, false);
-      } else d = drawDragon(ctx, { x, y, sc: 1.22, dir: -1, t: age * 1.4, len: 450, w0: 17, amp: 0.45, wave: 1.25, spd: 4, pal, glow: true, jaw: 0.25 + 0.2 * Math.sin(age * 5) });
+      // Once the clip shows, it is the 神龍; the drawn one only stands in while it loads (or without it).
+      if (clip && !clip.paused && clip.readyState >= 2) a.clipSeen = true;
+      if (a.clipSeen) { a.mx = null; return; }
+      if (fly) {
+        const v = clamp(age / FLY.dur, 0, 1), ve = 0.3 * v + 0.7 * E.io(v);
+        const fw = fly.naturalWidth / FLY.cols, fh = fly.naturalHeight / Math.ceil(FLY.frames / FLY.cols);
+        const dh = FLY.h, dw = Math.min(FLY.maxW, (dh * fw) / fh);
+        const x = lerp(W + dw / 2, -dw / 2, ve), y = 178 + Math.sin(age * 1.6) * 8 - Math.sin(v * Math.PI) * 26;
+        const k = Math.floor(age * FLY.fps) % FLY.frames;
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, glowCol, x, y, dw * 0.55, 0.45); ctx.restore();
+        ctx.drawImage(fly, (k % FLY.cols) * fw, Math.floor(k / FLY.cols) * fh, fw, fh, x - dw / 2, y - dh / 2, dw, dh);
+        d = { mx: x - dw * 0.4, my: y - dh * 0.15 };   // the head leads, on the left
+      } else if (sd) {
+        // the 神龍 (龍神), lit in the reach colour: a still picture, so it rises into place and
+        // breathes there instead of sliding across like a cut-out
+        const rise = E.out(clamp(age / 0.9, 0, 1)), al = clamp(age / 0.5, 0, 1) * (1 - clamp((age - 3.7) / 0.5, 0, 1));
+        const x = CX + 40, y = 172 + (1 - rise) * 46 + Math.sin(age * 1.6) * 5, h = 270 * (0.8 + 0.2 * rise + 0.015 * Math.sin(age * 2.2));
+        ctx.save(); ctx.globalAlpha = al;
+        ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, glowCol, x, y, 210 * (0.7 + 0.3 * rise), 0.5);
+        ctx.globalCompositeOperation = "source-over";
+        d = drawArtDragon(ctx, sd, x, y, h, false);
+        ctx.restore();
+      } else {
+        const x = lerp(W + 90, -330, ue), y = 176 + Math.sin(age * 1.6) * 20 - Math.sin(u * Math.PI) * 34;
+        d = drawDragon(ctx, { x, y, sc: 1.22, dir: -1, t: age * 1.4, len: 450, w0: 17, amp: 0.45, wave: 1.25, spd: 4, pal, glow: true, jaw: 0.25 + 0.2 * Math.sin(age * 5) });
+      }
       a.mx = d.mx; a.my = d.my;
       if (age > 1.8 && age < 2.4) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, d.mx, d.my, 70, 0.7 * Math.sin(((age - 1.8) / 0.6) * Math.PI)); }
     }, {
@@ -2346,7 +2375,7 @@
   }
   async function spspSeq(S, r, ctxs) {
     setScene("spsp", 0.1);
-    playClip("spsp");
+    const clip = playClip("spsp");   // the 神龍 bursting into flames fills the LCD under the big 激アツ
     shake(10); flash(C.gold, 1, 2.5);
     addActor("back", Infinity, (ctx, age) => {
       if (goldDragon()) {   // the 神龍, breathing slightly
@@ -2357,6 +2386,7 @@
     const big = telop(T("lcd.spsp"), { x: CX, y: 172, size: 112, cls: "rainbow", font: FONT_BRUSH, anim: "slam", stay: true, inD: 0.3, jitter: 4 });
     fireBurst(CX, 180, 40, 300, "front");
     await wait(1.7);
+    if (clip) { clip.classList.remove("on"); setTimeout(() => clip.pause(), 400); }   // back to the reels
     telopOut(big, 0.2);
     telop(T("lcd.spspReach"), { x: CX, y: 54, size: 30, cls: "rainbow", anim: "drop", stay: true, inD: 0.5 });
     layout("spFinal", 0.45, E.back);

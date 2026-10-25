@@ -10,9 +10,13 @@
   const M = PK.MACHINES.enbu;
   Object.assign(PK.TEXT, M.text);
 
+  // The version the player sees (menu, and a toast after an update): the Artifact version this is
+  // published as. Bump it on every publish; the public site is built from the same files.
+  const VERSION = 27;
+
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
-  const KEY_SAVE = "pk." + M.id + ".save", KEY_DAY = "pk." + M.id + ".day", KEY_SET = "pk.settings";
+  const KEY_SAVE = "pk." + M.id + ".save", KEY_DAY = "pk." + M.id + ".day", KEY_SET = "pk.settings", KEY_VER = "pk.version";
   const load = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not saved */ } };
   const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
@@ -176,11 +180,11 @@
     capTimer = setTimeout(() => el.classList.remove("show"), 3800);
   }
   let toastTimer = 0;
-  function toast(msg) {
+  function toast(msg, ms) {
     const el = $("toast");
     el.textContent = msg; el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+    toastTimer = setTimeout(() => { el.hidden = true; }, ms || 2200);
   }
 
   // ---------------------------------------------------------------- 我的紀錄 + 成就
@@ -790,6 +794,10 @@
     requestAnimationFrame(loop);
     if (!set.tutorialSeen) openTutorial();
     else caption("start");
+    $("menuVer").textContent = t("ui.version", { v: VERSION });
+    const lastVer = +load(KEY_VER) || 0;
+    store(KEY_VER, String(VERSION));
+    if (lastVer && lastVer !== VERSION) toast(t("ui.updated", { v: VERSION }), 5000);   // shown while the page is still loading
     kick();
     // dev/test hook (not used by the game)
     PK.shell = { eng, setFiring, get busy() { return { spinning, bonusFlow, holdFire, mode }; } };

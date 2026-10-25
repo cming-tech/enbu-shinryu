@@ -19,9 +19,9 @@
     // The RUSH continuation shown to the player: the shell fills {p} (percent) and {n} (out of 10)
     // from the odds in use, which the player can change in 設定 → 機率調整.
     text: {
-      "lcd.rushRate": "連莊率 約{p}%",
-      "cab.subDefault": "連莊率\n約{p}%",
-      "gl.rate": "連莊率|在 RUSH 裡再中一次的機會。約 {p}% 就是 10 次有 {n} 次會繼續；沒中的話 RUSH 就結束。可以在「設定 → 機率調整」改。",
+      "lcd.rushRate": "継続率 約{p}%",
+      "cab.subDefault": "継続率\n約{p}%",
+      "gl.rate": "継続率（連莊率）|在 RUSH 裡再中一次的機會。約 {p}% 就是 10 次有 {n} 次會繼續；沒中的話 RUSH 就結束。可以在「設定 → 機率調整」改。",
     },
     // The user tried 1/49.9 with a 61% RUSH and found "a jackpot all the time" less fun, so hits are
     // back to 1/99.9 and the RUSH continues about 40% of the time (1/16 x ST 8). In a 67-hour

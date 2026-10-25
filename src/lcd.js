@@ -464,7 +464,14 @@
   const IMG = {};
   const IMG_FILES = { bg_normal: "bg_normal.jpg", bg_rush: "bg_rush.jpg", hero: "hero.png", rival: "rival.png", cutin_hero: "cutin_hero.png", jackpot: "jackpot.png", cab_dragon: "cab_dragon.png",
     pose_slash: "pose_slash.png", pose_victory: "pose_victory.png", step1: "step1.jpg", step2: "step2.jpg", step3: "step3.jpg",
-    bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg" };
+    bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg",
+    // 神龍 (the living gold dragon: the good omen), the jackpot illustration, the 龍兵 and the
+    // round-by-round journey scenes of the bonus
+    shinryu: "shinryu.png", jackpot_art: "jackpot_art.jpg" };
+  for (let i = 1; i <= 6; i++) IMG_FILES["minion" + i] = "minion" + i + ".png";
+  for (let i = 1; i <= 10; i++) IMG_FILES["round" + i] = "round" + i + ".jpg";
+  // the gold dragon on the LCD: the living 神龍, else the cabinet's statue
+  const goldDragon = () => IMG.shinryu || IMG.cab_dragon;
   let imgPending = 0;
   function loadImages(base) {
     for (const k in IMG_FILES) {
@@ -479,14 +486,16 @@
   // assets/vid_<name>.mp4 plays muted behind the telops during a key 演出; a missing file is skipped.
   const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4",
     sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4", round2: "vid_round2.mp4", round3: "vid_round3.mp4",
-    battle: "vid_battle.mp4", lose: "vid_lose.mp4" };
+    battle: "vid_battle.mp4", lose: "vid_lose.mp4", round4: "vid_round4.mp4", round5: "vid_round5.mp4", round6: "vid_round6.mp4",
+    awaken: "vid_awaken.mp4" };
+  const ROUND_CLIPS = ["round", "round2", "round3", "round4", "round5", "round6"];
   // Where the canvas carries the key content (777, the RUSH logo) the clip is screened over it.
   const VID_SCREEN = { jackpot: true, rush: true, sp: true, spsp: true };
   const VID = {};
   let vidLayer = null;
   // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
   // first, so a phone does not fetch every clip at once on opening the page.
-  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "round", "round2", "round3"];
+  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "awaken", "round", "round2", "round3", "round4", "round5", "round6"];
   const VID_GAP = 2.5;   // seconds between preloads
   function loadVideos(base) {
     for (const k in VID_FILES) {
@@ -1490,6 +1499,7 @@
         if (gal.cur) drawGallery(ctx);
         else drawWarrior(ctx, { x: CX - 10, y: H + 34, sc: 1.02, t: age, rim: "gold", aura: 1, sword: -1.25 + Math.sin(age * 1.5) * 0.04 });
         if (boss.on) drawBoss(ctx);
+        if (awaken.on) drawAwaken(ctx);
         ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.orange, CX, H + 20, 240, 0.35); ctx.restore();
       },
       emit(dt) {
@@ -1560,7 +1570,12 @@
         sceneBg(ctx, "jackpot");
         drawRays(ctx, CX, 172, C.white, age * 0.6, 0.5, 450, 22, true);
         drawRays(ctx, CX, 172, C.gold, -age * 0.4, 0.4, 450, 16, true);
-        if (IMG.jackpot) { ctx.globalAlpha = 0.85; drawContain(ctx, IMG.jackpot, 0, 20, W, H - 20, true); ctx.globalAlpha = 1; }
+        if (IMG.jackpot_art) {   // the hero and the 神龍, full screen with a slow push in
+          const z = 1 + 0.04 * Math.min(1, age / 6);
+          ctx.save(); ctx.translate(CX, H / 2); ctx.scale(z, z); ctx.translate(-CX, -H / 2);
+          drawCover(ctx, IMG.jackpot_art, 0, 0, W, H); ctx.restore();
+          ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(0, 0, W, H);   // the 777 stays readable
+        } else if (IMG.jackpot) { ctx.globalAlpha = 0.85; drawContain(ctx, IMG.jackpot, 0, 20, W, H - 20, true); ctx.globalAlpha = 1; }
         else {
           drawDragon(ctx, { x: CX + 6, y: 84, sc: 0.95, dir: 1, t: age * 0.6, len: 470, w0: 17, ang: 0.1, curl: -5.4, amp: 0.12, wave: 1, spd: 1, pal: "gold", glow: true, alpha: 0.9 });
         }
@@ -2014,7 +2029,7 @@
     } else {
       drawRays(ctx, 0, 0, hueRgb(tt * 200), tt * 2, 0.7, 220, 20, true);
       ctx.globalCompositeOperation = "source-over";
-      if (IMG.cab_dragon) drawArtDragon(ctx, IMG.cab_dragon, 0, 12, 150, false);
+      if (goldDragon()) drawArtDragon(ctx, goldDragon(), 0, 12, 150, false);
       else drawDragon(ctx, { x: -40, y: -14, sc: 0.62, dir: -1, t: tt * 1.4, len: 300, w0: 16, ang: -0.25, curl: -4.2, amp: 0.15, pal: "gold", glow: true, jaw: 0.42 });
     }
     ctx.globalCompositeOperation = "source-over";
@@ -2083,7 +2098,7 @@
     }
     ds.sort((a, b) => a.z - b.z);
     const art = (d) => {
-      if (d.gold) return IMG.cab_dragon ? tinted(IMG.cab_dragon, "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
+      if (d.gold) return goldDragon() ? tinted(goldDragon(), "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
       return d.z < 0.35 ? tinted(IMG.rival, "#2a0604", 0.55) : d.z < 0.7 ? tinted(IMG.rival, "#ff7a1a", 0.18) : tinted(IMG.rival, "#000", 0);
     };
     const pos = (d, age) => {
@@ -2157,13 +2172,13 @@
       const u = clamp(age / 1.5, 0, 1), k = 1 - E.in(u);
       ctx.globalAlpha = 0.75 * k;
       const gr = ctx.createRadialGradient(CX, 168, 10, CX, 168, 260);
-      gr.addColorStop(0, "rgba(255,240,180,0.9)"); gr.addColorStop(0.25, "rgba(255,40,0,0.7)"); gr.addColorStop(1, "rgba(30,0,0,0.95)");
+      gr.addColorStop(0, "rgba(255,250,220,0.95)"); gr.addColorStop(0.25, "rgba(255,190,40,0.75)"); gr.addColorStop(1, "rgba(40,22,0,0.95)");   // the 神龍's gold
       ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
       speedLines(ctx, CX, 168, 50, C.white, 0.6 * k, 40, Math.floor(age * 30));
       for (let i = 0; i < 3; i++) {
         const d = age - i * 0.25;
-        if (d >= 0 && d < 0.25) lightning(ctx, rand(40, 352), -10, CX + rand(-40, 40), 168, i * 11 + Math.floor(d * 40), C.red, 3, 1 - d / 0.25);
+        if (d >= 0 && d < 0.25) lightning(ctx, rand(40, 352), -10, CX + rand(-40, 40), 168, i * 11 + Math.floor(d * 40), C.gold, 3, 1 - d / 0.25);
       }
     }, { seq: true });
     fireBurst(CX, 168, 30, 260, "front");
@@ -2298,15 +2313,16 @@
   }
   async function spSeq(S, r, ctxs) {
     setScene("sp", 0.15, { c: r.color });
-    playClip("sp");   // the dragon through the storm, screened over the scene
+    playClip("sp");   // the 神龍 through the storm, screened over the scene
     const pal = r.color === "gold" || r.color === "rainbow" ? "gold" : r.color === "blue" ? "azure" : "fire";
     addActor("back", 4.4, (ctx, age, a) => {
       const u = clamp(age / 4.1, 0, 1), ue = 0.35 * u + 0.65 * E.io(u);
       const x = lerp(W + 90, -330, ue), y = 176 + Math.sin(age * 1.6) * 20 - Math.sin(u * Math.PI) * 34;
       let d;
-      if (IMG.rival) {   // the AI dragon, lit in the reach colour
+      const sd = IMG.shinryu || IMG.rival;
+      if (sd) {   // the 神龍 (龍神), lit in the reach colour
         ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange, x + 120, y, 210, 0.5); ctx.restore();
-        d = drawArtDragon(ctx, IMG.rival, x + 120, y + Math.sin(age * 2.2) * 6, 270, false);
+        d = drawArtDragon(ctx, sd, x + 120, y + Math.sin(age * 2.2) * 6, 270, false);
       } else d = drawDragon(ctx, { x, y, sc: 1.22, dir: -1, t: age * 1.4, len: 450, w0: 17, amp: 0.45, wave: 1.25, spd: 4, pal, glow: true, jaw: 0.25 + 0.2 * Math.sin(age * 5) });
       a.mx = d.mx; a.my = d.my;
       if (age > 1.8 && age < 2.4) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, d.mx, d.my, 70, 0.7 * Math.sin(((age - 1.8) / 0.6) * Math.PI)); }
@@ -2333,9 +2349,9 @@
     playClip("spsp");
     shake(10); flash(C.gold, 1, 2.5);
     addActor("back", Infinity, (ctx, age) => {
-      if (IMG.cab_dragon) {   // the gold statue, breathing slightly
+      if (goldDragon()) {   // the 神龍, breathing slightly
         ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, CX, H / 2, 240, 0.45); ctx.restore();
-        drawArtDragon(ctx, IMG.cab_dragon, CX, H / 2 + 8, H * (0.98 + 0.015 * Math.sin(age * 2)), false);
+        drawArtDragon(ctx, goldDragon(), CX, H / 2 + 8, H * (0.98 + 0.015 * Math.sin(age * 2)), false);
       } else drawDragon(ctx, { x: CX + 6, y: 92, sc: 0.98, dir: 1, t: age * 0.7, len: 480, w0: 17, ang: 0.1, curl: -5.4, amp: 0.1, wave: 1, spd: 1.2, pal: "gold", glow: true, alpha: 0.95, jaw: 0.3 });
     }, { seq: true });
     const big = telop(T("lcd.spsp"), { x: CX, y: 172, size: 112, cls: "rainbow", font: FONT_BRUSH, anim: "slam", stay: true, inD: 0.3, jitter: 4 });
@@ -2695,16 +2711,28 @@
   }
   // Bonus rounds: each round shows another piece of the AI art, slowly zooming (crossfaded), with
   // a line of its own (the round screen used to be one still picture: the user found it dull).
+  // Each round shows the next scene of the hero's journey with the 神龍 (round1..round10, full
+  // screen). The count runs on across bonuses, so a new bonus continues the journey instead of
+  // starting it over; without those pictures the hero cut-outs take turns as before.
+  const ROUND_ART = ["round1", "round2", "round3", "round4", "round5", "round6", "round7", "round8", "round9", "round10"];
   const GALLERY = ["hero", "pose_slash", "jackpot", "cutin_hero", "pose_victory", "cab_dragon"];
   const gal = { cur: null, prev: null, t0: 0, n: 0 };
   function galleryNext() {
-    const have = GALLERY.filter((k) => IMG[k]);
+    let have = ROUND_ART.filter((k) => IMG[k]);
+    if (!have.length) have = GALLERY.filter((k) => IMG[k]);
     if (!have.length) return;
     gal.prev = gal.cur; gal.cur = have[gal.n++ % have.length]; gal.t0 = clk.t;
   }
   function drawGalleryImg(ctx, key, a, t) {
     const im = IMG[key];
     if (!im || a <= 0.01) return;
+    if (key.startsWith("round")) {   // a scene: cover the screen, slow push in and drift
+      const z = 1.04 + 0.06 * Math.min(1, t / 9), px = (gal.n % 2 ? 1 : -1) * 8 * Math.min(1, t / 9);
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.translate(CX + px, H / 2); ctx.scale(z, z); ctx.translate(-CX, -H / 2);
+      drawCover(ctx, im, 0, 0, W, H); ctx.restore();
+      return;
+    }
     const z = 1 + 0.07 * Math.min(1, t / 9), px = (gal.n % 2 ? 1 : -1) * 10 * Math.min(1, t / 9);
     const gx = boss.on ? W * 0.33 : CX, bw = boss.on ? W * 0.66 : W - 48;   // the boss takes the right third
     ctx.save();
@@ -2718,23 +2746,34 @@
     if (gal.prev && f < 1) drawGalleryImg(ctx, gal.prev, 1 - f, t + 9);
     drawGalleryImg(ctx, gal.cur, f, t);
   }
-  // 打倒炎龍王: in a bonus the rival waits on the right with a life bar; every PUSH hits it
-  // (LCD.push), and knocking it out before the bonus ends earns a reward the shell pays. Its life
-  // grows with the rounds, so a 3R bonus needs a quick hand and a 10R one a steady one.
-  const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [] };
-  const BOSS_HP_PER_ROUND = 9;
-  function bossStart(rounds) {
-    Object.assign(boss, { on: true, hp: rounds * BOSS_HP_PER_ROUND, max: rounds * BOSS_HP_PER_ROUND, down: false, hitT: -9, pops: [] });
-    telop(T("lcd.bossHint"), { x: CX, y: 64, size: 22, cls: "red", anim: "pop", dur: 2.6, inD: 0.6 });
+  // 大当り: the 炎龍王 was beaten to get here, so the first rounds fight one of its 龍兵 (a
+  // different one each bonus) on the right with a life bar. Every PUSH hits it (LCD.push), and a
+  // knockout earns a reward the shell pays. It has 9 hits per round before the last one; the last
+  // round is the 神龍覚醒チャレンジ (below), and a 龍兵 still standing then withdraws.
+  const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [], k: -1, flee: false };
+  const BOSS_HP_PER_ROUND = 9, MINIONS = 6;
+  let minionN = -1;
+  function bossStart(rounds, round) {
+    if (minionN < 0) minionN = Math.floor(rng() * MINIONS);
+    const hp = Math.max(1, (rounds - round) * BOSS_HP_PER_ROUND), k = minionN++ % MINIONS;
+    Object.assign(boss, { on: true, hp, max: hp, down: false, hitT: -9, pops: [], k, flee: false });
+    telop(T("lcd.bossHint", { name: minionName(k) }), { x: CX, y: 108, size: 19, cls: "red", anim: "pop", dur: 2.6, inD: 0.6 });   // under the life bar
+  }
+  const minionName = (k) => T("lcd.minions").split("|")[k] || T("lcd.rival");
+  function minionArt(k) {
+    if (IMG["minion" + (k + 1)]) return IMG["minion" + (k + 1)];
+    return IMG.rival ? tinted(IMG.rival, ["#3a0a00", "#5a1000", "#200a2a", "#2a2a2a", "#002a3a", "#3a2000"][k], 0.35) : null;   // until its art exists
   }
   function drawBoss(ctx) {
     const t = clk.t, bx = W - 84, by = 160;
     let al = 1;
-    if (boss.down) { al = 1 - (t - boss.downT) / 1.1; if (al <= 0) return; }
+    if (boss.down || boss.flee) { al = 1 - (t - boss.downT) / 1.1; if (al <= 0) return; }
     const k = t - boss.hitT, sh = k < 0.25 ? Math.sin(k * 90) * 9 * (1 - k / 0.25) : 0;
+    const fx0 = boss.flee ? (t - boss.downT) * 160 : 0;   // a withdrawing 龍兵 slides off to the right
+    const art = minionArt(boss.k);
     ctx.save();
     ctx.globalAlpha = al;
-    if (IMG.rival) drawArtDragon(ctx, IMG.rival, bx + sh, by + Math.sin(t * 1.8) * 4, 205, false);
+    if (art) drawArtDragon(ctx, art, bx + sh + fx0, by + Math.sin(t * 1.8) * 4, 205, false);
     else drawDragon(ctx, { x: bx - 50 + sh, y: by - 40, sc: 0.55, dir: -1, t: t, len: 260, amp: 0.3, pal: "fire", glow: true, jaw: 0.3 });
     if (k < 0.14) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, bx, by - 20, 90, 0.8 * (1 - k / 0.14)); }
     ctx.restore();
@@ -2748,7 +2787,7 @@
     ctx.fillStyle = lg; roundRect(ctx, x0, y0, Math.max(0.001, bw * f), 10, 4); ctx.fill();
     ctx.strokeStyle = "#ffd27a"; ctx.lineWidth = 1.5; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.stroke();
     ctx.font = "900 12px " + FONT_TC; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-    ctx.fillText(T("lcd.rival"), x0, y0 - 5);
+    ctx.fillText(minionName(boss.k), x0, y0 - 5);
     ctx.restore();
     drawPops(ctx, boss.pops, al);
   }
@@ -2767,7 +2806,7 @@
     ctx.restore();
   }
   function bossHit() {
-    if (!boss.on || boss.down) return null;
+    if (!boss.on || boss.down || boss.flee) return null;
     boss.hp = Math.max(0, boss.hp - 1); boss.hitT = clk.t;
     boss.pops.push({ v: 80 + Math.floor(rng() * 170), t: clk.t, x: W - 96 + rand(-34, 34), y: 120 + rand(-24, 24) });
     if (boss.pops.length > 14) boss.pops.shift();
@@ -2780,27 +2819,114 @@
     telop(T("lcd.bossReward", { n: 100 }), { x: W - 96, y: 166, size: 24, cls: "rainbow", anim: "pop", dur: 1.8, inD: 0.3 });
     return "bossDown";
   }
+  // 神龍覚醒チャレンジ, the last round: the 神龍 sleeps in the dark behind a ring gauge that PUSH
+  // fills (and that creeps up by itself). The result was decided with the jackpot (the next mode),
+  // and playBonusEnd reveals it: awake = RUSH, still asleep = 時短.
+  const awaken = { on: false, g: 0, t0: 0, res: null, resT: 0 };
+  const AW = { x: CX, y: 150, r: 74 };
+  function awakenStart() {
+    Object.assign(awaken, { on: true, g: 0, t0: clk.t, res: null, resT: 0 });
+    telop(T("lcd.awakenTitle"), { x: CX, y: 70, size: 26, cls: "rainbow", anim: "slam", stay: true });
+    telop(T("lcd.awakenHint"), { x: CX, y: 262, size: 18, cls: "gold", anim: "pop", dur: 3, inD: 0.5 });
+  }
+  function awakenTap() {
+    awaken.g = Math.min(0.92, awaken.g + 0.05);   // the last bit is the reveal's
+    const a = -Math.PI / 2 + awaken.g * TAU;
+    burst("front", AW.x + Math.cos(a) * AW.r, AW.y + Math.sin(a) * AW.r, 8, { cols: [C.gold, C.white], v0: 60, v1: 180, s0: 1, s1: 2.2, len: 12 });
+    shake(1.2);
+    return "awaken";
+  }
+  function drawAwaken(ctx) {
+    const t = clk.t, im = goldDragon();
+    if (awaken.res == null) awaken.g = Math.min(0.92, awaken.g + 0.0025);   // creeps up a little each frame
+    const lit = awaken.res === true ? Math.min(1, (t - awaken.resT) / 0.4) : awaken.res === false ? 0 : awaken.g * 0.35;
+    const fade = awaken.res === false ? Math.max(0, 1 - (t - awaken.resT) / 1.2) : 1;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0," + (0.55 * (1 - lit)).toFixed(3) + ")"; ctx.fillRect(0, 0, W, H);
+    if (im) {   // asleep: dark; awake: gold and glowing
+      const h = H * 0.9 * (1 + 0.02 * Math.sin(t * 2));
+      ctx.globalAlpha = 0.9 * fade;
+      drawArtDragon(ctx, tinted(im, "#000", 0.8), AW.x, H / 2 + 6, h, false);
+      if (lit > 0) { ctx.globalAlpha = lit * fade; drawArtDragon(ctx, im, AW.x, H / 2 + 6, h, false); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, AW.x, AW.y, 240, 0.6 * lit); }
+    }
+    ctx.restore();
+    // the gauge ring
+    const g = awaken.res === true ? 1 : awaken.g;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(AW.x, AW.y, AW.r, 0, TAU); ctx.stroke();
+    const gr = ctx.createLinearGradient(AW.x - AW.r, 0, AW.x + AW.r, 0); gr.addColorStop(0, "#ffb000"); gr.addColorStop(1, "#fff2a0");
+    ctx.strokeStyle = gr; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(AW.x, AW.y, AW.r, -Math.PI / 2, -Math.PI / 2 + g * TAU); ctx.stroke();
+    ctx.globalCompositeOperation = "lighter"; ctx.strokeStyle = "rgba(255,210,90,0.35)"; ctx.lineWidth = 18; ctx.beginPath(); ctx.arc(AW.x, AW.y, AW.r, -Math.PI / 2, -Math.PI / 2 + g * TAU); ctx.stroke();
+    drawGlow(ctx, C.gold, AW.x, AW.y, 40 + 30 * g, 0.4 + 0.4 * g);
+    ctx.restore();
+  }
+  // onReveal(ok) runs when the result shows (at once when there was no challenge to reveal).
+  async function awakenReveal(ok, onReveal) {
+    const tell = () => { if (onReveal) try { onReveal(ok); } catch (e) { /* ignore */ } };
+    if (!awaken.on || awaken.res != null) { tell(); return; }
+    clearTelops();
+    // the last push: the gauge races to the top...
+    tween(awaken, { g: ok ? 1 : 0.97 }, 0.6, E.in);
+    await wait(0.7);
+    awaken.res = ok; awaken.resT = clk.t;
+    tell();
+    if (ok) {
+      flash(C.white, 1, 2); shake(12);
+      burst("front", AW.x, AW.y, 60, { cols: [C.gold, C.white, C.orange], v0: 160, v1: 520, s0: 1.4, s1: 3.4, len: 28 });
+      if (VID.awaken) {   // the 神龍 wakes on film: white in, the clip, white out onto the title
+        white(1, 0.12); await wait(0.14);
+        const film = playClipToEnd("awaken", 3.6);
+        white(0, 0.3);
+        await film;
+        white(1, 0.1); await wait(0.12); white(0, 0.5);
+      }
+      telop(T("lcd.awakenOk"), { x: CX, y: 160, size: 58, cls: "rainbow", anim: "slam", dur: 1.6, jitter: 3 });
+      await wait(1.5);
+    } else {
+      flash(C.white, 0.4, 3); shake(6);
+      tween(fx, { gray: 0.7 }, 0.4);
+      telop(T("lcd.awakenNg"), { x: CX, y: 160, size: 44, cls: "gray", anim: "drop", dur: 1.6, inD: 0.3 });
+      await wait(1.6);
+      tween(fx, { gray: 0 }, 0.3);
+    }
+  }
   let roundClipN = 0;
   function showRoundImpl(round, rounds, gained) {
     if (mode !== "bonus") mode = "bonus";
-    killSeqActors(); clearTelops();
-    hitPulse.on = false;
-    setScene("bonus", 0.25);
-    tween(fx, { logoA: 0, dim: 0, gray: 0, vign: 0 }, 0.2);
-    layout("hidden", 0.25);
-    hudState.bonusOn = true; hudState.rushOn = false;
     const changed = hud._round !== round;
+    // Called again on every payout: only a new round clears the screen, so the 龍兵's 撃破!! and
+    // the round line stay up.
+    if (changed) {
+      killSeqActors(); clearTelops();
+      hitPulse.on = false;
+      setScene("bonus", 0.25);
+      tween(fx, { logoA: 0, dim: 0, gray: 0, vign: 0 }, 0.2);
+      layout("hidden", 0.25);
+    }
+    hudState.bonusOn = true; hudState.rushOn = false;
     hud._round = round;
     setText(hud.bRound, "ROUND " + round);
     setText(hud.bOf, "/" + rounds + "R");
     if (changed) {
       hudState.roundPopT = clk.t;
       galleryNext();
-      if (!boss.on) bossStart(rounds);
-      if (round % 2 === 0) playClip(["round", "round2", "round3"][roundClipN++ % 3]);   // every other round, in turn
-      const lines = T("lcd.roundLines").split("|");
-      const line = round === rounds && rounds > 1 ? T("lcd.finalRound") : lines[(round - 1) % lines.length];
-      telop(line, { x: boss.on ? W * 0.33 : CX, y: 200, size: 26, cls: round === rounds ? "rainbow" : "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });
+      const last = round >= rounds;
+      if (!last && !boss.on) bossStart(rounds, round);
+      if (last) {
+        if (boss.on && !boss.down) { boss.flee = true; boss.downT = clk.t; }   // the 龍兵 withdraws
+        if (!awaken.on) awakenStart();
+      }
+      // every other round a clip in the window, in turn (never during the challenge)
+      if (!last && round % 2 === 0) {
+        const have = ROUND_CLIPS.filter((k) => VID[k]);
+        if (have.length) playClip(have[roundClipN++ % have.length]);
+      }
+      if (!last) {
+        const lines = T("lcd.roundLines").split("|");
+        telop(lines[(round - 1) % lines.length], { x: boss.on ? W * 0.33 : CX, y: 200, size: 26, cls: "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });
+      }
     }
     gained = gained || 0;
     if (gained !== hudState.gainTo) {
@@ -2819,9 +2945,11 @@
   async function playBonusEndImpl(o) {
     o = o || {};
     const next = o.next || "normal", gained = o.gained || 0;
+    await awakenReveal(next === "rush", o.onReveal);
     killSeqActors(); clearTelops();
     hudState.bonusOn = false;
-    boss.on = false;
+    hud._round = 0;   // the next bonus starts a new count
+    boss.on = false; awaken.on = false;
     layout("hidden", 0.2);
     if (next === "rush") {
       setScene("rush", 0.1);
@@ -2973,10 +3101,12 @@
       setHoldView(useRush ? holdSrc.rush : holdSrc.holds);
     },
     playSpin(script, opts) { return enqueue(() => playSpinImpl(script, opts)); },
-    // Returns true when a prompt or 連打 took the press, "boss" / "bossDown" when it hit the boss
-    // of a bonus (bossDown: knocked out, the shell pays the reward), else false.
+    // Returns true when a prompt or 連打 took the press; in a bonus "boss" / "bossDown" when it hit
+    // the 龍兵 (bossDown: knocked out, the shell pays the reward) or "awaken" when it fed the
+    // 神龍覚醒 gauge; else false.
     push() {
-      if (mode === "bonus" && boss.on && !boss.down && !pushWaiter && !renda.on) return bossHit();
+      if (mode === "bonus" && awaken.on && awaken.res == null && !pushWaiter && !renda.on) return awakenTap();
+      if (mode === "bonus" && boss.on && !boss.down && !boss.flee && !pushWaiter && !renda.on) return bossHit();
       if (pushWaiter) {
         const w = pushWaiter; pushWaiter = null;
         if (curOpts && curOpts.onPush) try { curOpts.onPush("prompt"); } catch (e) { /* ignore */ }
@@ -2985,10 +3115,12 @@
       if (renda.on) { rendaHit(false); return true; }
       return false;
     },
-    bossActive() { return mode === "bonus" && boss.on && !boss.down; },
+    // true while PUSH has a bonus target (the 龍兵, or the 神龍覚醒 gauge): AUTO PUSH taps it
+    bossActive() { return mode === "bonus" && ((boss.on && !boss.down && !boss.flee) || (awaken.on && awaken.res == null)); },
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
     showRound(round, rounds, gained) { enqueue(() => showRoundImpl(round, rounds, gained)); },
     playRoundBreak(round) { return enqueue(() => playRoundBreakImpl(round)); },
+    // o: { gained, next, onReveal?(ok) }; onReveal runs when the 神龍覚醒 result shows
     playBonusEnd(o) { return enqueue(() => playBonusEndImpl(o)); },
     setRush(o) {
       o = o || {};

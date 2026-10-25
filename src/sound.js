@@ -1410,6 +1410,34 @@
     else if (unlocked && enabled) resume();
   }
 
+  // ---------------------------------------------------------------- voice lines
+  // Japanese voice lines (assets/vo_<name>.wav, made on the PC with VOICEVOX): fetched one by one
+  // after the music and decoded once the audio is unlocked. One line plays at a time, through the
+  // SFX bus with the music ducked under it; a missing file is silent.
+  const VOICE_LEVEL = 1.0;
+  const voiceRaw = {}, voiceBuf = {};
+  let voiceQueue = [], voiceBusy = false, voiceOn = true, voiceSrc = null;
+  function pumpVoices() {
+    if (voiceBusy || !voiceQueue.length || typeof fetch !== "function") return;
+    const name = voiceQueue.shift();
+    voiceBusy = true;
+    fetch((fileBase == null ? "assets/" : fileBase) + "vo_" + name + ".wav").then((r) => (r.ok ? r.arrayBuffer() : null)).then((ab) => {
+      if (ab && ab.byteLength) { voiceRaw[name] = ab; decodeVoice(name); }
+    }, () => { /* no file: silent */ }).then(() => { voiceBusy = false; setTimeout(pumpVoices, 60); });
+  }
+  function decodeVoice(name) {
+    if (!ctx || !voiceRaw[name] || voiceBuf[name]) return;
+    const ab = voiceRaw[name];
+    delete voiceRaw[name];
+    new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); })
+      .then((b) => { voiceBuf[name] = b; }, () => { /* unreadable: silent */ });
+  }
+  function stopVoiceLine() {
+    if (!voiceSrc) return;
+    try { voiceSrc.stop(); } catch (e) { /* already stopped */ }
+    voiceSrc = null;
+  }
+
   function stopAllVoices() {
     if (!rig) return;
     for (const v of rig.voices.slice()) finishVoice(rig, v);
@@ -1438,6 +1466,7 @@
         s.connect(ctx.destination);
         s.onended = () => { try { s.disconnect(); } catch (e) { /* ignore */ } };
         s.start(0);
+        for (const n in voiceRaw) decodeVoice(n);
         if (enabled) { applyBed(); prerender(); }
       } catch (e) { /* never throw */ }
     },
@@ -1453,6 +1482,7 @@
           if (unlocked) prerender();
         } else {
           if (bedCur) { fadeOutBed(bedCur); bedCur = null; }
+          stopVoiceLine();
           setTimeout(() => { if (!enabled) stopAllVoices(); }, 120);
           suspendSoon(400);
         }
@@ -1487,6 +1517,32 @@
         pumpFiles();
       } catch (e) { /* never throw */ }
     },
+    // Voice lines <base>vo_<name>.wav (base as in useFiles), fetched after a short delay.
+    useVoices(names) {
+      try {
+        voiceQueue = voiceQueue.concat((names || []).map(String));
+        setTimeout(pumpVoices, 1500);
+      } catch (e) { /* never throw */ }
+    },
+    // Play a voice line now, cutting off the one before; false when off, not loaded or not allowed.
+    voice(name) {
+      try {
+        const b = voiceBuf[name];
+        if (!voiceOn || !b || !canPlay()) return false;
+        stopVoiceLine();
+        const s = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime + 0.01;
+        s.buffer = b; g.gain.value = VOICE_LEVEL;
+        s.connect(g); g.connect(rig.sfx);
+        s.onended = () => { try { s.disconnect(); g.disconnect(); } catch (e) { /* ignore */ } if (voiceSrc === s) voiceSrc = null; };
+        s.start(t);
+        voiceSrc = s;
+        duck(rig, t, 0.45, b.duration);
+        return true;
+      } catch (e) { return false; }
+    },
+    setVoice(on) {
+      try { voiceOn = !!on; if (!voiceOn) stopVoiceLine(); } catch (e) { /* never throw */ }
+    },
     names: SFX_NAMES.slice(),
     bgmNames: BGM_NAMES.slice(),
   };
@@ -1499,6 +1555,7 @@
     bed: bedCur && !bedCur.dead ? bedCur.name : null, bedsAlive: bedsAlive.length, want: bedWant,
     ready: Object.keys(bedBuf),
     files: Object.keys(fileBuf).concat(Object.keys(altBuf).map((n) => n + "2")),
+    voiceLines: Object.keys(voiceBuf),
   });
   Sound._test = {
     SFX_NAMES, BGM_NAMES, MAX_VOICES, BED_SR, RULES, RULE_DEFAULT, activeRange, findLoop, loopFromTrack: (buf) => loopFromTrack(buf),

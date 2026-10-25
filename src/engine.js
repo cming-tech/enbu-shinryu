@@ -523,19 +523,24 @@
       });
       return n;
     }
-    function fireBall() {
+    // shot (optional) comes from the player's 力道 knob: { side: 'left'|'right', eff: 0..1 }. A ball
+    // on the wrong side for the mode goes out, and eff scales the pocket rate. Without it the ball
+    // is aimed perfectly (auto), exactly as before.
+    function fireBall(shot) {
       if (S.chips < U.ballCost) return null;
       S.chips -= U.ballCost;
       S.tot.fired++;
-      const side = aim();
+      const side = shot && (shot.side === "left" || shot.side === "right") ? shot.side : aim();
+      const eff = shot && shot.eff != null ? Math.max(0, Math.min(1, +shot.eff || 0)) : 1;
       const m = S.mode, r = rng();
       let target = "out";
-      if (m === "normal") { if (r < U.hesoRate) target = "heso"; }
-      else if (m === "rush" || m === "jitan") { if (r < U.denchuRate) target = "denchu"; }
+      if (side !== aim()) { /* wrong side: out */ }
+      else if (m === "normal") { if (r < U.hesoRate * eff) target = "heso"; }
+      else if (m === "rush" || m === "jitan") { if (r < U.denchuRate * eff) target = "denchu"; }
       else if (m === "bonus" && S.attackerOpen) {
         // A ball that would land after the round's 10th entry hits the closed door: it goes out,
         // so the cabinet never animates a ball into the attacker that pays nothing.
-        if (r < U.attackerRate && S.roundCount + attackerInFlight() < U.roundEntries) target = "attacker";
+        if (r < U.attackerRate * eff && S.roundCount + attackerInFlight() < U.roundEntries) target = "attacker";
       }
       const id = ++S.ballSeq;
       inflight.set(id, target === "attacker" ? { target, side, rt: S.roundToken } : { target, side });

@@ -19,6 +19,28 @@
 
   const set = Object.assign({ sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, tutorialSeen: false }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
+
+  // ---------------------------------------------------------------- 機率調整
+  // Each player can pick the odds on their own phone (設定 → 機率調整): presets over the machine's
+  // numbers (set.hitN / set.rushN = 1/n per spin, null = the machine's own). A change applies on a
+  // reload, so one engine always runs on one set of tables; the save and the records are kept.
+  const ODDS = {
+    hit: [49.9, 69.9, 99.9, 149.9, 199.9],                        // 1/n per normal spin
+    hitMinutes: { 49.9: 4, 69.9: 5, 99.9: 7, 149.9: 11, 199.9: 13 }, // mean minutes to a jackpot (simulated)
+    rush: [20, 16, 12, 9, 5.5],                                    // 1/n per RUSH spin
+  };
+  function odds() {
+    const sp = Object.assign({}, PK.engineTables.spec, M.engine && M.engine.spec);
+    const own = (c) => Math.round(10 / c) / 10;
+    return { hitN: set.hitN || own(sp.normalChance), rushN: set.rushN || own(sp.rushChance), st: sp.st };
+  }
+  const rushPct = (rushN, st) => Math.round(100 * (1 - Math.pow(1 - 1 / rushN, st)));
+  const oddsTables = () => ({ spec: { normalChance: 1 / odds().hitN, rushChance: 1 / odds().rushN } });
+  // The machine's RUSH-rate texts are templates: fill them with the odds in use.
+  (function () {
+    const p = rushPct(odds().rushN, odds().st);
+    ["lcd.rushRate", "cab.subDefault", "gl.rate"].forEach((k) => { if (M.text[k]) PK.TEXT[k] = t(k, { p, n: Math.round(p / 10) }); });
+  })();
   const today = () => new Date().toDateString();
 
   // ---------------------------------------------------------------- static text
@@ -170,7 +192,7 @@
   function start(hot) {
     hot = hot || {};
     const saved = hot.save || load(KEY_SAVE);
-    const eng = PK.createEngine(saved ? { restore: saved, machine: M.id } : { machine: M.id, startChips: M.refill });
+    const eng = PK.createEngine(saved ? { restore: saved, machine: M.id, tables: oddsTables() } : { machine: M.id, startChips: M.refill, tables: oddsTables() });
     if (eng.restoreError) console.warn("[shell] save not restored, new game:", eng.restoreError);
     if (eng.warnings.length) console.warn("[shell] engine:", eng.warnings);
     let day = hot.day || parse(load(KEY_DAY));
@@ -474,7 +496,11 @@
     document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => { snd("button"); closeSheets(); }));
     document.querySelectorAll(".sheet").forEach((s) => s.addEventListener("click", (e) => { if (e.target === s && s.id !== "tutorial") closeSheets(); }));
     $("mRefill").addEventListener("click", () => openRefill());
-    $("mSettings").addEventListener("click", () => { $("resetBox").hidden = false; $("resetAsk").hidden = true; openSheet("settings"); });
+    $("mSettings").addEventListener("click", () => {
+      $("resetBox").hidden = false; $("resetAsk").hidden = true;
+      pend.hitN = pend.rushN = 0; showOdds();
+      openSheet("settings");
+    });
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
     $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); });
@@ -515,6 +541,30 @@
       $("resetBox").hidden = true; $("resetAsk").hidden = false;
     });
     $("sResetNo").addEventListener("click", () => { $("resetBox").hidden = false; $("resetAsk").hidden = true; });
+    // 機率調整: picked here, applied by a reload
+    const pend = { hitN: 0, rushN: 0 };
+    function showOdds() {
+      const o = odds(), h = pend.hitN || o.hitN, r = pend.rushN || o.rushN, p = rushPct(r, o.st) / 100;
+      document.querySelectorAll("#sHit button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.n === h)));
+      document.querySelectorAll("#sRush button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.n === r)));
+      $("sHitHint").textContent = t("set.hitHint", { m: ODDS.hitMinutes[h] || "?" });
+      $("sRushHint").textContent = t("set.rushHint", { k: (p / (1 - p)).toFixed(1) });
+      $("sOddsApply").hidden = h === o.hitN && r === o.rushN;
+    }
+    [["sHit", ODDS.hit, "hitN", (n) => "1/" + n], ["sRush", ODDS.rush, "rushN", (n) => rushPct(n, odds().st) + "%"]].forEach(([id, list, key, label]) => {
+      list.forEach((n) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.dataset.n = String(n); b.textContent = label(n);
+        b.addEventListener("click", () => { snd("button"); pend[key] = n; showOdds(); });
+        $(id).appendChild(b);
+      });
+    });
+    $("sOddsApply").addEventListener("click", () => {
+      const o = odds();
+      set.hitN = pend.hitN || o.hitN; set.rushN = pend.rushN || o.rushN;
+      saveSettings(); save(true);
+      location.reload();
+    });
     $("sResetYes").addEventListener("click", () => {
       resetting = true;
       try { localStorage.removeItem(KEY_SAVE); localStorage.removeItem(KEY_DAY); } catch (e) { /* nothing saved */ }

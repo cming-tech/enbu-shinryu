@@ -17,7 +17,7 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not saved */ } };
   const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
 
-  const set = Object.assign({ sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
+  const set = Object.assign({ sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
 
   // ---------------------------------------------------------------- 機率調整
@@ -81,13 +81,13 @@
   ];
 
   // ---------------------------------------------------------------- 力道旋鈕
-  // The PLAY/STOP button is also the handle's knob: turning it (dragging around it) sets the power
-  // 0..1, drawn as a dot on a coloured arc in the socket. Power 0 is at the lower left and 1 at the
-  // lower right, clockwise (the socket's ticks: SVG angles 150..390 degrees).
+  // The PLAY/STOP button is also the handle's knob. Its power 0..1 is drawn as a dot on a coloured
+  // arc in the socket. Power 0 is at the lower left and 1 at the lower right, clockwise (the
+  // socket's ticks: SVG angles 150..390 degrees); with 力道 自己調 a finger on the arc sets it.
   // Left lane: best 0.32-0.48 (green), nothing below 0.14 or from 0.66; right (右打): from 0.74,
-  // full from 0.82 (red). With 自動 on the knob turns itself and every ball is aimed perfectly.
+  // full from 0.82 (red). Otherwise the knob turns itself and every ball is aimed perfectly.
   // zones: [from, to, colour, label key, label colour, best?]
-  const KNOB = { R: L.handle.r + 12, a0: 150, span: 240, auto: { left: 0.4, right: 0.91 },
+  const KNOB = { R: L.handle.r + 12, hit: L.handle.r + 24, a0: 150, span: 240, auto: { left: 0.4, right: 0.91 },
     zones: [[0, 0.14, "#7a8292", "ui.zWeak", "#0a2a78"], [0.14, 0.32, "#ffd84a", "ui.zLeft", "#0a2a78"], [0.32, 0.48, "#3dff8a", "ui.zLeftBest", "#06733a", true],
       [0.48, 0.66, "#ffd84a", "ui.zLeft", "#0a2a78"], [0.66, 0.74, "#7a8292", "ui.zStrong", "#0a2a78"], [0.74, 0.82, "#ff9a3a", "ui.zRight", "#a33a00"], [0.82, 1, "#ff3a2a", "ui.zRightBest", "#c01800", true]] };
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -149,6 +149,7 @@
     const at = (id, x, y) => { $(id).style.left = x + "px"; $(id).style.top = y + "px"; };
     at("handle", H.cx - H.r, H.cy - H.r);
     at("knob", H.cx - KNOB.R, H.cy - KNOB.R);
+    at("knobHit", H.cx - KNOB.hit, H.cy - KNOB.hit);
     at("push", P.x + (P.w - 116) / 2, P.y + 14);
     at("panel", Q.x + (Q.w - 176) / 2, Q.y + 8);
     at("infoBtn", I.x, I.y);
@@ -358,18 +359,48 @@
       $("handle").classList.toggle("on", on);
       $("knob").classList.toggle("on", on);
       $("handle").setAttribute("aria-pressed", String(on));
-      $("handleBig").textContent = t(on ? "ui.stopBig" : "ui.play");
-      $("handleLbl").textContent = t(on ? "ui.shooting" : "ui.shoot");
+      showHandle();
     }
-    // ---- 力道: the knob's power, and the dot easing toward it
-    let power = set.autoAim ? KNOB.auto[eng.aim()] : clamp01(+set.power || 0);
+    function showHandle() {
+      const m = manual();
+      $("handleBig").textContent = t(firing && !m ? "ui.stopBig" : "ui.play");
+      $("handleLbl").textContent = t(m ? (firing ? "ui.release" : "ui.hold") : firing ? "ui.shooting" : "ui.shoot");
+    }
+    // ---- 打珠 and 力道 (the bar under the machine). 自動: a tap on the knob starts and stops a
+    // steady stream at the best power. 手動: the knob is the handle, shooting only while it is held;
+    // with 力道 自己調 the finger on the ring sets the power and the shots follow it as it slides.
+    const manual = () => set.fireMode === "manual";
+    const selfPower = () => manual() && !set.autoAim;
+    let power = selfPower() ? clamp01(+set.power || 0) : KNOB.auto[eng.aim()];
     let shown = power;
     function showPower() {
       const z = zoneOf(power), el = $("handlePw");
-      el.textContent = t(set.autoAim ? "ui.powerAuto" : z[3]);
-      el.style.color = set.autoAim ? "" : z[4];
+      el.textContent = selfPower() ? t(z[3]) : t(manual() ? "ui.powerBest" : "ui.powerAuto");
+      el.style.color = selfPower() ? z[4] : "";
     }
-    function autoPower() { if (set.autoAim) power = KNOB.auto[eng.aim()]; }
+    function autoPower() { if (!selfPower()) power = KNOB.auto[eng.aim()]; }
+    function showModes() {
+      document.querySelectorAll("#mFire button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === set.fireMode)));
+      document.querySelectorAll("#mPower button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.v === "best") === !!set.autoAim)));
+      $("mPowerBox").classList.toggle("off", !manual());   // 自動 always shoots at the best power
+      showHandle(); showPower();
+    }
+    document.querySelectorAll("#mFire button").forEach((b) => b.addEventListener("click", () => {
+      snd("button");
+      if (firing) setFiring(false);
+      set.fireMode = b.dataset.v; saveSettings();
+      if (selfPower()) power = clamp01(+set.power || 0); else autoPower();
+      showModes();
+      toast(t(manual() ? "ui.fireManualHint" : "ui.fireAutoHint"));
+    }));
+    document.querySelectorAll("#mPower button").forEach((b) => b.addEventListener("click", () => {
+      snd("button");
+      if (!manual()) { toast(t("ui.powerNeedsManual")); return; }
+      set.autoAim = b.dataset.v === "best"; saveSettings();
+      if (selfPower()) power = clamp01(+set.power || 0); else autoPower();
+      showModes();
+      if (selfPower()) toast(t("ui.powerSelfHint"));
+    }));
     function loop(ts) {
       requestAnimationFrame(loop);
       const dt = lastTs ? Math.min(0.25, (ts - lastTs) / 1000) : 0;
@@ -387,7 +418,7 @@
     }
     function fireOne() {
       // 自動: aimed perfectly. 手動: the knob decides, and a tip says what to fix.
-      const shot = set.autoAim ? null : shotOf(power);
+      const shot = selfPower() ? shotOf(power) : null;
       if (shot && shot.side !== eng.aim()) caption(eng.aim() === "right" ? "aimRight" : "aimLeft");
       else if (shot && shot.eff < 0.5) caption("aimWeak");
       const b = eng.fireBall(shot);
@@ -552,34 +583,51 @@
     }
 
     // ---- controls
-    // The knob: a tap is PLAY/STOP, a drag around it turns the power (and switches to 手動).
-    let turn = null, turned = false;
-    const angleAt = (e) => { const r = $("handle").getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
-    $("handle").addEventListener("pointerdown", (e) => {
-      turn = { x: e.clientX, y: e.clientY, a: angleAt(e), p: power, moved: false };
-      try { $("handle").setPointerCapture(e.pointerId); } catch (err) { /* not capturable: still works inside the button */ }
-    });
-    $("handle").addEventListener("pointermove", (e) => {
-      if (!turn) return;
-      if (!turn.moved && Math.hypot(e.clientX - turn.x, e.clientY - turn.y) < 8) return;
-      if (!turn.moved) {
-        turn.moved = true;
-        if (set.autoAim) { set.autoAim = false; showPower(); showAim(); toast(t("ui.manualPower")); }
-      }
-      let da = angleAt(e) - turn.a;
-      da -= 360 * Math.round(da / 360);   // across the ±180° seam
-      turn.a += da;
-      const p = clamp01(turn.p + da / KNOB.span), z0 = zoneOf(power), z1 = zoneOf(p);
+    // The knob takes the touches (#knobHit covers the button and its ring): the centre is the
+    // button, the ring sets the power (angle: KNOB.a0 + KNOB.span * power; below the knob, the gap
+    // goes to the nearer end).
+    const hit = $("knobHit");
+    function knobAt(e) {
+      const r = $("handle").getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      return { ang: Math.atan2(dy, dx) * 180 / Math.PI, dist: Math.hypot(dx, dy) / (r.width / 2) };   // dist in button radii
+    }
+    function powerAt(ang) {
+      const s = (((ang - KNOB.a0) % 360) + 360) % 360;
+      return s <= KNOB.span ? s / KNOB.span : s < KNOB.span + (360 - KNOB.span) / 2 ? 1 : 0;
+    }
+    function powerFrom(e) {
+      const k = knobAt(e);
+      if (k.dist < 0.62) return;   // on the button itself: keep the power
+      const p = powerAt(k.ang), z0 = zoneOf(power), z1 = zoneOf(p);
       if (Math.floor(p * 20) !== Math.floor(power * 20)) snd("tick");
-      turn.p = p; power = p;
+      power = p;
       if (z1 !== z0) { showPower(); if (z1[5]) { knobBurst(p); snd("button"); } }
+    }
+    let held = null;
+    hit.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (!manual()) { snd("button"); setFiring(!firing); return; }   // 自動: a tap starts / stops
+      held = e.pointerId;
+      try { hit.setPointerCapture(e.pointerId); } catch (err) { /* still works while the finger stays on it */ }
+      if (selfPower()) powerFrom(e);
+      setFiring(true);
+      if (firing && !holdFire) { fireAcc = 0; fireOne(); }   // the first ball at once, so a quick tap shoots one
     });
-    const endTurn = () => { if (turn && turn.moved) { turned = true; set.power = power; saveSettings(); } turn = null; };
-    $("handle").addEventListener("pointerup", endTurn);
-    $("handle").addEventListener("pointercancel", endTurn);
-    $("handle").addEventListener("click", () => {
-      if (turned) { turned = false; return; }   // that was a turn, not a tap
-      snd("button"); setFiring(!firing);
+    hit.addEventListener("pointermove", (e) => { if (held === e.pointerId && selfPower()) powerFrom(e); });
+    const release = (e) => {
+      if (held !== e.pointerId) return;
+      held = null;
+      setFiring(false);
+      if (selfPower()) { set.power = power; saveSettings(); }
+    };
+    hit.addEventListener("pointerup", release);
+    hit.addEventListener("pointercancel", release);
+    hit.addEventListener("lostpointercapture", release);
+    // the keyboard still reaches the button: 自動 starts / stops, 手動 shoots one ball
+    $("handle").addEventListener("click", (e) => {
+      if (e.detail !== 0) return;
+      snd("button");
+      if (manual()) fireOne(); else setFiring(!firing);
     });
     function showAuto() {
       $("autoBtn").textContent = t(set.autoPush ? "ui.autoOn" : "ui.auto");
@@ -645,15 +693,6 @@
       $("sVoice").textContent = t(set.voice ? "set.on" : "set.off");
     }
     $("sVoice").addEventListener("click", () => { set.voice = !set.voice; PK.Sound.setVoice(set.voice); saveSettings(); showVoice(); snd("button"); });
-    function showAim() {
-      $("sAim").setAttribute("aria-pressed", String(set.autoAim));
-      $("sAim").textContent = t(set.autoAim ? "set.on" : "set.off");
-    }
-    $("sAim").addEventListener("click", () => {
-      snd("button");
-      set.autoAim = !set.autoAim; saveSettings();
-      autoPower(); showPower(); showAim();
-    });
     function showSettings() {
       $("sSound").setAttribute("aria-pressed", String(set.sound));
       $("sSound").textContent = t(set.sound ? "set.on" : "set.off");
@@ -662,7 +701,6 @@
       $("sVolume").value = String(set.volume);
       document.querySelectorAll("#sSpeed button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.speed === set.speed)));
       showAuto();
-      showAim();
       showVoice();
     }
     $("sSound").addEventListener("click", () => { set.sound = !set.sound; PK.Sound.setEnabled(set.sound); saveSettings(); showSettings(); snd("button"); });
@@ -748,7 +786,7 @@
     showCounter();
     showSettings();
     setFiring(false);
-    drawKnob(shown); showPower();
+    drawKnob(shown); showModes();
     requestAnimationFrame(loop);
     if (!set.tutorialSeen) openTutorial();
     else caption("start");

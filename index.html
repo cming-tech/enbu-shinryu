@@ -110,9 +110,17 @@
   #handle b { position: absolute; left: 0; right: 0; top: 44px; text-align: center; font: 30px/1 var(--f-num); color: #0a2a78;
     text-shadow: 0 0 6px #fff, 0 0 2px #fff; letter-spacing: 1px; }
   #handle .lbl { position: absolute; left: 0; right: 0; top: 84px; text-align: center; font: 900 13px/1 var(--f-body); color: #0a2a78; text-shadow: 0 0 4px #fff; }
-  #handle { touch-action: none; }   /* turned by dragging around it */
   #handle .pw { position: absolute; left: 0; right: 0; top: 22px; text-align: center; font: 900 12px/1 var(--f-body); color: #0a2a78; text-shadow: 0 0 4px #fff; }
   #knob { pointer-events: none; overflow: visible; }
+  #knobHit { width: 180px; height: 180px; border-radius: 50%; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* L.handle.r + 24 */
+  #modeBar { flex: none; display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+    background: linear-gradient(180deg, var(--metal), var(--metal-2)); border-top: 1px solid var(--line); }
+  #modeBar .mode { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); font-weight: 700; }
+  #modeBar .mode.off { opacity: 0.45; }
+  .seg2 { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .seg2 button { border: 0; background: var(--metal); color: var(--dim); padding: 7px 14px; font-weight: 900; font-size: 13px; }
+  .seg2 button[aria-pressed="true"] { background: linear-gradient(#ffcf5a, #e08a12); color: #2a1500; }
   #knob.on #kFill { animation: kPulse .55s ease-in-out infinite alternate; }
   @keyframes kPulse { from { stroke-opacity: .65; } to { stroke-opacity: 1; stroke-width: 9; } }
   #kBurst { transform-box: fill-box; transform-origin: center; }
@@ -238,6 +246,7 @@
       <div id="ui">
         <svg id="knob" aria-hidden="true"></svg>
         <button id="handle" type="button"><i class="grip"></i><span class="pw" id="handlePw"></span><b id="handleBig"></b><span class="lbl" id="handleLbl"></span></button>
+        <div id="knobHit" aria-hidden="true"></div>
         <button id="push" type="button" data-t="ui.push"></button>
         <div id="panel">
           <div class="oval"><span data-t="ui.balls"></span><b id="balls">0</b></div>
@@ -248,6 +257,10 @@
     </div>
     <div id="caption" role="status" aria-live="polite"><b data-t="cap.tag"></b><span></span></div>
   </main>
+  <div id="modeBar">
+    <div class="mode"><span data-t="ui.fireMode"></span><div class="seg2" id="mFire"><button type="button" data-v="auto" data-t="ui.fireAuto"></button><button type="button" data-v="manual" data-t="ui.fireManual"></button></div></div>
+    <div class="mode" id="mPowerBox"><span data-t="ui.powerMode"></span><div class="seg2" id="mPower"><button type="button" data-v="best" data-t="ui.powerBest"></button><button type="button" data-v="self" data-t="ui.powerSelf"></button></div></div>
+  </div>
 </div>
 
 <div class="sheet" id="menu" hidden><div class="card">
@@ -269,7 +282,6 @@
   <div class="setRow"><div><span data-t="set.captions"></span><small data-t="set.captionsHint"></small></div><button class="tog" id="sCaptions" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.autoPush"></span><small data-t="set.autoPushHint"></small></div><button class="tog" id="sAuto" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.voice"></span><small data-t="set.voiceHint"></small></div><button class="tog" id="sVoice" type="button"></button></div>
-  <div class="setRow"><div><span data-t="set.autoAim"></span><small data-t="set.autoAimHint"></small></div><button class="tog" id="sAim" type="button"></button></div>
   <div class="setRow"><div data-t="set.speed"></div><div class="seg" id="sSpeed">
     <button type="button" data-speed="1" data-t="set.speed1"></button><button type="button" data-speed="1.6" data-t="set.speed2"></button><button type="button" data-speed="2.4" data-t="set.speed3"></button>
   </div></div>

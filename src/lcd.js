@@ -477,9 +477,10 @@
   }
   // ------------------------------------------------------------------ video slots (optional AI clips)
   // assets/vid_<name>.mp4 plays muted behind the telops during a key 演出; a missing file is skipped.
-  const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4" };
+  const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4",
+    sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4" };
   // Where the canvas carries the key content (777, the RUSH logo) the clip is screened over it.
-  const VID_SCREEN = { jackpot: true, rush: true };
+  const VID_SCREEN = { jackpot: true, rush: true, sp: true, spsp: true };
   const VID = {};
   let vidLayer = null;
   function loadVideos(base) {
@@ -2230,6 +2231,7 @@
   }
   async function spSeq(S, r, ctxs) {
     setScene("sp", 0.15, { c: r.color });
+    playClip("sp");   // the dragon through the storm, screened over the scene
     const pal = r.color === "gold" || r.color === "rainbow" ? "gold" : r.color === "blue" ? "azure" : "fire";
     addActor("back", 4.4, (ctx, age, a) => {
       const u = clamp(age / 4.1, 0, 1), ue = 0.35 * u + 0.65 * E.io(u);
@@ -2261,6 +2263,7 @@
   }
   async function spspSeq(S, r, ctxs) {
     setScene("spsp", 0.1);
+    playClip("spsp");
     shake(10); flash(C.gold, 1, 2.5);
     addActor("back", Infinity, (ctx, age) => {
       if (IMG.cab_dragon) {   // the gold statue, breathing slightly
@@ -2587,6 +2590,7 @@
     if (changed) {
       hudState.roundPopT = clk.t;
       galleryNext();
+      if (round % 3 === 2) playClip("round");   // rounds 2, 5, 8: the hero's flaming sword
       const lines = T("lcd.roundLines").split("|");
       const line = round === rounds && rounds > 1 ? T("lcd.finalRound") : lines[(round - 1) % lines.length];
       telop(line, { x: CX, y: 200, size: 28, cls: round === rounds ? "rainbow" : "gold", anim: "pop", dur: 1.8, inD: 0.35, font: FONT_BRUSH });

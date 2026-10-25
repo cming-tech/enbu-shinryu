@@ -459,10 +459,16 @@
     bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg",
     // 神龍 (the living gold dragon: the good omen), the jackpot illustration, the 龍兵 and the
     // round-by-round journey scenes of the bonus
-    shinryu: "shinryu.png", jackpot_art: "jackpot_art.jpg", fly: "fly_shinryu.webp" };
-  // The flying 神龍 of 龍神リーチ: a sprite sheet made by dev/make_fly_sprite.py from the PC's vid_fly
-  // clip (frames COLS to a row there). It crosses the LCD in dur seconds, h units tall.
-  const FLY = { cols: 8, frames: 73, fps: 24, dur: 3.4, h: 210, maxW: 520 };
+    shinryu: "shinryu.png", jackpot_art: "jackpot_art.jpg", fly_head: "fly_head.png", fly_body: "fly_body.png", fly_tail: "fly_tail.png" };
+  // The flying 神龍 of 龍神リーチ: a long serpent built from three parts that dev/make_fly_parts.py cuts out
+  // of two pictures: the head up to the top of the neck's arch (join: where the body goes on, as fractions of
+  // the part), a straightened stretch of the body (its centre line bodyMid down) laid back and forth along
+  // len units of body (slim of the picture's thickness; fat times that after the neck), keeping it to 35%
+  // of the way and then tapering to taper of it, and the tail tuft (attach: where the thin
+  // tail enters it). A wave runs from the head down the body (waves along it, amp units, speed rad/s)
+  // while it crosses the LCD in dur seconds, its head headH units tall.
+  const FLY = { dur: 3.8, headH: 124, len: 380, slim: 0.8, fat: 1.0, taper: 0.22, tilt: 0.22, step: 3, waves: 1.4, amp: 16, speed: 6.5,
+    join: [0.942, 0.335], bodyMid: 0.608, attach: [0, 0.911] };
   for (let i = 1; i <= 6; i++) IMG_FILES["minion" + i] = "minion" + i + ".png";
   for (let i = 1; i <= 10; i++) IMG_FILES["round" + i] = "round" + i + ".jpg";
   // the gold dragon on the LCD: the living 神龍, else the cabinet's statue
@@ -553,6 +559,36 @@
     ctx.drawImage(im, -w / 2, -h / 2, w, h);
     ctx.restore();
     return { mx: cx + (flip ? 0.3 : -0.3) * w, my: cy - 0.12 * h };
+  }
+  // The flying 神龍 (FLY), its head centred on (hx, hy), at time t. Drawn from the tail forward: the
+  // tuft, the body slice by slice along the wave, then the head turned with the neck. Returns the mouth.
+  function drawFlyDragon(ctx, hx, hy, t) {
+    const head = IMG.fly_head, body = IMG.fly_body, tail = IMG.fly_tail;
+    const k = FLY.headH / head.naturalHeight, hw = head.naturalWidth * k, hh = FLY.headH;
+    const bt = body.naturalHeight * k * FLY.slim, bw = body.naturalWidth * k, n = body.naturalWidth;
+    const wave = (d) => FLY.amp * (0.15 + 0.85 * d / FLY.len) * Math.sin((d / FLY.len) * FLY.waves * TAU - t * FLY.speed);
+    const slope = (d) => Math.atan2(wave(d + 1) - wave(d - 1), 2);
+    const jx = hx - hw / 2 + FLY.join[0] * hw, jy = hy - hh / 2 + FLY.join[1] * hh;   // where the body leaves the neck
+    // the tail tuft
+    const tw = tail.naturalWidth * k * FLY.slim, th = tail.naturalHeight * k * FLY.slim;
+    ctx.save(); ctx.translate(jx + FLY.len, jy + wave(FLY.len)); ctx.rotate(slope(FLY.len));
+    ctx.drawImage(tail, -FLY.attach[0] * tw, -FLY.attach[1] * th, tw, th);
+    ctx.restore();
+    // the body: slices of the straightened stretch, back and forth along it so it never jumps
+    const sw = FLY.step * 1.8, src = Math.min(n, sw / k);
+    for (let d = FLY.len; d > -FLY.step; d -= FLY.step) {
+      const q = d / bw, f = q - Math.floor(q), u = Math.floor(q) % 2 ? 1 - f : f;
+      const e = clamp((d / FLY.len - 0.35) / 0.65, 0, 1), neck = clamp(d / 40, 0, 1);   // from the neck's own width
+      const thick = bt * (1 + (FLY.fat - 1) * neck) * (1 - (1 - FLY.taper / FLY.fat) * e * e * (3 - 2 * e));
+      ctx.save(); ctx.translate(jx + d, jy + wave(d)); ctx.rotate(slope(d));
+      ctx.drawImage(body, u * (n - src), 0, src, body.naturalHeight, -sw / 2, -thick * FLY.bodyMid, sw, thick);
+      ctx.restore();
+    }
+    // the head, turned with the neck (and up by tilt: the picture looks down)
+    ctx.save(); ctx.translate(jx, jy + wave(0)); ctx.rotate(slope(0) * 0.8 + FLY.tilt);
+    ctx.drawImage(head, -FLY.join[0] * hw, -FLY.join[1] * hh, hw, hh);
+    ctx.restore();
+    return { mx: jx - FLY.join[0] * hw + 0.03 * hw, my: jy + wave(0) + (0.68 - FLY.join[1]) * hh };
   }
   function drawContain(ctx, im, x, y, w, h, alignBottom) {
     const s = Math.min(w / im.naturalWidth, h / im.naturalHeight);
@@ -2319,7 +2355,7 @@
     setScene("sp", 0.15, { c: r.color });
     // The 神龍 flies across, right to left, its body moving (the fly sprite). Without it, the clip
     // of the 神龍 in the storm fills the LCD instead.
-    const fly = IMG.fly;
+    const fly = IMG.fly_head && IMG.fly_body && IMG.fly_tail;
     const clip = fly ? null : playClip("sp");
     const pal = r.color === "gold" || r.color === "rainbow" ? "gold" : r.color === "blue" ? "azure" : "fire";
     const glowCol = pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange;
@@ -2330,15 +2366,12 @@
       // Once the clip shows, it is the 神龍; the drawn one only stands in while it loads (or without it).
       if (clip && !clip.paused && clip.readyState >= 2) a.clipSeen = true;
       if (a.clipSeen) { a.mx = null; return; }
-      if (fly) {
-        const v = clamp(age / FLY.dur, 0, 1), ve = 0.3 * v + 0.7 * E.io(v);
-        const fw = fly.naturalWidth / FLY.cols, fh = fly.naturalHeight / Math.ceil(FLY.frames / FLY.cols);
-        const dh = FLY.h, dw = Math.min(FLY.maxW, (dh * fw) / fh);
-        const x = lerp(W + dw / 2, -dw / 2, ve), y = 178 + Math.sin(age * 1.6) * 8 - Math.sin(v * Math.PI) * 26;
-        const k = Math.floor(age * FLY.fps) % FLY.frames;
-        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, glowCol, x, y, dw * 0.55, 0.45); ctx.restore();
-        ctx.drawImage(fly, (k % FLY.cols) * fw, Math.floor(k / FLY.cols) * fh, fw, fh, x - dw / 2, y - dh / 2, dw, dh);
-        d = { mx: x - dw * 0.4, my: y - dh * 0.15 };   // the head leads, on the left
+      if (fly) {   // the long 神龍 swims in from the right, head first, and its tail leaves on the left
+        const v = clamp(age / FLY.dur, 0, 1), ve = 0.55 * v + 0.45 * E.io(v);
+        const hw = (FLY.headH * IMG.fly_head.naturalWidth) / IMG.fly_head.naturalHeight, back = (FLY.join[0] - 0.5) * hw + FLY.len + 80;
+        const x = lerp(W + hw / 2 + 10, -back - 10, ve), y = 168 + Math.sin(age * 1.3) * 8 - Math.sin(v * Math.PI) * 18;
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, glowCol, x, y, hw * 0.7, 0.45); ctx.restore();
+        d = drawFlyDragon(ctx, x, y, age);
       } else if (sd) {
         // the 神龍 (龍神), lit in the reach colour: a still picture, so it rises into place and
         // breathes there instead of sliding across like a cut-out

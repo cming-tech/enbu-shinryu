@@ -18,6 +18,7 @@
     "lcd.streakN": "{n}連",
     "lcd.gainLbl": "獲得",
     "lcd.aim": "右打",
+    "lcd.step": "STEP",
     "lcd.step5": "激",
     "lcd.gun": "群",
     "lcd.cutinGold": "超激熱!!",
@@ -50,6 +51,11 @@
 
     // ---- cabinet (src/cabinet.js)
     "cab.subDefault": "連莊率\n約80%",
+    // the sub display follows the mode (shell.js modeLook)
+    "cab.subNormal": "大當機率\n1/{n}",
+    "cab.subRush": "連莊率\n約{p}%",
+    "cab.subJitan": "時短中\n助攻",
+    "cab.subBonus": "大當中\n右打→",
 
     // ---- shell: top bar, data counter, controls
     "ui.menu": "選單",
@@ -63,6 +69,7 @@
     "ui.histNormal": "通常",
     "ui.histRush": "RUSH",
     "ui.histJitan": "時短",
+    "ui.histEmpty": "中了大當後，這裡會記錄最近 10 次",
     "ui.balls": "總玉數",
     "ui.auto": "自動",
     "ui.autoOn": "自動 ON",
@@ -115,7 +122,7 @@
     "cap.battle": "對決：連打 PUSH 幫主角，打贏就是大當",
     "cap.spsp": "激熱：這次很有機會！",
     "cap.push": "PUSH：按中間大按鈕揭曉",
-    "cap.stepup": "步驟預告：升得越高越有機會",
+    "cap.stepup": "STEP 預告：升到越高越有機會（最高 STEP 5）",
     "cap.gun": "群龍預告：大約一半機會",
     "cap.cutin": "插畫預告：紅色、金色更有機會",
     "cap.pseudo": "擬似連：數字重新轉，次數越多越有機會",
@@ -181,7 +188,8 @@
     "gl.rate": "連莊率|在 RUSH 裡再中一次的機會。約 80% 就是 10 次有 8 次會繼續。",
     "gl.jitan": "時短|沒進 RUSH 時的短暫助攻（20 轉）。珠子不太會減少，但中獎機率和平常一樣。",
     "gl.holdColor": "保留變色|保留的圓點變色。藍 < 綠 < 紅 < 金 < 彩虹，越熱越有機會，彩虹一定中。",
-    "gl.stepup": "步驟預告|面板一格一格升級，升得越高越有機會（最高第 5 階）。",
+    "gl.stepup": "STEP 預告|液晶跳出 STEP 1、2、3…的面板，一格一格升級。升得越高越有機會，最高 STEP 5（激）。",
+    "gl.sub": "右邊的小螢幕|顯示現在的重點：平常是大當機率，RUSH 中是連莊率，大當中提醒右打。",
     "gl.gun": "群龍預告|一大群龍飛過畫面，大約一半機會。",
     "gl.cutin": "插畫預告|角色插畫橫切過畫面。藍色普通，紅色、金色更有機會。",
     "gl.pseudo": "擬似連|數字停下前又重新轉起來（出現「×2」「×3」），次數越多越有機會。",

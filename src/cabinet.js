@@ -204,10 +204,11 @@
     const all = [];
     const add = (x, y, g) => { const p = { x, y, g }; all.push(p); return p; };
     PINS.L = []; PINS.R = []; PINS.road = [];
-    // Left lane: staggered rows between the rail and the LCD bezel.
-    for (let r = 0, y = 244; y <= 466; r++, y += 14) {
-      const off = (r % 2) * 8;
-      for (let x = 90 - off; x >= railLeftX(y) + 11.5; x -= 16) {
+    // Left lane: staggered rows between the rail and the LCD bezel. Rows 18 apart and pins 20 apart
+    // (the user found a 14 x 16 grid too dense); still close enough for a pin below on each side.
+    for (let r = 0, y = 244; y <= 466; r++, y += 18) {
+      const off = (r % 2) * 10;
+      for (let x = 90 - off; x >= railLeftX(y) + 11.5; x -= 20) {
         if (Math.hypot(x - WM.x, y - WM.y) < WM.r + 9) continue;
         if (Math.hypot(x - WARP.x, y - WARP.y) < 11) continue;
         PINS.L.push(add(x, y, "L"));
@@ -262,8 +263,8 @@
       [252, 494, 338, 646],   // heso field, 袴 and the miss paths
       [L.gimmick[1].x - 8, L.gimmick[1].y - 8, L.gimmick[1].x + L.gimmick[1].w + 8, L.gimmick[1].y + L.gimmick[1].h + 8],
     ];
-    for (let r = 0, y = 472; y <= 640; r++, y += 14) {
-      for (let x = 20 + (r % 2) * 8; x <= 568; x += 16) {
+    for (let r = 0, y = 472; y <= 640; r++, y += 18) {   // same 18 x 20 spacing as the left lane
+      for (let x = 20 + (r % 2) * 10; x <= 568; x += 20) {
         if (!inWin(x, y, -12) || x < railLeftX(y) + 14) continue;
         if (x > STAGE.x0 - 10 && x < STAGE.x1 + 10 && y < stageY(x) + 14) continue;
         if (boxes.some((b) => x > b[0] && x < b[2] && y > b[1] && y < b[3])) continue;

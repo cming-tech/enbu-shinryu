@@ -53,7 +53,7 @@
 
   const GLOSSARY = [
     ["glg.buttons", ["gl.handle", "gl.push", "gl.auto", "gl.right"]],
-    ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st"]],
+    ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.rush", "gl.rate", "gl.jitan"]],
     ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive"]],
   ];
@@ -161,6 +161,7 @@
       $("cToday").textContent = fmt(day.hits);
       // 大當履歷: one bar per hit, newest on the right; height = spins it took (capped), colour = mode
       const last = st.history.slice(-10), list = $("histList");
+      $("histEmpty").hidden = last.length > 0;   // say what the empty graph is for
       list.innerHTML = "";
       for (let i = 0; i < 10; i++) {
         const h = last[i - (10 - last.length)], li = document.createElement("li");
@@ -181,7 +182,16 @@
     // Music waits for the first PLAY: the page stays quiet until the player starts.
     let musicOn = false, bgmWant = null;
     function bgm(name) { bgmWant = name; if (musicOn) PK.Sound.bgm(name); }
+    // The sub display says what matters now (it used to show the RUSH continuation rate all the time).
+    const SPEC = eng.tables.spec;
+    function showSub() {
+      if (mode === "rush") PK.Cabinet.setSub(t("cab.subRush", { p: Math.round(100 * (1 - Math.pow(1 - SPEC.rushChance, SPEC.st))) }));
+      else if (mode === "jitan") PK.Cabinet.setSub(t("cab.subJitan"));
+      else if (bonusy()) PK.Cabinet.setSub(t("cab.subBonus"));
+      else PK.Cabinet.setSub(t("cab.subNormal", { n: Math.round(10 / SPEC.normalChance) / 10 }));
+    }
     function modeLook() {
+      showSub();
       lights(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
       bgm(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
     }
@@ -247,7 +257,7 @@
       const r = sc.reach || {};
       if (n === "spinStart") snd("spin");
       else if (n.startsWith("reelStop")) snd("stop");
-      else if (n.startsWith("stepup:")) { snd("stepup"); if (+n.slice(7) >= 3) caption("stepup"); }
+      else if (n.startsWith("stepup:")) { snd("stepup"); caption("stepup"); }
       else if (n === "gun") { snd("gun"); caption("gun"); }
       else if (n === "cutin") { snd("cutin"); caption("cutin"); }
       else if (n.startsWith("pseudo:")) { snd("pseudo"); caption("pseudo"); }

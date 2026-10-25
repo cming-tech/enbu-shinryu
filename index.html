@@ -69,6 +69,9 @@
   #history .legend i::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: var(--c); }
   #histList { flex: 1; min-width: 0; margin: 0; padding: 4px 4px 2px; list-style: none; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px;
     background: #04060b; border: 1px solid var(--line); border-radius: 6px; }
+  #histBox { flex: 1; min-width: 0; position: relative; display: flex; }
+  #histEmpty { position: absolute; inset: 0 0 14px; margin: 0; display: flex; align-items: center; justify-content: center; padding: 0 10px;
+    text-align: center; font: 700 11px/1.35 var(--f-body); color: var(--dim); }
   #histList li { min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
   #histList li u { display: block; min-height: 3px; border-radius: 1px;
     background: repeating-linear-gradient(0deg, var(--c) 0 3px, rgba(0, 0, 0, 0) 3px 4px); box-shadow: 0 0 6px var(--c); }
@@ -200,7 +203,7 @@
   </div>
   <div id="history">
     <div class="legend"><span data-t="ui.history"></span><i class="hN" data-t="ui.histNormal"></i><i class="hR" data-t="ui.histRush"></i><i class="hJ" data-t="ui.histJitan"></i></div>
-    <ol id="histList"></ol>
+    <div id="histBox"><ol id="histList"></ol><p id="histEmpty" data-t="ui.histEmpty" hidden></p></div>
   </div>
   <main id="stageWrap">
     <div id="stage">

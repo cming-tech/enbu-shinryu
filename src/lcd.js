@@ -462,7 +462,8 @@
 
   // ------------------------------------------------------------------ image slots
   const IMG = {};
-  const IMG_FILES = { bg_normal: "bg_normal.jpg", bg_rush: "bg_rush.jpg", hero: "hero.png", rival: "rival.png", cutin_hero: "cutin_hero.png", jackpot: "jackpot.png" };
+  const IMG_FILES = { bg_normal: "bg_normal.jpg", bg_rush: "bg_rush.jpg", hero: "hero.png", rival: "rival.png", cutin_hero: "cutin_hero.png", jackpot: "jackpot.png", cab_dragon: "cab_dragon.png",
+    bg_sp: "bg_sp.jpg", bg_battle: "bg_battle.jpg", bg_spsp: "bg_spsp.jpg", bg_bonus: "bg_bonus.jpg", bg_jitan: "bg_jitan.jpg", bg_jackpot: "bg_jackpot.jpg" };
   let imgPending = 0;
   function loadImages(base) {
     for (const k in IMG_FILES) {
@@ -507,6 +508,17 @@
     const s = Math.max(w / im.naturalWidth, h / im.naturalHeight);
     const iw = im.naturalWidth * s, ih = im.naturalHeight * s;
     ctx.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+  }
+  // AI dragon art (rival.png, or the gold statue cab_dragon.png) in place of a drawn dragon: h tall,
+  // centred on (cx, cy), facing left like the art (flip: facing right). Returns the mouth, roughly.
+  function drawArtDragon(ctx, im, cx, cy, h, flip) {
+    const w = (h * im.naturalWidth) / im.naturalHeight;
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(im, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return { mx: cx + (flip ? 0.3 : -0.3) * w, my: cy - 0.12 * h };
   }
   function drawContain(ctx, im, x, y, w, h, alignBottom) {
     const s = Math.min(w / im.naturalWidth, h / im.naturalHeight);
@@ -1258,6 +1270,12 @@
     return (cache[key] = c);
   }
   function drawBg(ctx, id) { ctx.drawImage(bgSprite(id), -12, -12, W + 24, H + 24); }
+  // A scene's AI background when there is one (the result screen shares the bonus one), else the
+  // drawn one.
+  function sceneBg(ctx, id) {
+    const im = IMG["bg_" + (id === "result" ? "bonus" : id)];
+    if (im) drawCover(ctx, im, -12, -12, W + 24, H + 24); else drawBg(ctx, id);
+  }
   function ridge(g, base, amp, freq, seed, fill, rim) {
     g.beginPath(); g.moveTo(-14, H + 14);
     for (let x = -14; x <= W + 14; x += 3) {
@@ -1427,7 +1445,7 @@
     },
     jitan: {
       draw(ctx, age) {
-        drawBg(ctx, "jitan");
+        sceneBg(ctx, "jitan");
         drawRays(ctx, CX, 160, C.orange, age * 0.2, 0.3, 430, 18, true);
         speedLines(ctx, CX, 160, 20, C.white, 0.25, 90, Math.floor(age * 16));
       },
@@ -1437,7 +1455,7 @@
     },
     bonus: {
       draw(ctx, age) {
-        drawBg(ctx, "bonus");
+        sceneBg(ctx, "bonus");
         drawRays(ctx, CX, 150, C.gold, age * 0.18, 0.4, 440, 18, true);
         if (IMG.hero) { ctx.globalAlpha = 0.9; drawContain(ctx, IMG.hero, 60, 40, 272, 280, true); }
         else drawWarrior(ctx, { x: CX - 10, y: H + 34, sc: 1.02, t: age, rim: "gold", aura: 1, sword: -1.25 + Math.sin(age * 1.5) * 0.04 });
@@ -1450,7 +1468,7 @@
     },
     sp: {
       draw(ctx, age, opt) {
-        drawBg(ctx, "sp");
+        sceneBg(ctx, "sp");
         const drift = (age * 18) % (W + 200);
         ctx.save(); ctx.globalAlpha = 0.5;
         for (let i = 0; i < 6; i++) {
@@ -1477,7 +1495,7 @@
     },
     battle: {
       draw(ctx, age) {
-        drawBg(ctx, "battle");
+        sceneBg(ctx, "battle");
         ctx.save(); ctx.globalCompositeOperation = "lighter";
         drawGlow(ctx, C.orange, CX, 236, 260, 0.25 + 0.08 * Math.sin(age * 3));
         ctx.restore();
@@ -1489,7 +1507,7 @@
     },
     spsp: {
       draw(ctx, age) {
-        drawBg(ctx, "spsp");
+        sceneBg(ctx, "spsp");
         drawRays(ctx, CX, 190, C.gold, age * 0.5, 0.45, 450, 20, true);
         drawRays(ctx, CX, 190, C.red, -age * 0.32, 0.35, 450, 12, true);
         // rainbow halo
@@ -1508,7 +1526,7 @@
     },
     jackpot: {
       draw(ctx, age) {
-        drawBg(ctx, "jackpot");
+        sceneBg(ctx, "jackpot");
         drawRays(ctx, CX, 172, C.white, age * 0.6, 0.5, 450, 22, true);
         drawRays(ctx, CX, 172, C.gold, -age * 0.4, 0.4, 450, 16, true);
         if (IMG.jackpot) { ctx.globalAlpha = 0.85; drawContain(ctx, IMG.jackpot, 0, 20, W, H - 20, true); ctx.globalAlpha = 1; }
@@ -1523,7 +1541,7 @@
     },
     result: {
       draw(ctx, age) {
-        drawBg(ctx, "result");
+        sceneBg(ctx, "result");
         drawRays(ctx, CX, 150, C.blue, age * 0.1, 0.25, 430, 16, true);
       },
       emit(dt) {
@@ -1948,11 +1966,15 @@
     } else if (lv === 4) {
       drawRays(ctx, 0, 0, C.gold, tt * 1.5, 0.6, 200, 16, true);
       ctx.globalCompositeOperation = "source-over";
-      drawWarrior(ctx, { x: 6, y: 128, sc: 0.62, t: tt, rim: "gold", aura: 1 });
+      if (IMG.hero) {   // the AI warrior from the waist up
+        const im = IMG.hero, sh = im.naturalHeight * 0.58, dh = 150, dw = (dh * im.naturalWidth) / sh;
+        ctx.drawImage(im, 0, 0, im.naturalWidth, sh, -dw / 2, -h / 2 + 2, dw, dh);
+      } else drawWarrior(ctx, { x: 6, y: 128, sc: 0.62, t: tt, rim: "gold", aura: 1 });
     } else {
       drawRays(ctx, 0, 0, hueRgb(tt * 200), tt * 2, 0.7, 220, 20, true);
       ctx.globalCompositeOperation = "source-over";
-      drawDragon(ctx, { x: -40, y: -14, sc: 0.62, dir: -1, t: tt * 1.4, len: 300, w0: 16, ang: -0.25, curl: -4.2, amp: 0.15, pal: "gold", glow: true, jaw: 0.42 });
+      if (IMG.cab_dragon) drawArtDragon(ctx, IMG.cab_dragon, 0, 12, 150, false);
+      else drawDragon(ctx, { x: -40, y: -14, sc: 0.62, dir: -1, t: tt * 1.4, len: 300, w0: 16, ang: -0.25, curl: -4.2, amp: 0.15, pal: "gold", glow: true, jaw: 0.42 });
     }
     ctx.globalCompositeOperation = "source-over";
     ctx.restore();
@@ -1962,7 +1984,7 @@
     if (lv >= 4) { bg2.addColorStop(0, "#fff0a0"); bg2.addColorStop(1, "#b06a00"); } else { bg2.addColorStop(0, "#ffffff"); bg2.addColorStop(1, "#6a7a90"); }
     ctx.fillStyle = bg2; roundRect(ctx, -w / 2 - 6, -h / 2 - 10, 82, 24, 7); ctx.fill();
     ctx.font = "14px " + FONT_DIGIT; ctx.textAlign = "left"; ctx.lineJoin = "round";
-    ctx.fillStyle = "#1a0a00"; ctx.fillText("STEP", -w / 2 + 2, -h / 2 + 8);
+    ctx.fillStyle = "#1a0a00"; ctx.fillText(T("lcd.step"), -w / 2 + 2, -h / 2 + 8);
     ctx.font = "22px " + FONT_DIGIT;
     ctx.lineWidth = 4; ctx.strokeStyle = "#1a0a00"; ctx.strokeText(String(lv), -w / 2 + 52, -h / 2 + 11);
     ctx.fillStyle = lv === 5 ? "rgb(" + hueRgb(tt * 300) + ")" : lv >= 3 ? "#ff3a1a" : "#ffffff"; ctx.fillText(String(lv), -w / 2 + 52, -h / 2 + 11);
@@ -2011,7 +2033,8 @@
       for (const d of ds) {
         const p = pos(d, age);
         if (p.u < 0 || p.u > 1) continue;
-        drawDragon(ctx, { x: p.x, y: p.y, sc: d.sc, dir: 1, simple: true, pal: d.pal, t: age * 2.5 + d.ph, len: 260, amp: 0.5, wave: 1.4, spd: 6, glow: 1.6, ang: -0.15 });
+        if (IMG.rival) drawArtDragon(ctx, d.pal === "gold" && IMG.cab_dragon ? IMG.cab_dragon : IMG.rival, p.x - 60 * d.sc, p.y, 270 * d.sc, true);   // flying right
+        else drawDragon(ctx, { x: p.x, y: p.y, sc: d.sc, dir: 1, simple: true, pal: d.pal, t: age * 2.5 + d.ph, len: 260, amp: 0.5, wave: 1.4, spd: 6, glow: 1.6, ang: -0.15 });
       }
     }, {
       seq: true,
@@ -2210,7 +2233,11 @@
     addActor("back", 4.4, (ctx, age, a) => {
       const u = clamp(age / 4.1, 0, 1), ue = 0.35 * u + 0.65 * E.io(u);
       const x = lerp(W + 90, -330, ue), y = 176 + Math.sin(age * 1.6) * 20 - Math.sin(u * Math.PI) * 34;
-      const d = drawDragon(ctx, { x, y, sc: 1.22, dir: -1, t: age * 1.4, len: 450, w0: 17, amp: 0.45, wave: 1.25, spd: 4, pal, glow: true, jaw: 0.25 + 0.2 * Math.sin(age * 5) });
+      let d;
+      if (IMG.rival) {   // the AI dragon, lit in the reach colour
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange, x + 120, y, 210, 0.5); ctx.restore();
+        d = drawArtDragon(ctx, IMG.rival, x + 120, y + Math.sin(age * 2.2) * 6, 270, false);
+      } else d = drawDragon(ctx, { x, y, sc: 1.22, dir: -1, t: age * 1.4, len: 450, w0: 17, amp: 0.45, wave: 1.25, spd: 4, pal, glow: true, jaw: 0.25 + 0.2 * Math.sin(age * 5) });
       a.mx = d.mx; a.my = d.my;
       if (age > 1.8 && age < 2.4) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, d.mx, d.my, 70, 0.7 * Math.sin(((age - 1.8) / 0.6) * Math.PI)); }
     }, {
@@ -2235,7 +2262,10 @@
     setScene("spsp", 0.1);
     shake(10); flash(C.gold, 1, 2.5);
     addActor("back", Infinity, (ctx, age) => {
-      drawDragon(ctx, { x: CX + 6, y: 92, sc: 0.98, dir: 1, t: age * 0.7, len: 480, w0: 17, ang: 0.1, curl: -5.4, amp: 0.1, wave: 1, spd: 1.2, pal: "gold", glow: true, alpha: 0.95, jaw: 0.3 });
+      if (IMG.cab_dragon) {   // the gold statue, breathing slightly
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, CX, H / 2, 240, 0.45); ctx.restore();
+        drawArtDragon(ctx, IMG.cab_dragon, CX, H / 2 + 8, H * (0.98 + 0.015 * Math.sin(age * 2)), false);
+      } else drawDragon(ctx, { x: CX + 6, y: 92, sc: 0.98, dir: 1, t: age * 0.7, len: 480, w0: 17, ang: 0.1, curl: -5.4, amp: 0.1, wave: 1, spd: 1.2, pal: "gold", glow: true, alpha: 0.95, jaw: 0.3 });
     }, { seq: true });
     const big = telop(T("lcd.spsp"), { x: CX, y: 172, size: 112, cls: "rainbow", font: FONT_BRUSH, anim: "slam", stay: true, inD: 0.3, jitter: 4 });
     fireBurst(CX, 180, 40, 300, "front");

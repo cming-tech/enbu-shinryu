@@ -652,6 +652,8 @@
     }
     ctx.restore();
   }
+  // the height of a picture contained in a w x h box
+  const containH = (im, w, h) => Math.min(h, (w * im.naturalHeight) / im.naturalWidth);
 
   // ------------------------------------------------------------------ art: dragon
   const DPAL = {
@@ -2500,6 +2502,7 @@
     const B = { hx: -140, hy: H + 26, hsc: 1.0, hs: -1.05, hRot: 0, hDim: 0, hAura: 0.4, hRim: "fire", hA: 1,
       dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0,
       dLean: 0, dSq: 0, dLitT: -9,   // the 炎龍王 picture's pose (drawLive): its attacks lean it in
+      hLean: 0,   // the hero's (+ leans forward, to the right, into a strike)
       dash: 0, pose: null, dHitT: -9, hHitT: -9, pops: [] };
     let dHead = { mx: 0, my: 0 };
     const kick = (t0, px) => { const k = clk.t - t0; return k < 0.35 ? px * Math.exp(-k * 9) : 0; };   // knocked back by a hit
@@ -2519,10 +2522,13 @@
       const hx = B.hx + kick(B.hHitT, -14);
       if (IMG.hero) {   // pivots at its feet and sinks like the drawn warrior (敗北: hy, hRot)
         const im = (B.pose === "slash" && IMG.pose_slash) || IMG.hero;
+        // alive like the 炎龍王: breathes and sways, leans into strikes, flinches back from hits
+        const k = clk.t - B.hHitT, e = k >= 0 && k < 0.5 ? Math.exp(-k * 9) : 0, p = liveIdle("stand", age, 0.9);
+        p.lean += B.hLean - 10 * e; p.sq += 0.03 * e;
         const one = (x, a) => {
           ctx.save(); ctx.globalAlpha = a;
           ctx.translate(x, H); ctx.rotate(B.hRot); ctx.translate(0, B.hy - (H + 26));
-          drawContain(ctx, im, -120, 40 - H, 240, 280, true);
+          drawLive(ctx, im, "stand", 0, 320 - H, containH(im, 240, 280), p);
           ctx.restore();
         };
         if (B.dash > 0.02) {   // afterimages while dashing
@@ -2591,7 +2597,7 @@
     const heroStrike = async () => {
       ctxs.emit("atk:hero");
       B.pose = "slash"; B.dash = 1;
-      tween(B, { hx: 168, hs: 0.45 }, 0.16, E.out); tween(B, { dash: 0 }, 0.45);
+      tween(B, { hx: 168, hs: 0.45, hLean: 16 }, 0.16, E.out); tween(B, { dash: 0 }, 0.45);
       await wait(0.16);
       const cx0 = rand(260, 320), cy0 = rand(110, 170);
       addActor("mid", 0.45, (ctx, age) => slashArc(ctx, cx0 - 40, cy0 + 40, 110, -2.4, -0.4, 22, age / 0.45, C.orange), { seq: true });
@@ -2601,7 +2607,7 @@
       B.dHitT = B.dLitT = clk.t; B.hp2 = Math.max(0.3, B.hp2 - 0.14);
       pop(800 + Math.floor(rng() * 700), cx0, cy0 - 24, 28);
       await wait(0.2);
-      B.pose = null; tween(B, { hx: 96, hs: -1.05 }, 0.3, E.out);
+      B.pose = null; tween(B, { hx: 96, hs: -1.05, hLean: 0 }, 0.3, E.out);
       await wait(0.3);
     };
     // the dragon hits back: fire breath, then a claw swipe
@@ -2643,7 +2649,7 @@
     const lines = addActor("top", Infinity, (ctx, age) => speedLines(ctx, CX, 170, 36, C.white, 0.35, 70, Math.floor(age * 40)), { seq: true });
     clk.scale = sc0 * 0.3;
     B.pose = "slash"; B.dash = 1;
-    tween(B, { hx: 200, hs: 0.6 }, 0.22, E.in);
+    tween(B, { hx: 200, hs: 0.6, hLean: 20 }, 0.22, E.in);
     tween(B, { dx: 260, dJaw: 0.6, dLean: -22 }, 0.22, E.in);
     await wait(0.22);
     clk.scale = sc0 * 0.04; await wait(0.016);   // about 0.4 s frozen
@@ -2665,7 +2671,7 @@
       B.breath = 1.4; tween(B, { dx: 300, dJaw: 0.6, hx: 70, dLean: -16, dSq: -0.03 }, 0.2);
       const fire = playClipToEnd("lose", 3.4);
       await wait(0.6); B.breath = 0;
-      tween(B, { hRot: -0.25, hy: H + 90, hDim: 0.85, hAura: 0, hp1: 0 }, 0.5, E.out);
+      tween(B, { hRot: -0.25, hy: H + 90, hDim: 0.85, hAura: 0, hp1: 0, hLean: -8 }, 0.5, E.out);
       tween(B, { dJaw: 0.2, dx: 312, dLean: 7, dSq: -0.04 }, 0.4);   // rears up over the fallen hero
       shake(6);
       if (fire) await wait(1.0);   // 敗北 lands over the clip's last second
@@ -2681,13 +2687,13 @@
         flash(C.red, 0.5, 3); shake(3); await wait(0.35); flash(C.red, 0.7, 3); shake(5); await wait(0.3);
         tween(fx, { dim: 0 }, 0.2);
         B.hRim = "gold";
-        tween(B, { hRot: 0, hy: H + 26, hDim: 0, hAura: 1.2, hx: 110, hp1: 0.5 }, 0.35, E.back);
+        tween(B, { hRot: 0, hy: H + 26, hDim: 0, hAura: 1.2, hx: 110, hp1: 0.5, hLean: 0 }, 0.35, E.back);
         flash(C.white, 1, 2.5); shake(10);
         telop(T("lcd.revive"), { x: CX, y: 92, size: 60, cls: "rainbow", anim: "slam", dur: 1.4, jitter: 3 });
         addActor("back", 2.2, (ctx, age) => drawRays(ctx, 110, 170, hueRgb(age * 300), age * 2, 0.55 * (1 - age / 2.2), 460, 20, true), { seq: true });
         ctxs.emit("revive");
         await wait(1.2);
-        tween(B, { hx: 220, hs: 0.6 }, 0.18, E.in); await wait(0.18);
+        tween(B, { hx: 220, hs: 0.6, hLean: 20 }, 0.18, E.in); await wait(0.18);
         flash(C.white, 1, 2); shake(12);
         addActor("mid", 0.7, (ctx, age) => slashArc(ctx, CX, 330, 300, -2.7, -0.45, 52, age / 0.7, C.gold), { seq: true });
         await wait(0.5);
@@ -2712,7 +2718,7 @@
     if (VID.win) {
       // the final blow on film: white in, the whole clip, white out onto 勝利!!
       white(1, 0.12); await wait(0.14);
-      Object.assign(B, { dA: 0, hp2: 0, hAura: 1.3, hx: 120, hs: -1.25 });
+      Object.assign(B, { dA: 0, hp2: 0, hAura: 1.3, hx: 120, hs: -1.25, hLean: 0 });
       const film = playClipToEnd("win", 3.6);
       white(0, 0.3);
       await film;
@@ -2728,7 +2734,7 @@
     burst("front", ex, ey, 40, { cols: [C.gold, C.white, C.orange], v0: 150, v1: 480, s0: 1.5, s1: 3.5, len: 26 });
     shake(14); flash(C.gold, 0.9, 2.5);
     tween(B, { dA: 0, hpA: 1, hp2: 0 }, 0.6);
-    tween(B, { hAura: 1.3, hx: 120, hs: -1.25 }, 0.4, E.out);
+    tween(B, { hAura: 1.3, hx: 120, hs: -1.25, hLean: 0 }, 0.4, E.out);
     victory();
     await wait(1.5);
   }
@@ -3164,7 +3170,7 @@
       addActor("mid", Infinity, (ctx, age) => {   // the hero rises behind the text
         const im = IMG.pose_victory || IMG.hero, u = E.out(clamp(age / 0.5, 0, 1));
         ctx.globalAlpha = 0.85 * u;
-        if (im) drawContain(ctx, im, CX - 140, 40 + 40 * (1 - u), 280, H - 40, true);
+        if (im) drawLive(ctx, im, "stand", CX, H + 40 * (1 - u), containH(im, 280, H - 40), liveIdle("stand", age, 0.9));   // breathing
         else drawWarrior(ctx, { x: CX, y: H + 40 + 40 * (1 - u), sc: 0.95, t: age, rim: "gold", aura: 1, sword: -1.25 });
         ctx.globalAlpha = 1;
         const g = ctx.createLinearGradient(0, H - 120, 0, H);   // keeps TOTAL readable

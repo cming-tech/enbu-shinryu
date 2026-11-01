@@ -599,6 +599,60 @@
     ctx.drawImage(im, x + (w - iw) / 2, alignBottom ? y + h - ih : y + (h - ih) / 2, iw, ih);
   }
 
+  // ------------------------------------------------------------------ living art (炎龍王, 龍兵)
+  // The enemies' still pictures move without new art. Each is cached once at its size on screen (a
+  // phone then never scales the full picture per frame) and drawn in LIVE_N strips, each shifted by
+  // the pose: strips across the height for a figure that stands or coils (it breathes, sways and leans
+  // from its feet; a coil's wave runs up to the head), or down the width for a flyer (the wings beat).
+  // pose: lean (units at the top; + back, to the right, away from the hero), sq (+ squash, - stretch,
+  // from the feet), wave (units) and ph (its phase), flap (units at the wing tips), dx, dy, rot
+  // (radians about the feet), lit (the near-white frame of a hit).
+  const LIVE_N = 20;
+  const LIVE_KIND = { minion3: "coil", minion5: "wing", rival: "coil" };   // the others stand
+  const liveCaches = new WeakMap();
+  function liveCache(im, ph, lit) {
+    let e = liveCaches.get(im);
+    if (!e || e.ph !== ph) { e = { ph }; liveCaches.set(im, e); }
+    const key = lit ? "lit" : "c";
+    if (e[key]) return e[key];
+    const c = mkCanvas((ph * im.naturalWidth) / im.naturalHeight, ph), g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(im, 0, 0, c.width, c.height);
+    if (lit) { g.globalCompositeOperation = "source-atop"; g.fillStyle = "rgba(255,250,235,0.7)"; g.fillRect(0, 0, c.width, c.height); }
+    return (e[key] = c);
+  }
+  // The idle motion of each kind at time t (s: an offset, so two figures never move in step).
+  function liveIdle(kind, t, s) {
+    if (kind === "coil") return { wave: 6, ph: t * 2.6 + s, lean: 3 * Math.sin(t * 1.1 + s), sq: 0.012 * Math.sin(t * 2.2 + s) };
+    if (kind === "wing") { const a = t * 5 + s; return { flap: 22 * Math.sin(a), dy: 6 * Math.sin(a - 1.6), lean: 2 * Math.sin(t * 0.9 + s), sq: 0 }; }
+    return { sq: 0.022 * Math.sin(t * 2.4 + s), lean: 4 * Math.sin(t * 1.2 + s) };
+  }
+  // Draws a picture h tall standing on (cx, fy), facing left like the art, in pose p.
+  function drawLive(ctx, im, kind, cx, fy, h, p) {
+    const c = liveCache(im, Math.max(8, Math.round(h * kpx)), p.lit);
+    const w = (h * c.width) / c.height, k = h / c.height, n = LIVE_N, sq = p.sq || 0, lean = p.lean || 0;
+    ctx.save();
+    ctx.translate(cx + (p.dx || 0), fy + (p.dy || 0));
+    if (p.rot) ctx.rotate(p.rot);
+    ctx.scale(1 + sq * 0.6, 1 - sq);
+    if (kind === "wing") {   // columns: the wing tips beat, the body leans as a whole
+      ctx.rotate(lean / h);
+      const sw = c.width / n, flap = p.flap || 0;
+      for (let j = 0; j < n; j++) {
+        const d = Math.abs((j + 0.5) / n - 0.5) * 2, src = Math.min(sw + 1, c.width - j * sw);
+        ctx.drawImage(c, j * sw, 0, src, c.height, -w / 2 + j * sw * k, -h - flap * d * d, src * k, h);
+      }
+    } else {   // rows: each shifted by the lean (most at the top) and the wave running up
+      const sh = c.height / n, wave = p.wave || 0, ph = p.ph || 0;
+      for (let i = 0; i < n; i++) {
+        const v = 1 - (i + 0.5) / n, src = Math.min(sh + 1, c.height - i * sh);   // v: height above the feet
+        const x = lean * v * v + wave * v * Math.sin(ph - v * 4);
+        ctx.drawImage(c, 0, i * sh, c.width, src, -w / 2 + x, -h + i * sh * k, w, src * k);
+      }
+    }
+    ctx.restore();
+  }
+
   // ------------------------------------------------------------------ art: dragon
   const DPAL = {
     fire: { body: "#b8180d", dark: "#3a0302", belly: "#ffcf70", bellyLine: "#a8561a", fin: "#ff8a1a", finDark: "#8a2000", hi: "rgba(255,180,120,0.5)", horn: "#ffeec0", hornDark: "#7a4a18", eye: "#fff36a", glow: "255,90,20", mouth: "#3a0000", scale: "rgba(70,0,0,0.6)" },
@@ -1539,6 +1593,9 @@
       emit(dt) {
         if (rng() < dt * 14) emit("back", { x: rand(0, W), y: -6, vx: rand(-10, 10), vy: rand(40, 90), life: rand(2.5, 4), s0: rand(4, 7), s1: 2, a0: 0.9, a1: 0, type: "star", col: C.gold, vr: rand(-2, 2) });
         if (rng() < dt * 22) emit("back", { x: rand(0, W), y: H + 10, vx: rand(-6, 6), vy: rand(-50, -90), ay: -10, life: rand(0.8, 1.4), s0: rand(14, 24), s1: rand(26, 36), a0: 0.5, a1: 0, type: "fire" });
+        // embers (a flyer's ghost fire) rising off the 龍兵
+        if (boss.on && !boss.down && !boss.flee && rng() < dt * 7)
+          emit("front", { x: rand(W - 160, W - 20), y: rand(130, 250), vx: rand(-8, 8), vy: rand(-30, -60), life: rand(0.9, 1.5), s0: rand(1.2, 2.4), s1: 0.3, col: minionKind(boss.k) === "wing" ? C.cyan : C.ember, wob: 12, ph: rand(0, TAU) });
       },
     },
     sp: {
@@ -2442,17 +2499,19 @@
     setScene("battle", 0.15);
     const B = { hx: -140, hy: H + 26, hsc: 1.0, hs: -1.05, hRot: 0, hDim: 0, hAura: 0.4, hRim: "fire", hA: 1,
       dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0,
+      dLean: 0, dSq: 0, dLitT: -9,   // the 炎龍王 picture's pose (drawLive): its attacks lean it in
       dash: 0, pose: null, dHitT: -9, hHitT: -9, pops: [] };
     let dHead = { mx: 0, my: 0 };
     const kick = (t0, px) => { const k = clk.t - t0; return k < 0.35 ? px * Math.exp(-k * 9) : 0; };   // knocked back by a hit
     addActor("back", Infinity, (ctx, age) => {
       if (B.dA > 0.01) {
-        const dx = B.dx + kick(B.dHitT, 16), lit = 1 - (clk.t - B.dHitT) / 0.12;
-        if (IMG.rival) {
-          ctx.globalAlpha = B.dA; drawContain(ctx, IMG.rival, dx - 150, 50, 300, 270, true);
-          if (lit > 0) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = B.dA * 0.6 * lit; drawContain(ctx, IMG.rival, dx - 150, 50, 300, 270, true); ctx.globalCompositeOperation = "source-over"; }
+        const dx = B.dx + kick(B.dHitT, 16);
+        if (IMG.rival) {   // alive: it coils and sways, flinches from hits, leans into its attacks
+          const k = clk.t - B.dHitT, e = k >= 0 && k < 0.5 ? Math.exp(-k * 9) : 0, p = liveIdle("coil", age, 0);
+          p.lean += B.dLean + 8 * e; p.sq += B.dSq + 0.03 * e; p.lit = clk.t - B.dLitT < 0.07;
+          ctx.globalAlpha = B.dA; drawLive(ctx, IMG.rival, "coil", dx, 320, 270, p);
           ctx.globalAlpha = 1;
-          dHead = { mx: dx - 80, my: 170 };
+          dHead = { mx: dx - 80 + p.lean * 0.4, my: 170 };
         }
         else dHead = drawDragon(ctx, { x: dx, y: B.dy, sc: B.dsc, dir: -1, t: age * 1.2, len: 400, w0: 18, ang: 0.35, curl: -2.2, amp: 0.3, wave: 1.1, spd: 2.6, pal: "fire", glow: true, alpha: B.dA, jaw: B.dJaw });
         if (B.dDim > 0) { ctx.globalAlpha = B.dDim * 0.5; ctx.fillStyle = "#000"; ctx.fillRect(dx - 80, 0, W, H); ctx.globalAlpha = 1; }
@@ -2539,7 +2598,7 @@
       fireBurst(cx0, cy0, 14, 160, "front");
       burst("front", cx0, cy0, 22, { cols: [C.white, C.gold, C.orange], v0: 100, v1: 360, s0: 1.2, s1: 2.8, len: 22 });
       flash(C.white, 0.3, 6); shake(5);
-      B.dHitT = clk.t; B.hp2 = Math.max(0.3, B.hp2 - 0.14);
+      B.dHitT = B.dLitT = clk.t; B.hp2 = Math.max(0.3, B.hp2 - 0.14);
       pop(800 + Math.floor(rng() * 700), cx0, cy0 - 24, 28);
       await wait(0.2);
       B.pose = null; tween(B, { hx: 96, hs: -1.05 }, 0.3, E.out);
@@ -2548,10 +2607,10 @@
     // the dragon hits back: fire breath, then a claw swipe
     const dragonBreath = async () => {
       ctxs.emit("atk:dragon");
-      tween(B, { dJaw: 0.55, dx: 300 }, 0.15);
+      tween(B, { dJaw: 0.55, dx: 300, dLean: -16, dSq: -0.03 }, 0.15);   // the head thrusts out
       B.breath = 1;
       await wait(0.5);
-      B.breath = 0; tween(B, { dJaw: 0.2, dx: 312 }, 0.25);
+      B.breath = 0; tween(B, { dJaw: 0.2, dx: 312, dLean: 0, dSq: 0 }, 0.25);
       shake(4); flash(C.orange, 0.3, 5);
       B.hHitT = clk.t; B.hp1 = Math.max(0.35, B.hp1 - 0.16);
       pop(300 + Math.floor(rng() * 400), 110, 130, 24, "#ff8a7a");
@@ -2559,7 +2618,7 @@
     };
     const dragonClaw = async () => {
       ctxs.emit("atk:dragon");
-      tween(B, { dx: 236 }, 0.16, E.in);
+      tween(B, { dx: 236, dLean: -28, dSq: 0.03 }, 0.16, E.in);   // lunges in
       await wait(0.16);
       for (let i = 0; i < 3; i++) {
         const o = (i - 1) * 18;
@@ -2569,7 +2628,7 @@
       B.hHitT = clk.t; B.hp1 = Math.max(0.35, B.hp1 - 0.16);
       pop(400 + Math.floor(rng() * 400), 104, 120, 24, "#ff8a7a");
       await wait(0.2);
-      tween(B, { dx: 312 }, 0.3, E.out);
+      tween(B, { dx: 312, dLean: 0, dSq: 0 }, 0.3, E.out);
       await wait(0.25);
     };
     await heroStrike(); await dragonBreath(); await heroStrike(); await dragonClaw();
@@ -2585,7 +2644,7 @@
     clk.scale = sc0 * 0.3;
     B.pose = "slash"; B.dash = 1;
     tween(B, { hx: 200, hs: 0.6 }, 0.22, E.in);
-    tween(B, { dx: 260, dJaw: 0.6 }, 0.22, E.in);
+    tween(B, { dx: 260, dJaw: 0.6, dLean: -22 }, 0.22, E.in);
     await wait(0.22);
     clk.scale = sc0 * 0.04; await wait(0.016);   // about 0.4 s frozen
     clk.scale = sc0;
@@ -2603,11 +2662,11 @@
     else {
       // lose: the dragon's fire (on film, when there is a clip) and the hero falls
       B.pose = null;
-      B.breath = 1.4; tween(B, { dx: 300, dJaw: 0.6, hx: 70 }, 0.2);
+      B.breath = 1.4; tween(B, { dx: 300, dJaw: 0.6, hx: 70, dLean: -16, dSq: -0.03 }, 0.2);
       const fire = playClipToEnd("lose", 3.4);
       await wait(0.6); B.breath = 0;
       tween(B, { hRot: -0.25, hy: H + 90, hDim: 0.85, hAura: 0, hp1: 0 }, 0.5, E.out);
-      tween(B, { dJaw: 0.2, dx: 312 }, 0.4);
+      tween(B, { dJaw: 0.2, dx: 312, dLean: 7, dSq: -0.04 }, 0.4);   // rears up over the fallen hero
       shake(6);
       if (fire) await wait(1.0);   // 敗北 lands over the clip's last second
       telop(T("lcd.lose"), { x: CX, y: 150, size: 54, cls: "gray", anim: "drop", dur: S.hit ? 1.5 : 1.9, inD: 0.5 });
@@ -2824,13 +2883,15 @@
   // different one each bonus) on the right with a life bar. Every PUSH hits it (LCD.push), and a
   // knockout earns a reward the shell pays. It has 9 hits per round before the last one; the last
   // round is the 神龍覚醒チャレンジ (below), and a 龍兵 still standing then withdraws.
-  const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [], k: -1, flee: false };
+  const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [], k: -1, flee: false, t0: 0, atkT: -9, gen: 0 };
   const BOSS_HP_PER_ROUND = 9, MINIONS = 6;
+  const BOSS_ATK = { first: 2.2, every: 4.6, strike: 0.46 };   // its claw: first after, then every (s); strike: into the wind-up
   let minionN = -1;
   function bossStart(rounds, round) {
     if (minionN < 0) minionN = Math.floor(rng() * MINIONS);
     const hp = Math.max(1, (rounds - round) * BOSS_HP_PER_ROUND), k = minionN++ % MINIONS;
-    Object.assign(boss, { on: true, hp, max: hp, down: false, hitT: -9, pops: [], k, flee: false });
+    Object.assign(boss, { on: true, hp, max: hp, down: false, hitT: -9, pops: [], k, flee: false, t0: clk.t, atkT: -9, gen: boss.gen + 1 });
+    bossLoop(boss.gen);
     telop(T("lcd.bossHint", { name: minionName(k) }), { x: CX, y: 108, size: 19, cls: "red", anim: "pop", dur: 2.6, inD: 0.6 });   // under the life bar
     addActor("top", 3.2, (ctx, age) => {   // a dark band under it, so it reads on the bright scenes
       ctx.globalAlpha = 0.55 * clamp((age - 0.6) / 0.2, 0, 1) * clamp((3.2 - age) / 0.4, 0, 1);
@@ -2843,16 +2904,65 @@
     if (IMG["minion" + (k + 1)]) return IMG["minion" + (k + 1)];
     return IMG.rival ? tinted(IMG.rival, ["#3a0a00", "#5a1000", "#200a2a", "#2a2a2a", "#002a3a", "#3a2000"][k], 0.35) : null;   // until its art exists
   }
+  // The 龍兵 is alive: it drops in (a flyer glides in), attacks every few seconds (bossLoop), flinches
+  // from each hit, falls back when knocked out and hops off when it withdraws.
+  const minionKind = (k) => (IMG["minion" + (k + 1)] ? LIVE_KIND["minion" + (k + 1)] || "stand" : "coil");   // the stand-in is the 炎龍王
+  async function bossLoop(gen) {
+    const live = () => boss.on && boss.gen === gen && !boss.down && !boss.flee;
+    await wait(0.5);
+    if (!live()) return;
+    if (minionKind(boss.k) !== "wing") { burst("front", W - 84, 258, 14, { cols: [C.white, C.gold], v0: 50, v1: 160, s0: 1, s1: 2, len: 10, g: 220 }); shake(4); }   // lands
+    await wait(BOSS_ATK.first - 0.5);
+    while (live()) {
+      boss.atkT = clk.t;
+      await wait(BOSS_ATK.strike);
+      if (!live()) return;
+      bossClaw();
+      await wait(BOSS_ATK.every - BOSS_ATK.strike);
+    }
+  }
+  // its claw rakes the hero's side of the screen
+  function bossClaw() {
+    const col = minionKind(boss.k) === "wing" ? C.cyan : C.red;
+    for (let i = 0; i < 3; i++) {
+      const o = (i - 1) * 16;
+      addActor("mid", 0.35, (ctx, age) => slashArc(ctx, 140 + o, 120 + o, 64, -0.9, 1.3, 11, age / 0.35, col));
+    }
+    flash(col, 0.18, 5); shake(4);
+  }
+  function bossPose(kind, t) {
+    const p = liveIdle(kind, t, boss.k * 1.7), a = t - boss.t0;
+    p.dx = p.dx || 0; p.dy = p.dy || 0;
+    if (a < 0.5) {   // the entry
+      if (kind === "wing") p.dx += 170 * (1 - E.out(a / 0.5));
+      else p.dy -= 300 * (1 - E.in(a / 0.5));
+    } else if (a < 0.8 && kind !== "wing") p.sq += 0.08 * (1 - (a - 0.5) / 0.3);   // lands
+    if (boss.down || boss.flee) {
+      const u = clamp((t - boss.downT) / 1.1, 0, 1);
+      if (boss.down) { p.rot = (kind === "wing" ? 0.5 : 0.7) * E.in(u); p.dy += (kind === "wing" ? 90 : 24) * u * u; p.lean += 10; }
+      else { p.dx += 176 * u; p.dy -= 36 * Math.sin(Math.PI * Math.min(1, u * 1.6)); p.lean += 8; }
+      return p;
+    }
+    const b = t - boss.atkT;
+    if (b >= 0 && b < 1.3) {   // wind-up, strike, hold, back
+      const wind = E.out(u01(b, 0, 0.4)), hit = E.in(u01(b, 0.4, 0.12)), back = E.io(u01(b, 0.8, 0.5));
+      p.lean += (14 * wind - 46 * hit) * (1 - back);
+      p.dx -= 28 * hit * (1 - back);
+      p.sq += (-0.03 * wind * (1 - hit) + 0.03 * hit) * (1 - back);
+    }
+    const k = t - boss.hitT;
+    if (k >= 0 && k < 0.5) { const e = Math.exp(-k * 10); p.lean += 12 * e; p.dx += 8 * e; p.sq += 0.04 * e; }   // (drawBoss adds the white glow)
+    return p;
+  }
   function drawBoss(ctx) {
     const t = clk.t, bx = W - 84, by = 160;
     let al = 1;
     if (boss.down || boss.flee) { al = 1 - (t - boss.downT) / 1.1; if (al <= 0) return; }
     const k = t - boss.hitT, sh = k < 0.25 ? Math.sin(k * 90) * 9 * (1 - k / 0.25) : 0;
-    const fx0 = boss.flee ? (t - boss.downT) * 160 : 0;   // a withdrawing 龍兵 slides off to the right
     const art = minionArt(boss.k);
     ctx.save();
     ctx.globalAlpha = al;
-    if (art) drawArtDragon(ctx, art, bx + sh + fx0, by + Math.sin(t * 1.8) * 4, 205, false);
+    if (art) { const kind = minionKind(boss.k); drawLive(ctx, art, kind, bx, by + 102, 205, bossPose(kind, t)); }
     else drawDragon(ctx, { x: bx - 50 + sh, y: by - 40, sc: 0.55, dir: -1, t: t, len: 260, amp: 0.3, pal: "fire", glow: true, jaw: 0.3 });
     if (k < 0.14) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, bx, by - 20, 90, 0.8 * (1 - k / 0.14)); }
     ctx.restore();

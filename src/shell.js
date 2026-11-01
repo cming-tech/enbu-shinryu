@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 42;
+  const VERSION = 43;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -894,6 +894,7 @@
       $("sHitHint").textContent = t("set.hitHint", { m: ODDS.hitMinutes[h] || "?" });
       $("sRushHint").textContent = t("set.rushHint", { k: (p / (1 - p)).toFixed(1) });
       $("sOddsApply").hidden = h === o.hitN && r === o.rushN;
+      $("sOddsDefault").hidden = !(set.hitN || set.rushN) || !$("sOddsApply").hidden;   // only when the odds are not the machine's own
     }
     [["sHit", ODDS.hit, "hitN", (n) => "1/" + n], ["sRush", ODDS.rush, "rushN", (n) => rushPct(n, odds().st) + "%"]].forEach(([id, list, key, label]) => {
       list.forEach((n) => {
@@ -906,6 +907,12 @@
     $("sOddsApply").addEventListener("click", () => {
       const o = odds();
       set.hitN = pend.hitN || o.hitN; set.rushN = pend.rushN || o.rushN;
+      saveSettings(); save(true);
+      location.reload();
+    });
+    // 恢復預設: the machine's own odds again, kept apart from 重新開始 (the user's choice)
+    $("sOddsDefault").addEventListener("click", () => {
+      set.hitN = set.rushN = null;
       saveSettings(); save(true);
       location.reload();
     });

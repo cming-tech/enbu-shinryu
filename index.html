@@ -207,7 +207,7 @@
   .setRow.col { flex-direction: column; align-items: stretch; gap: 8px; }
   .seg.odds { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .seg.odds button { padding: 0 2px; font-size: 14px; }
-  #sOddsApply { margin-top: 10px; font-size: 15px; }
+  #sOddsApply, #sOddsDefault { margin-top: 10px; font-size: 15px; }
   .seg button[aria-pressed="true"] { background: var(--ice); border-color: var(--ice); color: #04203a; }
   input[type="range"] { flex: none; width: 140px; accent-color: var(--gold); }
   #glList h3, #records h3, #settings h3 { margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line);
@@ -368,6 +368,7 @@
   <div class="setRow col"><div><span data-t="set.rush"></span><small id="sRushHint"></small></div><div class="seg odds" id="sRush"></div></div>
   <p class="note" data-t="set.oddsNote"></p>
   <button class="big primary" id="sOddsApply" type="button" data-t="set.oddsApply" hidden></button>
+  <button class="big" id="sOddsDefault" type="button" data-t="set.oddsDefault" hidden></button>
   <div class="list" style="margin-top:14px">
     <div id="resetBox"><button class="big danger" id="sReset" type="button" data-t="set.reset"></button></div>
     <div id="resetAsk" hidden>

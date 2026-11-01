@@ -470,6 +470,8 @@
   const FLY = { dur: 3.8, headH: 124, len: 380, slim: 0.8, fat: 1.0, taper: 0.22, tilt: 0.22, step: 3, waves: 1.4, amp: 16, speed: 6.5,
     join: [0.942, 0.335], bodyMid: 0.608, attach: [0, 0.911] };
   for (let i = 1; i <= 6; i++) IMG_FILES["minion" + i] = "minion" + i + ".png";
+  // attack poses: swapped in while the 炎龍王 or a 龍兵 lunges (optional)
+  for (const n of ["rival", "minion1", "minion2", "minion3", "minion4", "minion5", "minion6"]) IMG_FILES["atk_" + n] = "atk_" + n + ".png";
   for (let i = 1; i <= 10; i++) IMG_FILES["round" + i] = "round" + i + ".jpg";
   // the gold dragon on the LCD: the living 神龍, else the cabinet's statue
   const goldDragon = () => IMG.shinryu || IMG.cab_dragon;
@@ -1169,6 +1171,8 @@
     r.st = "spin"; r.vT = v || 16; r.acc = 9; r.dim = 0;
   }
   function reelSpeed(r, v, acc) { r.vT = v; r.acc = acc || 3; }
+  // Slides a stopped reel on by one digit (スベリ). Resolves when it lands.
+  function reelNudge(r, T) { r.st = "stopping"; r.s0 = clk.t; r.sT = T; r.sP0 = r.pos; r.sV0 = 0.6; r.sP1 = Math.round(r.pos) + 1; return wait(T); }
   function reelSet(r, d) { r.st = "stop"; r.vel = 0; r.pos = d - 1 + 9 * Math.round(r.pos / 9); r.ov = null; r.bA = 0; }
   // Stop the reel on digit d (or 'NEXT' = the 続 symbol). Resolves when it lands.
   function reelStop(r, d, T) {
@@ -2387,26 +2391,89 @@
       await stopE(1, S.final[1], 0.3, ctxs);
     }
   }
+  // Reach variety, like a real machine's: which extras this reach shows. The odds lean on the result,
+  // so they mean something (a countdown or a colour upgrade hints at a hit). None in RUSH / 時短,
+  // whose reaches stay quick.
+  //   from   the title shows one colour cooler first, then upgrades (チャンスアップ);
+  //   count  a 3-2-1 countdown before the centre stops (normal reach, no PUSH);
+  //   slip   the centre stops a digit short and slides onto the hit, or stops on the hit and slides off;
+  //   tease  発展!? : a normal reach fakes a development and fizzles ("fail"), or a real one is
+  //          announced first ("ok").
+  let forceX = null;   // tests: _debug.forceExtras
+  function reachExtras(S, r) {
+    if (forceX) return Object.assign({}, forceX);
+    const x = {}, h = S.hit;
+    const cool = { red: "blue", gold: "red", rainbow: "gold" }[r.color];
+    if (cool && rng() < (h ? 0.4 : 0.25)) x.from = cool;
+    if (r.type === "normal") {
+      const v = rng();
+      if (!r.push && v < (h ? 0.35 : 0.12)) x.count = true;
+      else if (!r.revive && v < (h ? 0.55 : 0.3)) x.slip = true;
+      if (rng() < 0.15) x.tease = "fail";
+    } else if (rng() < 0.3) x.tease = "ok";
+    return x;
+  }
+  const colRgb = (c) => (c === "blue" ? C.blue : c === "gold" ? C.gold : C.red);
+  function chanceUp(r, hold, ctxs) {
+    telopOut(hold.rt, 0.1);
+    flash(C.white, 0.7, 4); shake(5);
+    burst("front", CX, 92, 30, { cols: [colRgb(r.color), C.white, C.gold], v0: 100, v1: 320, s0: 1.2, s1: 3 });
+    telop(T("lcd.chanceUp"), { x: CX, y: 136, size: 24, cls: "gold", anim: "pop", dur: 1.1, font: FONT_POP });
+    hold.rt = telop(T("lcd.reach"), { x: CX, y: 92, size: 52, cls: REACH_CLS[r.color] || "red", anim: "slam", dur: 1.0 });
+    fx.vignC = colRgb(r.color);
+    ctxs.emit("chanceUp");
+  }
+  async function devTease(ok, ctxs) {
+    flash(C.white, 0.6, 4); shake(4);
+    telop(T("lcd.devTease"), { x: CX, y: 150, size: 56, cls: "gold", anim: "slam", dur: ok ? 0.6 : 0.8, font: FONT_POP, jitter: 2 });
+    ctxs.emit("devTease");
+    await wait(ok ? 0.6 : 0.85);
+    if (ok) return;
+    tween(fx, { dim: 0.35 }, 0.15);   // ...it fizzles
+    telop(T("lcd.devFail"), { x: CX, y: 150, size: 40, cls: "gray", anim: "drop", dur: 0.6 });
+    await wait(0.6);
+    tween(fx, { dim: 0 }, 0.2);
+  }
+  // the digit just before d on the reel strip (the one a slip slides on from)
+  function prevDigit(d) { for (let k = 1; k <= 9; k++) if (digitAt(k) === d) return digitAt(k - 1); return d; }
   async function reachSeq(S, ctxs) {
     const r = S.reach, rushy = S.mode !== "normal";
+    const x = rushy ? {} : reachExtras(S, r);
     ctxs.emit("reach");
     flash(C.white, 0.35, 5);
-    const rc = REACH_CLS[r.color] || "red";
-    const rt = telop(T("lcd.reach"), { x: CX, y: 92, size: 46, cls: rc, anim: "slam", dur: rushy ? 1.0 : 1.5 });
-    tween(fx, { vign: 0.55 }, 0.3); fx.vignC = r.color === "blue" ? C.blue : r.color === "gold" ? C.gold : C.red; fx.vignP = 6;
+    const rc = REACH_CLS[x.from || r.color] || "red";
+    const hold = { rt: telop(T("lcd.reach"), { x: CX, y: 92, size: 46, cls: rc, anim: "slam", dur: rushy ? 1.0 : 1.5 }) };
+    tween(fx, { vign: 0.55 }, 0.3); fx.vignC = colRgb(x.from || r.color); fx.vignP = 6;
+    if (x.from) wait(0.6).then(() => chanceUp(r, hold, ctxs));
     reels[0].glow = reels[2].glow = 1;
     layout("reach", 0.45, E.back);
     reelSpeed(reels[1], 6, 4);
     if (r.type === "normal") {
       await wait(rushy ? 0.5 : 1.0);
+      if (x.tease) await devTease(false, ctxs);
       reelSpeed(reels[1], 3, 2);
       await wait(rushy ? 0.3 : 0.9);
       if (r.push) await pushFinish(ctxs);
-      await finalStopCenter(S, r, ctxs, rushy ? 0.6 : 1.1);
+      if (x.count) {
+        for (const n of [3, 2, 1]) {
+          telop(String(n), { x: CX, y: 116, size: 96, cls: n === 1 ? "red" : "gold", anim: "stamp", dur: 0.38, font: FONT_DIGIT });
+          ctxs.emit("count"); shake(2);
+          await wait(0.42);
+        }
+        await finalStopCenter(S, r, ctxs, 0.45);
+      } else if (x.slip && (S.hit || prevDigit(S.final[1]) === S.final[0])) {
+        // a hit stops one short and slides on; a miss stops on the hit and slides off
+        await stopE(1, S.hit ? prevDigit(S.final[1]) : S.final[0], 1.1, ctxs);
+        await wait(0.6);
+        ctxs.emit("slip");
+        await reelNudge(reels[1], 0.42);
+        if (!S.hit) shake(2);
+      } else await finalStopCenter(S, r, ctxs, rushy ? 0.6 : 1.1);
       return;
     }
     await wait(rushy ? 0.6 : 1.1);
-    telopOut(rt, 0.1);
+    telopOut(hold.rt, 0.1);
+    if (x.tease) await devTease(true, ctxs);
     // ---- development (リーチ発展)
     ctxs.emit("reachUp");
     flash(C.white, 1, 3); shake(6);
@@ -2512,7 +2579,8 @@
         if (IMG.rival) {   // alive: it coils and sways, flinches from hits, leans into its attacks
           const k = clk.t - B.dHitT, e = k >= 0 && k < 0.5 ? Math.exp(-k * 9) : 0, p = liveIdle("coil", age, 0);
           p.lean += B.dLean + 8 * e; p.sq += B.dSq + 0.03 * e; p.lit = clk.t - B.dLitT < 0.07;
-          ctx.globalAlpha = B.dA; drawLive(ctx, IMG.rival, "coil", dx, 320, 270, p);
+          const im = (B.dLean < -8 && IMG.atk_rival) || IMG.rival;   // its attack pose while it lunges
+          ctx.globalAlpha = B.dA; drawLive(ctx, im, "coil", dx, 320, 270, p);
           ctx.globalAlpha = 1;
           dHead = { mx: dx - 80 + p.lean * 0.4, my: 170 };
         }
@@ -2935,7 +3003,9 @@
       addActor("mid", 0.35, (ctx, age) => slashArc(ctx, 140 + o, 120 + o, 64, -0.9, 1.3, 11, age / 0.35, col));
     }
     flash(col, 0.18, 5); shake(4);
+    if (bonusEv) try { bonusEv("atk:minion"); } catch (e) { console.error(e); }
   }
+  let bonusEv = null;   // the shell's listener for bonus events outside a spin (LCD.onBonusEvent)
   function bossPose(kind, t) {
     const p = liveIdle(kind, t, boss.k * 1.7), a = t - boss.t0;
     p.dx = p.dx || 0; p.dy = p.dy || 0;
@@ -2968,7 +3038,11 @@
     const art = minionArt(boss.k);
     ctx.save();
     ctx.globalAlpha = al;
-    if (art) { const kind = minionKind(boss.k); drawLive(ctx, art, kind, bx, by + 102, 205, bossPose(kind, t)); }
+    if (art) {
+      const kind = minionKind(boss.k), b = t - boss.atkT, atk = IMG["atk_minion" + (boss.k + 1)];
+      const im = atk && IMG["minion" + (boss.k + 1)] && b >= 0.4 && b < 1.05 && !boss.down && !boss.flee ? atk : art;   // its attack pose for the lunge
+      drawLive(ctx, im, kind, bx, by + 102, 205, bossPose(kind, t));
+    }
     else drawDragon(ctx, { x: bx - 50 + sh, y: by - 40, sc: 0.55, dir: -1, t: t, len: 260, amp: 0.3, pal: "fire", glow: true, jaw: 0.3 });
     if (k < 0.14) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, bx, by - 20, 90, 0.8 * (1 - k / 0.14)); }
     ctx.restore();
@@ -3278,6 +3352,7 @@
       layout("normal", 0);
       raf = requestAnimationFrame(frame);
     },
+    onBonusEvent(fn) { bonusEv = fn; },
     setMode(m) {
       if (!["normal", "jitan", "rush", "bonus"].includes(m)) return;
       const prev = mode;
@@ -3364,6 +3439,7 @@
       state() { return { t: clk.t, mode, scene: scene.id, renda: renda.on, actors: actors.length, particles: P.back.length + P.front.length, telops: telops.length, reels: reels.map((r) => ({ st: r.st, d: digitAt(r.pos) })) }; },
       imagesSettled() { return imgPending === 0; },
       seed(n) { rng = mulberry32(n | 0); },
+      forceExtras(x) { forceX = x || null; },
     },
   };
   LCD._fontsReady = false;

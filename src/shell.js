@@ -12,7 +12,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 32;
+  const VERSION = 33;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -81,7 +81,7 @@
     ["glg.buttons", ["gl.handle", "gl.power", "gl.push", "gl.auto", "gl.right"]],
     ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
-    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive"]],
+    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.reachVar"]],
   ];
 
   // ---------------------------------------------------------------- 力道旋鈕
@@ -477,6 +477,10 @@
       } else if (n === "reachUp") { snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "pushPrompt") { snd("push"); pushPrompt(true); caption("push"); vo("push"); }
       else if (n === "pushHit") { snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
+      else if (n === "chanceUp") { snd("holdChange"); lights("hot"); caption("chanceUp"); }
+      else if (n === "count") { snd("stepup"); caption("count"); }
+      else if (n === "slip") snd("stop");
+      else if (n === "devTease") { snd("reachUp"); PK.Cabinet.flash("#ffd84a"); }
       else if (n === "atk:hero") { snd("slash"); vo("atk" + (atkN++ % 3 + 1)); }
       else if (n === "atk:dragon") snd("gun");
       else if (n === "slowmo") snd("reachUp");
@@ -777,6 +781,7 @@
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
+    PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); });   // a 龍兵 claws
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);

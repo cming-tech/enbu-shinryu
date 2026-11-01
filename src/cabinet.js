@@ -200,7 +200,12 @@
 
   // ---------------------------------------------------------------- pins
   const PINS = { all: [], L: [], R: [], road: [], yori: [], inochi: [], hakama: [] };
-  function buildPins() {
+  // Pin layouts by name (PK.MACHINES[id].cabinet.pins). Each fills PINS; the ball paths below use
+  // its lanes (L, R, road, yori, inochi, hakama), so a new layout keeps those groups.
+  const PIN_LAYOUTS = { enbu: pinsEnbu };
+  let pinLayout = "enbu";
+  function buildPins() { (PIN_LAYOUTS[pinLayout] || pinsEnbu)(); }
+  function pinsEnbu() {
     const all = [];
     const add = (x, y, g) => { const p = { x, y, g }; all.push(p); return p; };
     PINS.L = []; PINS.R = []; PINS.road = [];
@@ -236,9 +241,11 @@
       const t = i / 8;
       PINS.road.push(add(84 + 168 * t, 486 + 32 * t + 3 * Math.sin(Math.PI * t), "road"));
     }
-    PINS.yori = [add(262, 522, "yori"), add(271, 527, "yori")];
+    // The pins beside the 命釘 leave a 16-unit gap (a ball needs 2 x CD = 14.6): at 12 the misses
+    // fell through them.
+    PINS.yori = [add(258, 522, "yori"), add(267, 527, "yori")];
     PINS.inochi = [add(283, 532, "inochi"), add(305, 532, "inochi")];
-    add(317, 527, "B"); add(326, 523, "B"); add(335, 520, "B");
+    add(321, 527, "B"); add(330, 523, "B"); add(339, 520, "B");
     add(270, 506, "B"); add(318, 506, "B");
     PINS.hakama = [add(270, 562, "B"), add(318, 562, "B"), add(281, 590, "B"), add(307, 590, "B")];
     // A few pins under the road toward the left out.
@@ -318,14 +325,11 @@
     teethLo: [[26, 13], [40, 7], [54, 7], [68, 6], [82, 6], [96, 5], [110, 5]],
   };
   const headPt = (x, y) => [HEAD_T.x + x * HEAD_T.s, HEAD_T.y + y * HEAD_T.s];
-  // Optional AI art <assetsBase>cab_dragon.png replaces the vector dragon: fitted into this box
-  // against its right and top edges, head top-left facing the playfield. Only the part outside the
-  // window shows, so it sits on the frame's top-right corner and right side.
-  const DRAGON_ART = { file: "cab_dragon.png", x: 380, y: -8, w: 216, h: 380 };
-  // Optional AI art for the top medallion (replaces the drawn ring and flame; the wings stay) and
-  // for the board painting behind the pins.
-  const CREST_ART = { file: "cab_crest.png", x: 222, y: -10, w: 144, h: 120 };
-  const BOARD_ART = { file: "board.jpg" };
+  // Optional AI art, set per machine (PK.MACHINES[id].cabinet.art, passed to mount as machine):
+  // dragon replaces the vector dragon, fitted into its box against the right and top edges (only
+  // the part outside the window shows); crest replaces the drawn medallion ring and flame (the
+  // wings stay); board is the painting behind the pins. A machine without one keeps the drawing.
+  let DRAGON_ART = {}, CREST_ART = {}, BOARD_ART = {};
 
   // Dragon body pieces: neck, coils over the right ring, tail. Built at mount.
   function dragonBody() {
@@ -2023,6 +2027,9 @@
       svg.style.pointerEvents = "none";
     });
     try { S.reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { S.reduced = false; }
+    const mc = els.machine || {}, art = mc.art || {};
+    pinLayout = mc.pins || "enbu";
+    DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {};
     buildPins();
     if (S.back) buildBack(S.back);
     if (S.front) buildFront(S.front);
@@ -2047,7 +2054,7 @@
     // AI art, if there is any: the layer that shows it is rebuilt when it has loaded.
     if (typeof els.assetsBase === "string") {
       [["dragonImg", DRAGON_ART.file, "front"], ["crestImg", CREST_ART.file, "front"], ["boardImg", BOARD_ART.file, "back"]].forEach(([key, file, layer]) => {
-        if (S[key]) return;
+        if (S[key] || !file) return;
         const im = new Image();
         im.onload = () => {
           S[key] = im;

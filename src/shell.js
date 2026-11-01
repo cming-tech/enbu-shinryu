@@ -7,12 +7,14 @@
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString("en-US");
 
-  const M = PK.MACHINES.enbu;
+  // The machine being played: the one picked in the lobby (選擇機台), else the first one.
+  const KEY_MACHINE = "pk.machine";
+  const M = PK.MACHINES[(function () { try { return localStorage.getItem(KEY_MACHINE); } catch (e) { return null; } })()] || PK.MACHINES.enbu;
   Object.assign(PK.TEXT, M.text);
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 34;
+  const VERSION = 35;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -285,6 +287,30 @@
       title, todays, data: r,
     };
   })();
+  // ---------------------------------------------------------------- 選擇機台 (lobby)
+  // A card per machine in PK.MACHINES, then one for the machine still being made. Picking another
+  // machine saves the choice and reloads; each machine keeps its own balls, save and records.
+  function showLobby() {
+    const ul = $("lobbyList");
+    ul.innerHTML = "";
+    const card = (img, name, line, tag, on, click) => {
+      const li = document.createElement("li");
+      if (on) li.className = "on";
+      li.innerHTML = '<span class="pic"></span><div><b></b><small></small></div><em></em>';
+      if (img) li.querySelector(".pic").style.backgroundImage = "url(" + img + ")";
+      li.querySelector("b").textContent = name;
+      li.querySelector("small").textContent = line;
+      li.querySelector("em").textContent = tag;
+      if (click) { li.tabIndex = 0; li.setAttribute("role", "button"); li.addEventListener("click", click); }
+      return ul.appendChild(li);
+    };
+    Object.keys(PK.MACHINES).forEach((id) => {
+      const m = PK.MACHINES[id], on = m === M;
+      card(m.card ? m.assetsBase + m.card : null, m.name, m.tagline || "", on ? t("lobby.playing") : t("lobby.play"), on,
+        on ? null : () => { store(KEY_MACHINE, id); location.reload(); });
+    });
+    card(null, t("lobby.soon"), t("lobby.soonBody"), "", false, null).classList.add("soon");
+  }
   function showMissions() {
     const r = mis.data, day = mis.todays(), ul = $("msList");
     $("msLevel").textContent = t("lv.level", { n: r.lv.n, title: mis.title() });
@@ -772,6 +798,7 @@
     $("mTutorial").addEventListener("click", () => openTutorial());
     $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); });
     $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
+    $("mLobby").addEventListener("click", () => { showLobby(); openSheet("lobby"); });
     mis.pay = (n) => { eng.refill(n); PK.Cabinet.flash("#ffd84a"); };
 
     function openRefill() {
@@ -870,7 +897,7 @@
     $("tutColors").innerHTML = t("tut.colors").split("|").map((name, i) => '<span style="color:' + HOLD_COLS[i] + '">● ' + name + "</span>").join("");
 
     // ---- boot the modules
-    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase });
+    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); });   // a 龍兵 claws

@@ -211,6 +211,19 @@
   #recAch li.got > i { background: linear-gradient(#ffcf5a, #e08a12); border-color: #ffd86e; color: #2a1500; }
   #recAch li.got b { color: var(--gold); }
   #recAch li.got small { color: var(--ink); }
+  /* 選擇機台: a card per machine */
+  #lobbyList { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  #lobbyList li { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; background: var(--metal); border: 1px solid var(--line); }
+  #lobbyList li[role="button"] { cursor: pointer; }
+  #lobbyList li.on { border-color: var(--gold); box-shadow: 0 0 12px rgba(255, 201, 77, 0.25); }
+  #lobbyList .pic { flex: none; width: 64px; height: 64px; border-radius: 10px; background: #0a0b0f center / cover no-repeat; border: 1px solid var(--line); }
+  #lobbyList li.soon .pic { background-image: repeating-linear-gradient(45deg, #151922 0 8px, #1e2430 8px 16px); }
+  #lobbyList li.soon { opacity: 0.6; }
+  #lobbyList li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+  #lobbyList b { font: 900 17px/1.3 var(--f-display); color: var(--ink); }
+  #lobbyList li.on b { color: var(--gold); }
+  #lobbyList small { color: var(--dim); font-size: 12px; }
+  #lobbyList em { flex: none; font-style: normal; font-weight: 900; font-size: 12px; color: var(--gold); }
   /* 每日任務: the level bar and the mission rows (styled like the achievements) */
   .lvl { display: flex; flex-direction: column; gap: 6px; }
   .lvl b { font: 900 18px/1.3 var(--f-display); color: var(--gold); }
@@ -283,6 +296,7 @@
   <h2 data-t="menu.title"></h2>
   <div class="list">
     <button class="big primary" id="mRefill" type="button" data-t="menu.refill"></button>
+    <button class="big" id="mLobby" type="button" data-t="menu.lobby"></button>
     <button class="big" id="mMissions" type="button" data-t="menu.missions"></button>
     <button class="big" id="mRecords" type="button" data-t="menu.records"></button>
     <button class="big" id="mSettings" type="button" data-t="menu.settings"></button>
@@ -316,6 +330,13 @@
     </div>
     <button class="big" data-close type="button" data-t="ui.close"></button>
   </div>
+</div></div>
+
+<div class="sheet" id="lobby" hidden><div class="card">
+  <h2 data-t="lobby.title"></h2>
+  <ul id="lobbyList"></ul>
+  <p class="note" data-t="lobby.note"></p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button" data-t="ui.close"></button></div>
 </div></div>
 
 <div class="sheet" id="missions" hidden><div class="card">

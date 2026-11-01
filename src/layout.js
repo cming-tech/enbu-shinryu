@@ -39,8 +39,11 @@
     // travel with increasing angle (up the left side, over the top).
     rail: { rx: 252, ry: 260, start: 125, releaseLeft: 215, releaseRight: 330 },
 
-    // Bottom decorative gimmick (big kanji blocks), front layer, inside the window bottom.
-    gimmick: [ { ch: "炎", x: 150, y: 520, w: 110, h: 110 }, { ch: "舞", x: 338, y: 528, w: 110, h: 110 } ],
+    // Bottom decorative gimmick (big kanji blocks), front layer, inside the window bottom. 72 square
+    // since 2026-11-01: at 110 the 舞 block covered the left half of the attacker and the 炎 block the
+    // launch gate. 舞 sits above the attacker, clear of the roll over its door (y 597) and the slope;
+    // 炎 sits under the road (道釘), right of the launch gate and left of the 寄り釘.
+    gimmick: [ { ch: "炎", x: 180, y: 524, w: 72, h: 72 }, { ch: "舞", x: 366, y: 506, w: 72, h: 72 } ],
 
     // Control zone (DOM controls placed by the shell over the cabinet's lower body).
     // Console: 總玉數 panel left, PUSH centre, the round PLAY/STOP button ("handle") right.

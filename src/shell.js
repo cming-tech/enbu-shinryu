@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 41;
+  const VERSION = 42;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -23,7 +23,7 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not saved */ } };
   const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
 
-  const set = Object.assign({ saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
+  const set = Object.assign({ dataOpen: false, saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
 
   // ---------------------------------------------------------------- 機率調整
@@ -54,7 +54,6 @@
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
     $("crest").textContent = M.crest;
     $("title").textContent = M.name;
-    $("coinsLbl").textContent = t("ui.coins");
     $("cSerial").textContent = M.serial;
     $("menuBtn").setAttribute("aria-label", t("ui.menu"));
     $("infoBtn").setAttribute("aria-label", t("ui.help"));
@@ -81,7 +80,7 @@
 
   const GLOSSARY = [
     ["glg.buttons", ["gl.handle", "gl.power", "gl.push", "gl.auto", "gl.right"]],
-    ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
+    ["glg.numbers", ["gl.balls", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.upgrade", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
     ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.zen", "gl.stLast"]],
   ];
@@ -160,10 +159,14 @@
     at("panel", Q.x + (Q.w - 176) / 2, Q.y + 8);
     at("infoBtn", I.x, I.y);
   }
+  // The stage fills the height when the phone is tall enough: its outer frame may run off the sides
+  // by up to SIDE_CROP of its width (2% a side: the 總玉數 panel starts 12 units in), so a narrow
+  // phone shows the machine a little bigger instead of leaving a band of empty space under it.
+  const SIDE_CROP = 0.04;
   function fit() {
     const wrap = $("stageWrap"), w = wrap.clientWidth, h = wrap.clientHeight;
-    const s = Math.min(w / L.stage.w, h / L.stage.h);
-    const x = (w - L.stage.w * s) / 2, y = (h - L.stage.h * s) * 0.2;
+    const s = Math.min(h / L.stage.h, w / (L.stage.w * (1 - SIDE_CROP)));
+    const x = (w - L.stage.w * s) / 2, y = Math.max(0, (h - L.stage.h * s) * 0.5);
     $("stage").style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) scale(" + s.toFixed(4) + ")";
   }
 
@@ -430,13 +433,13 @@
     // ---- display
     function showChips(chips) {
       $("balls").textContent = fmt(chips);
-      $("coinsVal").textContent = fmt(chips * 100);
+      $("coinsVal").textContent = fmt(chips);
     }
     function showCounter() {
       const st = eng.state.stats;
-      $("cSince").textContent = fmt(st.spinsSinceHit);
-      $("cTotal").textContent = fmt(st.totalSpins);
-      $("cToday").textContent = fmt(day.hits);
+      $("cSince").textContent = $("dbSince").textContent = fmt(st.spinsSinceHit);
+      $("cTotal").textContent = $("dbTotal").textContent = fmt(st.totalSpins);
+      $("cToday").textContent = $("dbToday").textContent = fmt(day.hits);
       // 大當履歷: one bar per hit, newest on the right; height = spins it took (capped), colour = mode
       const last = st.history.slice(-10), list = $("histList");
       $("histEmpty").hidden = last.length > 0;   // say what the empty graph is for
@@ -823,6 +826,12 @@
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
     $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); drawSlump(); });
+    // the nav bar opens what the (shorter) menu used to
+    document.querySelectorAll("#navBar [data-go]").forEach((b) => b.addEventListener("click", () => $(b.dataset.go).click()));
+    // the data bar folds the full counter and the 大當履歷 away; the machine gets the room
+    const showData = () => { $("dataPanel").hidden = !set.dataOpen; $("dataBar").setAttribute("aria-expanded", String(!!set.dataOpen)); fit(); };
+    $("dataBar").addEventListener("click", () => { set.dataOpen = !set.dataOpen; saveSettings(); snd("button"); showData(); });
+    showData();
     gameStats = () => eng.state;
     $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
     $("mLobby").addEventListener("click", () => { showLobby(); openSheet("lobby"); });

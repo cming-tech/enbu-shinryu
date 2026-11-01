@@ -3194,6 +3194,10 @@
     drawGlow(ctx, C.gold, AW.x, AW.y, 40 + 30 * g, 0.4 + 0.4 * g);
     ctx.restore();
   }
+  // vid_awaken (seed 9115) is good for its first 1.35 s (the eyes open, the jaws part); then the camera
+  // tilts up to the forehead and the halo above it is cut off by the frame (the user found it odd), so
+  // the clip stops there and the white flash covers the cut.
+  const AWAKEN_CLIP_END = 1.35;
   // onReveal(ok) runs when the result shows (at once when there was no challenge to reveal).
   async function awakenReveal(ok, onReveal) {
     const tell = () => { if (onReveal) try { onReveal(ok); } catch (e) { /* ignore */ } };
@@ -3209,7 +3213,7 @@
       burst("front", AW.x, AW.y, 60, { cols: [C.gold, C.white, C.orange], v0: 160, v1: 520, s0: 1.4, s1: 3.4, len: 28 });
       if (VID.awaken) {   // the 神龍 wakes on film: white in, the clip, white out onto the title
         white(1, 0.12); await wait(0.14);
-        const film = playClipToEnd("awaken", 3.6);
+        const film = playClipToEnd("awaken", AWAKEN_CLIP_END);
         white(0, 0.3);
         await film;
         white(1, 0.1); await wait(0.12); white(0, 0.5);

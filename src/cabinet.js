@@ -247,7 +247,8 @@
     PINS.inochi = [add(283, 532, "inochi"), add(305, 532, "inochi")];
     add(321, 527, "B"); add(330, 523, "B"); add(339, 520, "B");
     add(270, 506, "B"); add(318, 506, "B");
-    PINS.hakama = [add(270, 562, "B"), add(318, 562, "B"), add(281, 590, "B"), add(307, 590, "B")];
+    // 袴: the upper pair 17 out from the 命釘 (at 13 a missed ball could not fall between them)
+    PINS.hakama = [add(266, 562, "B"), add(322, 562, "B"), add(281, 590, "B"), add(307, 590, "B")];
     // A few pins under the road toward the left out.
     add(98, 506, "B"); add(112, 520, "B"); add(102, 538, "B");
     // Lower board: staggered pins on all the open board around the 炎/舞 blocks and along the
@@ -1417,7 +1418,10 @@
     while (steps++ < 40) {
       let cands;
       if (!cur) {
-        cands = pins.filter((p) => p.y - pb.y >= 5 && p.y - pb.y <= 50 && Math.abs(p.x - pb.x) <= 6.2 && p.y <= o.yEnd);
+        // the first pin under the release: the left lane's top rows are left out where the rail
+        // curves in, so it may be up to 70 below and 12 aside (within 50 x 6.2 the ball found none
+        // and dropped straight through the lane)
+        cands = pins.filter((p) => p.y - pb.y >= 5 && p.y - pb.y <= 70 && Math.abs(p.x - pb.x) <= 12 && p.y <= o.yEnd);
         cands.sort((a, b) => a.y - b.y);
         cands = cands.slice(0, 1);
       } else {
@@ -1458,20 +1462,42 @@
 
   function wmHit(seg) { const prev = seg.cb; seg.cb = () => { if (prev) prev(); S.wmW += rr(9, 16) * (rnd() < 0.5 ? -1 : 1); }; }
 
+  // A path whose flight passes through a pin (a lane walk that finds no clean hop drops straight
+  // down past the pins below it) is built again, up to PATH_TRIES times; the cleanest one is kept.
+  // Only retries that take the same route (pb.route) count, so the mix of routes stays as designed.
+  const PATH_TRIES = 6;
+  function pathHits(pb) {
+    let n = 0;
+    for (const s of pb.segs) {
+      if (s.rail || s.ghost || s.alpha) continue;
+      for (let k = 1; k < 10; k++) {
+        const p = s.f(k / 10);
+        for (const q of PINS.all) if (Math.abs(q.x - p[0]) < 5 && Math.abs(q.y - p[1]) < 5 && Math.hypot(q.x - p[0], q.y - p[1]) < 5) { n++; break; }
+      }
+    }
+    return n;
+  }
   function buildPath(target, side) {
     if (target === "heso") side = "left";
     else if (target === "denchu" || target === "attacker") side = "right";
     else side = side === "right" ? "right" : "left";
     const st = railPt(L.rail.start);
-    const pb = new PB(st[0], st[1]);
-    if (side === "left") pathLeft(pb, target); else pathRight(pb, target);
-    return pb;
+    let best = null, bh = Infinity;
+    for (let i = 0; i < PATH_TRIES && bh > 0; i++) {
+      const pb = new PB(st[0], st[1]);
+      if (side === "left") pathLeft(pb, target); else pathRight(pb, target);
+      if (best && pb.route !== best.route) continue;
+      const h = pathHits(pb);
+      if (h < bh) { best = pb; bh = h; }
+    }
+    return best;
   }
 
   function pathLeft(pb, target) {
     const isHeso = target === "heso";
-    if (!isHeso && rnd() < 0.12) return pathFoul(pb);
+    if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
     const warp = rnd() < (isHeso ? 0.32 : 0.14);
+    pb.route = warp ? "warp" : "lane";
     pb.rail(L.rail.start, L.rail.releaseLeft + rr(-4, 1), rr(0.25, 0.3), easeRail);
     pb.vy = 120;
     const onPin = (p, seg) => { if (Math.hypot(p.x - WM.x, p.y - WM.y) < 24) wmHit(seg); };
@@ -1494,13 +1520,17 @@
     pb.hop(road[i0].x + 1, road[i0].y - CD, pb.side > 0 ? -60 : -110);
     // Roll along the road tops.
     const falloff = !isHeso && rnd() < 0.35 ? Math.floor(rr(3, 6.5)) : -1;
+    if (falloff > 0) pb.route = "falloff";
     const iEnd = falloff > 0 ? Math.max(i0 + 2, falloff) : road.length - 1;
     const pts = [];
     for (let i = i0 + 1; i <= iEnd; i++) pts.push([road[i].x, road[i].y - CD]);
     if (pts.length) pb.roll(pts, rr(150, 200), rr(300, 360), 2.4, 21);
     if (falloff > 0) {
       // Drop through a gap under the road, then roll to the centre out.
-      pb.hop(pb.x + rr(5, 9), 633, -40);
+      // off its pin to the gap between road pins (21 apart), then down: a drop straight off the
+      // pin's top fell through the pin itself
+      pb.hop(pb.x + rr(9.5, 11.5), pb.y + CD + 2, -60);
+      pb.hop(pb.x, 633, 0);
       pb.roll([[288, 637]], 220, 320, 0, 1);
       pb.enter(294, 641, "out");
       return;
@@ -1525,7 +1555,7 @@
     const m = dir < 0 ? PINS.inochi[0] : PINS.inochi[1];
     const ox = dir * rr(2.2, 3.6);
     pb.hop(m.x + ox, m.y - Math.sqrt(CD * CD - ox * ox), -100);
-    pb.hop(294 + dir * 29, 552, -90);
+    pb.hop(294 + dir * 20, 556, -90);   // between the 命釘 and the upper 袴 pin
     const h = dir < 0 ? PINS.hakama[2] : PINS.hakama[3];
     pb.hop(h.x + dir * -4.5, h.y - 5.6, pb.vy * 0.1);
     pb.hop(294 + dir * 5, 633, -60);
@@ -1568,6 +1598,7 @@
     pb.rail(L.rail.start, L.rail.releaseRight + rr(-2, 3), rr(0.44, 0.52), easeRail);
     pb.vy = 160;
     const edge = target === "out" && rnd() < 0.4;
+    pb.route = edge ? "edge" : "slope";
     const biasX = target === "denchu" ? 528 : edge ? 552 : 500;
     walk(pb, PINS.R, { yEnd: 437, biasX, bias: 0.32 });
     if (target === "denchu") {
@@ -1577,7 +1608,8 @@
       return;
     }
     if (edge) {
-      pb.hop(549, 470, -115);
+      pb.hop(552, 441, -90);   // over the 電チュー gate pin (543, 450) on its right: straight to 549, 470 went through it
+      pb.hop(550, 470, -20);
       pb.hop(548, 520, pb.vy * 0.3);
       pb.line(543, 566, 0.12);
       const o = L.outs[2];
@@ -2166,7 +2198,7 @@
         const u = clamp((tt - s.t0) / s.d, 0, 1), p = s.f(u);
         samples.push({ t, x: p[0], y: p[1], a: s.alpha ? s.alpha(u) : 1, rail: !!s.rail, arrived: tt >= tArr, tag: s.tag, u });
       }
-      return { arrive: tArr / rate, total: pb.T / rate, kind, samples };
+      return { arrive: tArr / rate, total: pb.T / rate, kind, route: pb.route, samples };
     },
     _geom: { inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice() },
   };

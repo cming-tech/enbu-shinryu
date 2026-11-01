@@ -54,6 +54,9 @@
       denchuKinds: { "10R": 0.6, "6R": 0.25, "3R": 0.15 },
       rounds: { "3R": 3, "6R": 6, "10R": 10 },
     },
+    // 先読み (炎舞ゾーン): the share of heso holds that mark the spins queued before them, for a hit
+    // and for a miss (reliability about 40% at 1/99.9). Only in normal mode, with a hold ahead.
+    zone: { hit: 0.35, miss: 0.005 },
     digits: {
       sevenRush: { "10R": 0.45, "6R": 0.15, "3R": 0.05 }, // share of 7 on RUSH-bound hits (odd digits)
       sevenHeso: 0.25,  // share of 7 on a heso 3R that goes to RUSH
@@ -511,7 +514,8 @@
       let color = eff, change = null;
       const pc = D[pm].holdChange[eff] || 0;
       if (pc > 0 && rng() < pc) { color = lowerColor(eff); change = eff; }
-      return { src, pm, r, r2, r3, hit, eff, color, change };
+      const zone = src === "heso" && pm === "normal" && S.mode === "normal" && S.holds.length > 0 && rng() < (hit ? T.zone.hit : T.zone.miss);
+      return { src, pm, r, r2, r3, hit, eff, color, change, zone };
     }
 
     // -- balls
@@ -632,6 +636,11 @@
         }
       }
       const sc = buildScript(h, mode, hit, kind, next, before);
+      // 先読み: spins to go until a marked hold (zone), or this is the marked one (zoneLast)
+      const ahead = mode === "normal" ? q.findIndex((x) => x.zone) : -1;
+      sc.zone = ahead >= 0 ? ahead + 1 : 0;
+      sc.zoneLast = mode === "normal" && !!h.zone;
+      if (sc.zone || sc.zoneLast) sc.fast = false;
       S.spinning = sc;
       const st = S.stats;
       st.totalSpins++;

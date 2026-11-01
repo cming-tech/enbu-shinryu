@@ -1947,6 +1947,7 @@
     ctx.save();
     ctx.translate(fx.sx, fx.sy);
     drawScenes(ctx);
+    drawZone(ctx);
     drawActors(ctx, "back");
     drawParticles(ctx, P.back);
     drawLogo(ctx);
@@ -1976,6 +1977,8 @@
     if (fx.shake < 0.05) fx.shake = 0;
     fx.sx = (rng() * 2 - 1) * fx.shake; fx.sy = (rng() * 2 - 1) * fx.shake;
     fx.flashA = Math.max(0, fx.flashA - dt * fx.flashD);
+    if (zoneFx.a > 0.3 && rng() < dt * 16 * zoneFx.lvl)   // the zone's flames rise from the bottom
+      emit("back", { x: rand(0, W), y: H + 8, vx: rand(-8, 8), vy: rand(-60, -110), ay: -20, life: rand(0.6, 1.1), s0: rand(10, 18), s1: rand(22, 32), a0: 0.6 * zoneFx.a, a1: 0, type: "fire" });
     if (fx.logoA > 0.3 && mode !== "bonus" && rng() < dt * 6)
       emit("back", { x: rand(70, 322), y: rand(42, 60), vx: rand(-6, 6), vy: rand(-18, -34), life: rand(1, 1.8), s0: rand(1, 2.2), s1: 0.3, col: pick([C.ember, C.gold]), wob: 10, ph: rand(0, TAU) });
     if (renda.on && renda.auto && clk.t - renda.lastAuto > 0.13) { renda.lastAuto = clk.t; rendaHit(true); }
@@ -2034,10 +2037,39 @@
     if (s.final[0] === s.final[2] && !s.reach) s.reach = { type: "normal", color: "blue", push: false, revive: false };
     if (s.reach) s.reach = Object.assign({ type: "normal", color: "blue", push: false, revive: false }, s.reach);
     if (s.reach && s.final[0] !== s.final[2]) s.final[2] = s.final[0];
+    s.zone = s.zone | 0; s.zoneLast = !!s.zoneLast;
     if (s.reach && s.reach.revive && !s.hit) s.reach.revive = false;
     return s;
   }
   const near = (d) => ((d % 9) + 1); // the digit after d (前後ハズレ look)
+  // 先読み (炎舞ゾーン): the spins before a marked hold burn at the edges, hotter as it nears (S.zone =
+  // spins to go); the marked spin itself is the zone's last (S.zoneLast: 勝負!!). It fades after that.
+  const zoneFx = { a: 0, lvl: 0 };
+  function zoneSet(S, ctxs) {
+    const on = S.mode === "normal" && (S.zone > 0 || S.zoneLast);
+    if (on && zoneFx.a < 0.5) {
+      telop(T("lcd.zone"), { x: CX, y: 150, size: 44, cls: "fire", anim: "slam", dur: 1.1, font: FONT_BRUSH });
+      flash(C.orange, 0.5, 3); shake(4);
+      ctxs.emit("zone");
+    }
+    if (on && S.zoneLast) { telop(T("lcd.zoneLast"), { x: CX, y: 64, size: 34, cls: "red", anim: "pop", dur: 1.2, font: FONT_POP }); ctxs.emit("zoneLast"); }
+    tween(zoneFx, { a: on ? 1 : 0, lvl: on ? (S.zoneLast ? 1 : clamp(1 - (S.zone - 1) * 0.2, 0.45, 0.9)) : zoneFx.lvl }, 0.4);
+  }
+  function drawZone(ctx) {
+    const a = zoneFx.a, l = zoneFx.lvl;
+    if (a < 0.01) return;
+    const p = 0.85 + 0.15 * Math.sin(clk.t * 6), bh = 150 * l, sw = 70 * l;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    let g = ctx.createLinearGradient(0, H, 0, H - bh);
+    g.addColorStop(0, rgba(C.red, 0.55 * a * p)); g.addColorStop(0.5, rgba(C.orange, 0.22 * a * p)); g.addColorStop(1, rgba(C.orange, 0));
+    ctx.fillStyle = g; ctx.fillRect(0, H - bh, W, bh);
+    for (const right of [false, true]) {
+      g = ctx.createLinearGradient(right ? W : 0, 0, right ? W - sw : sw, 0);
+      g.addColorStop(0, rgba(C.red, 0.42 * a * p)); g.addColorStop(1, rgba(C.red, 0));
+      ctx.fillStyle = g; ctx.fillRect(right ? W - sw : 0, 0, sw, H);
+    }
+    ctx.restore();
+  }
   function resetStage(keepScene) {
     killSeqActors(); clearTelops();
     tween(fx, { dim: 0, gray: 0, vign: 0, tint: 0 }, 0.2);
@@ -2820,16 +2852,23 @@
       layout(baseLay(), 0.25);
       ctxs.emit("spinStart");
       pedIn(S.holdColor);
+      zoneSet(S, ctxs);
       const rushy = S.mode !== "normal";
       const heavy = !!(S.reach || S.pseudo || S.stepup || S.gun || S.cutin || S.kokuchi || S.holdChangeTo);
-      const fast = S.fast && !heavy;
+      // RUSH extras: the last ST spin is played out (ラスト1回転), and a RUSH hit may be 全回転 (all
+      // three reels turn as one: a sure hit). S.zen forces it either way (tests).
+      const stLast = S.mode === "rush" && S.stAfter === 0;
+      const zen = S.hit && S.mode === "rush" && !opts.skip && (S.zen != null ? !!S.zen : rng() < ZEN_RATE);
+      const fast = S.fast && !heavy && !stLast;
+      if (stLast) stLastFx(ctxs);
       if (opts.skip) {
         reels.forEach((r) => reelSpin(r, 20));
         await wait(0.18);
         await Promise.all([stopE(0, S.final[0], 0.16, ctxs), stopE(2, S.final[2], 0.18, ctxs), stopE(1, S.final[1], 0.2, ctxs)]);
       } else {
         reels.forEach((r) => reelSpin(r, fast ? 20 : 16));
-        if (fast) {
+        if (zen) await zenSeq(S, ctxs);
+        else if (fast) {
           await wait(rushy ? 0.3 : 0.38);
           await stopE(0, S.final[0], 0.16, ctxs); await wait(0.07);
           await stopE(2, S.final[2], 0.16, ctxs); await wait(0.07);
@@ -2862,6 +2901,7 @@
       clk.scale = 1;
       curOpts = null;
       pedOut();
+      if (S.zoneLast || S.hit) tween(zoneFx, { a: 0 }, 0.5);   // the zone ends with its marked spin
       if (!S.hit) {
         resetStage();
         tween(fx, { logoA: 1 }, 0.3);
@@ -2870,8 +2910,29 @@
       }
     }
   }
+  const ZEN_RATE = 0.1;   // share of RUSH hits shown as 全回転
+  // 全回転: the three reels turn slowly as one, showing the same digit all the way, and land together.
+  async function zenSeq(S, ctxs) {
+    ctxs.emit("zen");
+    await wait(0.4);
+    reels.forEach((r) => { r.pos = reels[0].pos; reelSpeed(r, 3.2, 6); r.glow = 1; });
+    flash(C.white, 1, 2.5); shake(8);
+    telop(T("lcd.zen"), { x: CX, y: 70, size: 54, cls: "rainbow", anim: "slam", dur: 2.2, font: FONT_POP, jitter: 3 });
+    addActor("back", 2.4, (ctx, age) => drawRays(ctx, CX, 172, hueRgb(age * 240), age * 1.5, 0.55, 460, 22, true), { seq: true });
+    await wait(2.0);
+    ctxs.stops = 0;
+    await Promise.all(reels.map((r, i) => stopE(i, S.final[i], 0.6, ctxs)));
+  }
+  // ラスト1回転: the last spin of the ST, played out with a heartbeat
+  function stLastFx(ctxs) {
+    telop(T("lcd.stLast"), { x: CX, y: 64, size: 34, cls: "red", anim: "drop", dur: 1.6, font: FONT_POP });
+    tween(fx, { vign: 0.6 }, 0.3); fx.vignC = C.red; fx.vignP = 3;
+    flash(C.red, 0.4, 3); shake(3);
+    ctxs.emit("stLast");
+  }
   async function hitConfirm(S, ctxs) {
     ctxs.emit("hitConfirm");
+    if (S.mode === "rush") telop(T("lcd.rushCont"), { x: CX, y: 268, size: 40, cls: "gold", anim: "slam", dur: 1.0, inD: 0.15, font: FONT_POP });
     flash(C.white, 1, 2.2); shake(7);
     tween(fx, { vign: 0, gray: 0, dim: 0 }, 0.2);
     layout("hit", 0.3, E.back);
@@ -3392,6 +3453,17 @@
     bossActive() { return mode === "bonus" && ((boss.on && !boss.down && !boss.flee) || (awaken.on && awaken.res == null)); },
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
     showRound(round, rounds, gained) { enqueue(() => showRoundImpl(round, rounds, gained)); },
+    // ラウンド昇格: the bonus shown as 3R grows to `to` rounds (the shell shows the new count next)
+    playRoundUpgrade(to) {
+      return enqueue(async () => {
+        flash(C.white, 1, 2.5); shake(10);
+        addActor("back", 2.2, (ctx, age) => drawRays(ctx, CX, 170, hueRgb(age * 300), age * 2, 0.6 * (1 - age / 2.2), 460, 20, true));
+        burst("front", CX, 170, 40, { cols: [C.gold, C.white, C.orange], v0: 150, v1: 420, s0: 1.5, s1: 3.5, len: 24 });
+        telop(T("lcd.upgrade"), { x: CX, y: 112, size: 46, cls: "rainbow", anim: "slam", dur: 1.9, font: FONT_POP, jitter: 3 });
+        telop(to + "R", { x: CX, y: 190, size: 84, cls: "gold", anim: "stamp", dur: 1.6, inD: 0.35, font: FONT_DIGIT });
+        await wait(1.9);
+      });
+    },
     playRoundBreak(round) { return enqueue(() => playRoundBreakImpl(round)); },
     // o: { gained, next, onReveal?(ok) }; onReveal runs when the 神龍覚醒 result shows
     playBonusEnd(o) { return enqueue(() => playBonusEndImpl(o)); },
@@ -3436,7 +3508,7 @@
         resize(); render();
       },
       render() { resize(); render(); },
-      state() { return { t: clk.t, mode, scene: scene.id, renda: renda.on, actors: actors.length, particles: P.back.length + P.front.length, telops: telops.length, reels: reels.map((r) => ({ st: r.st, d: digitAt(r.pos) })) }; },
+      state() { return { t: clk.t, mode, scene: scene.id, renda: renda.on, actors: actors.length, particles: P.back.length + P.front.length, telops: telops.length, zone: zoneFx.a, reels: reels.map((r) => ({ st: r.st, d: digitAt(r.pos) })) }; },
       imagesSettled() { return imgPending === 0; },
       seed(n) { rng = mulberry32(n | 0); },
       forceExtras(x) { forceX = x || null; },

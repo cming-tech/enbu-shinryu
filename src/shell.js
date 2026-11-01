@@ -12,7 +12,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 33;
+  const VERSION = 34;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -80,8 +80,8 @@
   const GLOSSARY = [
     ["glg.buttons", ["gl.handle", "gl.power", "gl.push", "gl.auto", "gl.right"]],
     ["glg.numbers", ["gl.balls", "gl.coins", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
-    ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
-    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.reachVar"]],
+    ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.upgrade", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
+    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.zen", "gl.stLast"]],
   ];
 
   // ---------------------------------------------------------------- 力道旋鈕
@@ -191,6 +191,7 @@
   // Kept apart from the game save: 重新開始 starts a new game but keeps the player's records.
   const KEY_REC = "pk." + M.id + ".records";
   const ACH = ["first", "rush", "s3", "s5", "s10", "r10", "boss", "boss10", "awaken", "spsp", "rainbow", "revive", "rich", "hits100"];
+  let queueToast = null;   // toasts that wait their turn (achievements, missions, levels)
   const rec = (function () {
     const r = Object.assign({ hits: 0, rushes: 0, bestStreak: 0, bestBonus: 0, bestRush: 0, boss: 0, got: {} }, parse(load(KEY_REC)));
     const keep = () => store(KEY_REC, JSON.stringify(r));
@@ -202,11 +203,11 @@
       snd("coin"); toast(queue[0]);
       setTimeout(() => { queue.shift(); nextToast(); }, 2500);
     }
+    queueToast = (msg) => { queue.push(msg); if (queue.length === 1) nextToast(); };
     function ach(id) {
       if (r.got[id]) return;
       r.got[id] = Date.now();
-      queue.push(t("rec.unlocked", { name: t("ach." + id).split("|")[0] }));
-      if (queue.length === 1) nextToast();
+      queueToast(t("rec.unlocked", { name: t("ach." + id).split("|")[0] }));
     }
     return {
       data: r, ach: (id) => { ach(id); keep(); },
@@ -227,6 +228,80 @@
       boss() { r.boss++; ach("boss"); if (r.boss >= 10) ach("boss10"); keep(); },
     };
   })();
+  // ---------------------------------------------------------------- 每日任務 + 等級
+  // Three missions a day, the same three all day (picked from MISSIONS by the date), each paying
+  // balls and 經驗. 經驗 also comes from every jackpot and 龍兵; levels bring titles. Kept with the
+  // records, so 重新開始 keeps them. The shell sets mis.pay (it owns the engine).
+  const MISSIONS = [   // [id, goal, balls, 經驗]
+    ["spins", 150, 300, 30], ["reach", 8, 300, 30], ["hit", 1, 500, 50], ["boss", 2, 500, 50],
+    ["sp", 1, 400, 40], ["fire", 1500, 300, 30], ["streak", 2, 800, 80], ["push", 3, 300, 30],
+  ];
+  const XP = { hit: 10, boss: 5 };
+  const LV_TITLE_AT = [1, 3, 6, 10, 15];   // the level each title in lv.titles starts at
+  const xpFor = (lv) => 100 * lv;          // 經驗 from level lv to lv + 1
+  const mis = (function () {
+    const r = rec.data;
+    r.lv = Object.assign({ n: 1, xp: 0 }, r.lv);
+    let saveT = 0;
+    const save = (now) => { clearTimeout(saveT); if (now) store(KEY_REC, JSON.stringify(r)); else saveT = setTimeout(() => save(true), 3000); };
+    function todays() {
+      const d = today();
+      if (!r.day || r.day.date !== d) {
+        let h = 2166136261;   // the date picks three different missions
+        for (const c of d) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+        const pool = MISSIONS.map((m) => m[0]), ids = [];
+        while (ids.length < 3) { h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0; ids.push(pool.splice(h % pool.length, 1)[0]); }
+        r.day = { date: d, ids, prog: {}, done: {} };
+        save(true);
+      }
+      return r.day;
+    }
+    const title = () => { const ts = t("lv.titles").split("|"); let k = 0; LV_TITLE_AT.forEach((at, i) => { if (r.lv.n >= at) k = i; }); return ts[k]; };
+    function gainXp(n) {
+      r.lv.xp += n;
+      while (r.lv.xp >= xpFor(r.lv.n)) {
+        r.lv.xp -= xpFor(r.lv.n); r.lv.n++;
+        queueToast(t("lv.up", { n: r.lv.n, title: title() }));
+      }
+    }
+    function step(id, v, isMax) {
+      const day = todays();
+      if (day.ids.indexOf(id) < 0 || day.done[id]) return;
+      const m = MISSIONS.find((x) => x[0] === id);
+      day.prog[id] = isMax ? Math.max(day.prog[id] || 0, v) : (day.prog[id] || 0) + v;
+      if (day.prog[id] >= m[1]) {
+        day.prog[id] = m[1]; day.done[id] = true;
+        if (mis.pay) mis.pay(m[2]);
+        queueToast(t("ms.done", { name: t("ms." + id, { n: m[1] }), n: fmt(m[2]) }));
+        gainXp(m[3]);
+        save(true);
+      } else save(id === "fire" ? false : true);
+    }
+    return {
+      pay: null,
+      add(id, n) { step(id, n || 1, false); },
+      max(id, v) { step(id, v, true); },
+      xp(kind) { gainXp(XP[kind] || 0); save(true); },
+      title, todays, data: r,
+    };
+  })();
+  function showMissions() {
+    const r = mis.data, day = mis.todays(), ul = $("msList");
+    $("msLevel").textContent = t("lv.level", { n: r.lv.n, title: mis.title() });
+    $("msXp").style.width = Math.round((100 * r.lv.xp) / xpFor(r.lv.n)) + "%";
+    $("msXpTxt").textContent = t("lv.xp", { a: r.lv.xp, b: xpFor(r.lv.n) });
+    ul.innerHTML = "";
+    day.ids.forEach((id) => {
+      const m = MISSIONS.find((x) => x[0] === id), v = day.prog[id] || 0, li = document.createElement("li");
+      if (day.done[id]) li.className = "got";
+      li.innerHTML = "<i aria-hidden=\"true\"></i><div><b></b><small></small><span class=\"bar\"><u></u></span></div>";
+      li.querySelector("i").textContent = day.done[id] ? "✓" : "";
+      li.querySelector("b").textContent = t("ms." + id, { n: fmt(m[1]) });
+      li.querySelector("small").textContent = t("ms.reward", { a: fmt(v), b: fmt(m[1]), n: fmt(m[2]), x: m[3] });
+      li.querySelector("u").style.width = Math.round((100 * v) / m[1]) + "%";
+      ul.appendChild(li);
+    });
+  }
   function showRecords() {
     const r = rec.data, dl = $("recStats"), ul = $("recAch");
     dl.innerHTML = ""; ul.innerHTML = "";
@@ -427,6 +502,7 @@
       else if (shot && shot.eff < 0.5) caption("aimWeak");
       const b = eng.fireBall(shot);
       if (!b) { setFiring(false); openRefill(); return; }
+      mis.add("fire");
       snd("fire");
       PK.Cabinet.launch(b.target, b.side, () => arrive(b));
     }
@@ -450,6 +526,7 @@
       spinning = true;
       const sc = eng.startSpin();
       showCounter();
+      mis.add("spins");
       PK.LCD.playSpin(sc, { speed: set.speed, autoPush: set.autoPush, onEvent: (n) => onLcdEvent(n, sc) }).then(() => {
         eng.endSpin();
         spinning = false;
@@ -470,13 +547,18 @@
       else if (n === "holdChange") { snd("holdChange"); caption("holdChange"); }
       else if (n === "reach") {
         snd("reach");
+        mis.add("reach"); if (r.type !== "normal") mis.add("sp");
         bgm(r.type === "battle" ? "battle" : "reach");
         lights(r.color === "rainbow" ? "rainbow" : r.color === "gold" || r.type === "spsp" ? "hot" : "reach");
         caption(r.type === "battle" ? "battle" : r.type === "spsp" ? "spsp" : "reach");
         vo(r.type === "battle" ? "battle" : r.type === "sp" ? "spReach" : r.type === "spsp" ? "spsp" : "reach");
       } else if (n === "reachUp") { snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "pushPrompt") { snd("push"); pushPrompt(true); caption("push"); vo("push"); }
-      else if (n === "pushHit") { snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
+      else if (n === "pushHit") { mis.add("push"); snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
+      else if (n === "zen") { snd("kokuchi"); lights("rainbow"); caption("zen"); }
+      else if (n === "stLast") { snd("reach"); caption("stLast"); }
+      else if (n === "zone") { snd("stepup"); lights("hot"); caption("zone"); }
+      else if (n === "zoneLast") { snd("reachUp"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "chanceUp") { snd("holdChange"); lights("hot"); caption("chanceUp"); }
       else if (n === "count") { snd("stepup"); caption("count"); }
       else if (n === "slip") snd("stop");
@@ -494,22 +576,30 @@
     }
 
     // ---- bonus: fanfare -> rounds (with breaks) -> ending -> RUSH / 時短 / normal
+    // ラウンド昇格: a 10R or 6R jackpot may first show as 3R and grow at the start of round 2. Every
+    // heso 10R does (the 3R that grows), and half of the RUSH ones (never on 777, which shows its
+    // rounds). Display only: the engine decided the rounds at the hit.
+    let shownRounds = 0;   // 0 = show the engine's
+    const showRounds = (s) => PK.LCD.showRound(s.round, shownRounds || s.rounds, s.bonusGained);
     function startJackpot(sc) {
       bonusFlow = true; holdFire = true;
       if (day.date !== today()) day = { date: today(), hits: 0 };
       day.hits++; dirty = true;
       rec.hit(sc.kind, eng.state.rushStreak, sc.reach);
+      mis.add("hit"); mis.max("streak", eng.state.rushStreak); mis.xp("hit");
       showCounter();
       snd("jackpot");
       lights("bonus"); PK.Cabinet.flash("#ffd84a");
       bgm("bonus");
       caption("jackpot");
       vo("jackpot");
-      PK.LCD.playJackpot(sc).then(() => eng.beginBonus());
+      shownRounds = sc.kind !== "3R" && sc.final[0] !== 7 && (sc.src === "heso" || Math.random() < 0.5) ? 3 : 0;
+      PK.LCD.playJackpot(shownRounds ? Object.assign({}, sc, { kind: "3R" }) : sc).then(() => eng.beginBonus());
     }
     eng.on("roundStart", (e) => {
       holdFire = false;
-      PK.LCD.showRound(e.round, e.rounds, eng.state.bonusGained);
+      if (shownRounds && e.round === 2) { shownRounds = 0; PK.LCD.playRoundUpgrade(e.rounds); snd("kokuchi"); lights("rainbow"); caption("upgrade"); }
+      showRounds(eng.state);
       snd("round");
       if (e.round >= e.rounds) { caption("awaken"); vo("awakenCall"); }
       else if (e.round === 1) { caption("minion"); vo("minionStart"); }
@@ -544,7 +634,7 @@
     eng.on("chips", (e) => {
       showChips(e.chips);
       dirty = true;
-      if (mode === "bonus" && e.delta > 0) { const s = eng.state; PK.LCD.showRound(s.round, s.rounds, s.bonusGained); }
+      if (mode === "bonus" && e.delta > 0) showRounds(eng.state);
     });
     eng.on("holds", (e) => {
       dirty = true;   // also covers every spin start
@@ -652,7 +742,7 @@
     const BOSS_REWARD = 100;
     function doPush() {
       const r = PK.LCD.push();
-      if (r === "bossDown") { eng.refill(BOSS_REWARD); snd("win"); PK.Cabinet.flash("#ffd84a"); rec.boss(); vo("minionDown"); }
+      if (r === "bossDown") { eng.refill(BOSS_REWARD); snd("win"); PK.Cabinet.flash("#ffd84a"); rec.boss(); mis.add("boss"); mis.xp("boss"); vo("minionDown"); }
       else if (r === "boss") snd("slash");
       else if (r === "awaken") snd("stepup");
       else snd("button");
@@ -681,6 +771,8 @@
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
     $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); });
+    $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
+    mis.pay = (n) => { eng.refill(n); PK.Cabinet.flash("#ffd84a"); };
 
     function openRefill() {
       $("refillTitle").textContent = t(eng.state.chips < 1 ? "refill.title" : "refill.titleMenu");

@@ -29,6 +29,8 @@
     // ~35 s, ~10.5 jackpots an hour, about 0.7 more hits per RUSH, and a payout ratio of ~120%,
     // so balls still rarely run out. hesoRate 1/7 keeps the spins coming. These are the defaults;
     // each player can pick other presets in 設定 → 機率調整 (src/shell.js, ODDS).
-    engine: { spec: { normalChance: 1 / 99.9, rushChance: 1 / 16, st: 8 }, units: { hesoRate: 1 / 7 } },
+    // ラウンド昇格 (2026-11-01): a heso hit is 10R one time in ten (one in five made the payout ~135%, from ~113%); the shell shows it as 3R that
+    // grows at round 2, so the first jackpot is no longer always the small one.
+    engine: { spec: { normalChance: 1 / 99.9, rushChance: 1 / 16, st: 8, hesoKinds: { "3R": 0.9, "10R": 0.1 } }, units: { hesoRate: 1 / 7 } },
   };
 })();

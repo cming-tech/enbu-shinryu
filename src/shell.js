@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 40;
+  const VERSION = 41;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -23,7 +23,7 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not saved */ } };
   const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
 
-  const set = Object.assign({ sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
+  const set = Object.assign({ saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
 
   // ---------------------------------------------------------------- 機率調整
@@ -328,6 +328,31 @@
       ul.appendChild(li);
     });
   }
+  // 珠子走勢: the balls after every spin of this game (the engine keeps them, halving the samples as
+  // they grow), drawn like the slump graph of a real data counter. Up = more balls than at the start.
+  let gameStats = null;   // set at boot: () => the engine's state
+  function drawSlump() {
+    const cv = $("recSlump"), s = gameStats && gameStats();
+    if (!cv || !s) return;
+    const pts = s.stats.slump.concat([s.chips]), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth || 300, h = cv.clientHeight || 130;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    const g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const base = pts[0], lo = Math.min(base, ...pts), hi = Math.max(base, ...pts), span = Math.max(1, hi - lo);
+    const pad = 8, X = (i) => pad + ((w - 2 * pad) * i) / Math.max(1, pts.length - 1), Y = (v) => pad + ((h - 2 * pad) * (hi - v)) / span;
+    g.strokeStyle = "rgba(255,255,255,0.18)"; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(pad, Y(base)); g.lineTo(w - pad, Y(base)); g.stroke(); g.setLineDash([]);
+    // the area to the start line: gold above (more balls), red below
+    [["rgba(255,201,77,0.35)", (v) => Math.max(v, base)], ["rgba(255,78,58,0.35)", (v) => Math.min(v, base)]].forEach(([col, f]) => {
+      g.fillStyle = col; g.beginPath(); g.moveTo(X(0), Y(base));
+      pts.forEach((v, i) => g.lineTo(X(i), Y(f(v))));
+      g.lineTo(X(pts.length - 1), Y(base)); g.closePath(); g.fill();
+    });
+    g.strokeStyle = "#ffc94d"; g.lineWidth = 2; g.lineJoin = "round"; g.beginPath();
+    pts.forEach((v, i) => (i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)))); g.stroke();
+    const d = s.chips - base;
+    $("recSlumpCap").textContent = t("rec.slumpCap", { n: fmt(s.stats.totalSpins), d: (d >= 0 ? "+" : "−") + fmt(Math.abs(d)), max: fmt(s.stats.maxChips) });
+  }
   function showRecords() {
     const r = rec.data, dl = $("recStats"), ul = $("recAch");
     dl.innerHTML = ""; ul.innerHTML = "";
@@ -578,7 +603,7 @@
         lights(r.color === "rainbow" ? "rainbow" : r.color === "gold" || r.type === "spsp" ? "hot" : "reach");
         caption(r.type === "battle" ? "battle" : r.type === "spsp" ? "spsp" : "reach");
         vo(r.type === "battle" ? "battle" : r.type === "sp" ? "spReach" : r.type === "spsp" ? "spsp" : "reach");
-      } else if (n === "reachUp") { snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
+      } else if (n === "reachUp") { caption("skip"); snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "pushPrompt") { snd("push"); pushPrompt(true); caption("push"); vo("push"); }
       else if (n === "pushHit") { mis.add("push"); snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
       else if (n === "zen") { snd("kokuchi"); lights("rainbow"); caption("zen"); }
@@ -591,6 +616,7 @@
       else if (n === "devTease") { snd("reachUp"); PK.Cabinet.flash("#ffd84a"); }
       else if (n === "atk:hero") { snd("slash"); vo("atk" + (atkN++ % 3 + 1)); }
       else if (n === "atk:dragon") snd("gun");
+      else if (n === "battleHint") { snd("holdChange"); lights("hot"); caption("battleHint"); }
       else if (n === "slowmo") snd("reachUp");
       else if (n === "finalBlow") { snd("cutin"); vo("final"); }
       else if (n === "battleWin") { snd("win"); vo("win"); }
@@ -796,7 +822,8 @@
     });
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
-    $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); });
+    $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); drawSlump(); });
+    gameStats = () => eng.state;
     $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
     $("mLobby").addEventListener("click", () => { showLobby(); openSheet("lobby"); });
     mis.pay = (n) => { eng.refill(n); PK.Cabinet.flash("#ffd84a"); };
@@ -820,6 +847,12 @@
       $("sVoice").textContent = t(set.voice ? "set.on" : "set.off");
     }
     $("sVoice").addEventListener("click", () => { set.voice = !set.voice; PK.Sound.setVoice(set.voice); saveSettings(); showVoice(); snd("button"); });
+    function showSaver() {
+      $("sSaver").setAttribute("aria-pressed", String(set.saver));
+      $("sSaver").textContent = t(set.saver ? "set.on" : "set.off");
+    }
+    const applySaver = () => { PK.LCD.setSaver(set.saver); PK.Cabinet.setSaver(set.saver); };
+    $("sSaver").addEventListener("click", () => { set.saver = !set.saver; applySaver(); saveSettings(); showSaver(); snd("button"); });
     function showSettings() {
       $("sSound").setAttribute("aria-pressed", String(set.sound));
       $("sSound").textContent = t(set.sound ? "set.on" : "set.off");
@@ -909,10 +942,12 @@
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
+    $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n === "rushStage") { snd("rushIn"); lights("rainbow"); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);
+    applySaver(); showSaver();
     const s0 = eng.state;
     PK.LCD.setHolds(s0.holds, s0.rushHolds);
     applyMode(false);

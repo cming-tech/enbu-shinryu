@@ -1071,6 +1071,7 @@
   // ------------------------------------------------------------------ particles
   const P = { back: [], front: [] };
   function emit(layer, o) {
+    if (saver && (saverEmit = !saverEmit)) return null;
     const arr = P[layer] || P.front;
     if (arr.length > 650) return null;
     const p = { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, drag: 0, life: 1, age: 0, s0: 4, s1: 4, a0: 1, a1: 0, rot: 0, vr: 0, type: "glow", col: C.gold, add: true, len: 10, wob: 0, ph: 0, fadeIn: 0 };
@@ -2017,6 +2018,9 @@
     update(dt);
   }
   let raf = 0, lastTs = 0, manual = false;
+  // 省電模式 (set by the shell): every other frame is drawn (the clock still runs every frame), the
+  // canvas is at most 1.25x instead of 2x, and half the particles are emitted.
+  let saver = false, saverOdd = false, saverEmit = false;
   function frame(ts) {
     raf = requestAnimationFrame(frame);
     if (manual) return;
@@ -2024,6 +2028,7 @@
     lastTs = ts;
     if (++frameN % 60 === 0) resize();
     step(dt);
+    if (saver && (saverOdd = !saverOdd)) return;
     if (!clipCovers()) render();
   }
   // An opaque clip that fills the LCD hides the canvas, so it is not drawn meanwhile (a phone then
@@ -2038,7 +2043,7 @@
   function resize() {
     if (!root) return;
     const rc = root.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(saver ? 1.25 : 2, window.devicePixelRatio || 1);
     let k = rc.width > 0 ? (rc.width / W) * dpr : 2;
     k = clamp(Math.round(k * 20) / 20, 0.5, 3);
     if (k !== kpx || !lastW) {
@@ -2622,6 +2627,7 @@
       dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0,
       dLean: 0, dSq: 0, dLitT: -9,   // the 炎龍王 picture's pose (drawLive): its attacks lean it in
       hLean: 0,   // the hero's (+ leans forward, to the right, into a strike)
+      gold: 0,    // 勝機: a gold blaze behind the hero
       dash: 0, pose: null, dHitT: -9, hHitT: -9, pops: [] };
     let dHead = { mx: 0, my: 0 };
     const kick = (t0, px) => { const k = clk.t - t0; return k < 0.35 ? px * Math.exp(-k * 9) : 0; };   // knocked back by a hit
@@ -2656,6 +2662,7 @@
           for (let i = 3; i >= 1; i--) one(hx - i * 22, B.dash * 0.22 * (1 - i / 4));
           ctx.restore();
         }
+        if (B.gold > 0.01) { ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, hx, H - 120, 170, 0.55 * B.gold * (0.85 + 0.15 * Math.sin(age * 9))); ctx.restore(); }
         one(hx, B.hA * (1 - B.hDim * 0.6));
       }
       else drawWarrior(ctx, { x: hx, y: B.hy, sc: B.hsc, t: age, sword: B.hs, rot: B.hRot, dim: B.hDim, aura: B.hAura, rim: B.hRim, alpha: B.hA });
@@ -2757,8 +2764,31 @@
       tween(B, { dx: 312, dLean: 0, dSq: 0 }, 0.3, E.out);
       await wait(0.25);
     };
-    await heroStrike(); await dragonBreath(); await heroStrike(); await dragonClaw();
+    // the dragon breathes, the hero leaps back out of it and the fire misses
+    const heroDodge = async () => {
+      ctxs.emit("atk:dragon");
+      tween(B, { dJaw: 0.55, dx: 300, dLean: -16, dSq: -0.03 }, 0.15);
+      B.breath = 1; B.dash = 1;
+      tween(B, { hx: 44, hy: H + 8 }, 0.18, E.out); tween(B, { dash: 0 }, 0.5);
+      await wait(0.4);
+      B.breath = 0; tween(B, { dJaw: 0.2, dx: 312, dLean: 0, dSq: 0 }, 0.25);
+      pop("MISS", 74, 118, 26, "#9affff");
+      tween(B, { hy: H + 26 }, 0.2, E.in);
+      await wait(0.2);
+    };
+    // one of three clashes (the user found every battle the same): the exchange, the hero's flurry
+    // of three slashes, or the dragon striking first and the hero dodging into a counter
+    const CLASH = [[heroStrike, dragonBreath, heroStrike, dragonClaw], [heroStrike, heroStrike, heroStrike, dragonClaw],
+      [heroDodge, heroStrike, dragonBreath, heroStrike]];
+    for (const f of CLASH[Math.floor(rng() * CLASH.length)]) await f();
     renda.on = false; renda.onHit = null; telopOut(rtp, 0.15); gauge.kill = true;
+    // 勝機!!: the hero blazes gold before the finish, on half of the wins and few of the losses
+    if (rng() < (S.hit ? 0.5 : 0.08)) {
+      tween(B, { gold: 1 }, 0.3); flash(C.gold, 0.6, 3); shake(5);
+      telop(T("lcd.battleHint"), { x: 110, y: 96, size: 34, cls: "gold", anim: "slam", dur: 1.2, font: FONT_POP, jitter: 2 });
+      ctxs.emit("battleHint");
+      await wait(0.8);
+    }
     // ---- PUSH finish
     if (r.push) await pushFinish(ctxs); else await wait(0.3);
     const win = S.hit && !r.revive;
@@ -2865,7 +2895,7 @@
     const S = norm(script);
     const ctxs = { emit: mkEmit(opts), opts, stops: 0 };
     curOpts = opts;
-    clk.scale = opts.speed > 0 ? opts.speed : 1;
+    clk.scale = Math.max(opts.speed > 0 ? opts.speed : 1, skipping ? SKIP_SPEED : 0);
     try {
       resetStage();
       tween(fx, { logoA: 1 }, 0.25);
@@ -3399,11 +3429,23 @@
 
   // ------------------------------------------------------------------ queue
   let chain = Promise.resolve();
+  // 演出スキップ: a tap on the LCD while an 演出 plays runs it 4x as fast to its end and cuts any clip
+  // (the user: long 演出 get tiresome once seen). The speed returns when the queue runs dry.
+  let busy = 0, skipping = false;
   function enqueue(fn) {
-    const p = chain.then(fn).catch((e) => { console.error("[PK.LCD]", e); });
+    const p = chain.then(() => { busy++; return fn(); }).catch((e) => { console.error("[PK.LCD]", e); })
+      .then(() => { if (--busy === 0 && skipping) { skipping = false; clk.scale = 1; } });
     chain = p;
     return p;
   }
+  function skipNow() {
+    if (!busy) return false;
+    skipping = true;
+    clk.scale = Math.max(clk.scale, SKIP_SPEED);
+    for (const k in VID) if (VID[k] && VID[k].classList.contains("on")) hideClip(VID[k]);
+    return true;
+  }
+  const SKIP_SPEED = 4;
 
   // ------------------------------------------------------------------ public API
   let mounted = false;
@@ -3505,6 +3547,9 @@
     playRoundBreak(round) { return enqueue(() => playRoundBreakImpl(round)); },
     // o: { gained, next, onReveal?(ok) }; onReveal runs when the 神龍覚醒 result shows
     playBonusEnd(o) { return enqueue(() => playBonusEndImpl(o)); },
+    // 演出スキップ (see skipNow); true when something was playing
+    skip() { return skipNow(); },
+    setSaver(on) { saver = !!on; lastW = 0; resize(); },
     setRush(o) {
       o = o || {};
       if (o.st != null && o.st !== rushInfo.st) { rushInfo.st = o.st; hudState.stPopT = clk.t; }

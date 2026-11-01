@@ -201,6 +201,9 @@
   dd { margin: 0; color: var(--ink); min-width: 0; }
   @media (max-width: 360px) { dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } dd { margin-bottom: 8px; } }
   #recStats { grid-template-columns: 8.5em minmax(0, 1fr); }
+  /* 珠子走勢 (the slump graph of a real data counter) */
+  .slump { display: block; width: 100%; height: 130px; border-radius: 10px; background: #04060b; border: 1px solid var(--line); }
+  .slumpCap { margin: 6px 0 14px; font-size: 12px; color: var(--dim); }
   #recAch { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   #recAch li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; background: var(--metal); border: 1px solid var(--line); }
   #recAch li > i { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 16px; color: var(--dim); border: 1px solid var(--line); }
@@ -321,6 +324,7 @@
   <div class="setRow"><div data-t="set.volume"></div><input type="range" id="sVolume" min="0" max="1" step="0.05"></div>
   <div class="setRow"><div><span data-t="set.captions"></span><small data-t="set.captionsHint"></small></div><button class="tog" id="sCaptions" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.autoPush"></span><small data-t="set.autoPushHint"></small></div><button class="tog" id="sAuto" type="button"></button></div>
+  <div class="setRow"><div><span data-t="set.saver"></span><small data-t="set.saverHint"></small></div><button class="tog" id="sSaver" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.voice"></span><small data-t="set.voiceHint"></small></div><button class="tog" id="sVoice" type="button"></button></div>
   <div class="setRow"><div data-t="set.speed"></div><div class="seg" id="sSpeed">
     <button type="button" data-speed="1" data-t="set.speed1"></button><button type="button" data-speed="1.6" data-t="set.speed2"></button><button type="button" data-speed="2.4" data-t="set.speed3"></button>
@@ -358,6 +362,9 @@
 
 <div class="sheet" id="records" hidden><div class="card">
   <h2 data-t="rec.title"></h2>
+  <h3 data-t="rec.slumpTitle"></h3>
+  <canvas id="recSlump" class="slump" aria-hidden="true"></canvas>
+  <p class="slumpCap" id="recSlumpCap"></p>
   <dl id="recStats"></dl>
   <h3 id="recAchHead"></h3>
   <ul id="recAch"></ul>

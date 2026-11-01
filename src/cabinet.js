@@ -999,7 +999,7 @@
     attOpen: false, attK: 0, denOpen: false, denK: 0,
     wmA: 0, wmW: 0,
     glow: { heso: 0, denchu: 0, attacker: 0, out: 0 },
-    wisps: [], reduced: false,
+    wisps: [], reduced: false, saver: false, odd: false,
   };
 
   // ---------------------------------------------------------------- themes
@@ -1096,7 +1096,7 @@
     const f = S.field;
     const rect = f.getBoundingClientRect();
     const disp = rect.width > 0 ? rect.width / L.stage.w : 1;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(S.saver ? 1.25 : 2, window.devicePixelRatio || 1);   // 省電模式: a lower resolution
     const k = clamp(disp * dpr, 0.5, 2);
     if (Math.abs(k - S.k) / S.k > 0.08 || !S.cw) {
       S.k = k;
@@ -2032,7 +2032,7 @@
     S.measureT += dt;
     if (S.measureT > 1) { S.measureT = 0; measure(); }
     update(dt);
-    render();
+    if (!S.saver || (S.odd = !S.odd)) render();   // 省電模式: every other frame
     S.raf = requestAnimationFrame(tick);
   }
   function startLoop() {
@@ -2168,6 +2168,7 @@
   }
 
   PK.Cabinet = {
+    setSaver(on) { S.saver = !!on; S.cw = 0; if (S.mounted) measure(); },
     mount, launch, setLights, flash, setAttacker, setDenchu, setSub, pause,
     // fn() is called each time a ball bounces off a pin (the shell plays a soft metallic tick).
     onPin(fn) { S.onPin = typeof fn === "function" ? fn : null; },

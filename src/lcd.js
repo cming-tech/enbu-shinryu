@@ -382,7 +382,7 @@
     g.fillStyle = gl; g.beginPath(); g.ellipse(x, y - r * 0.38, r * 0.7, r * 0.42, 0, 0, TAU); g.fill();
     g.restore();
   }
-  function buildLogo(variant) {
+  function buildLogo(variant, stage) {
     const K = SPR_K, w = 300, h = 86;
     const c = mkCanvas(w * K, h * K), g = c.getContext("2d");
     g.scale(K, K);
@@ -395,8 +395,9 @@
     g.restore();
     const fireF = PAL.fire;
     if (variant === "rush") {
-      fancyText(g, T("lcd.logoL"), 104, 62, { K, size: 46, font: FONT_BRUSH, align: "right", face: fireF.face, rim: fireF.rim, inner: fireF.inner, ext: fireF.ext, glow: "rgba(255,90,10,0.8)", outline: 0.14 });
-      fancyText(g, "RUSH", 110, 62, { K, size: 46, font: FONT_DIGIT, align: "left", face: PAL.ice.face, rim: PAL.ice.rim, inner: PAL.ice.inner, ext: PAL.ice.ext, glow: "rgba(60,170,255,0.9)", outline: 0.13 });
+      const st = RUSH_STAGES[stage || 0], rp = PAL[st.pal];
+      fancyText(g, T(st.name), 104, 62, { K, size: 46, font: FONT_BRUSH, align: "right", face: fireF.face, rim: fireF.rim, inner: fireF.inner, ext: fireF.ext, glow: "rgba(255,90,10,0.8)", outline: 0.14 });
+      fancyText(g, "RUSH", 110, 62, { K, size: 46, font: FONT_DIGIT, align: "left", face: rp.face, rim: rp.rim, inner: rp.inner, ext: rp.ext, glow: st.glow, outline: 0.13 });
       star4(g, 246, 22, 9, 1); star4(g, 120, 24, 6, 0.9);
     } else {
       fancyText(g, T("lcd.logoL"), 116, 62, { K, size: 46, font: FONT_BRUSH, align: "right", face: fireF.face, rim: fireF.rim, inner: fireF.inner, ext: fireF.ext, glow: "rgba(255,90,10,0.8)", outline: 0.14 });
@@ -444,7 +445,7 @@
     nx.blur = blurOf(nx);
     SPR.next = nx;
     SPR.logo.main = buildLogo("main");
-    SPR.logo.rush = buildLogo("rush");
+    RUSH_STAGES.forEach((st, i) => { SPR.logo[i ? "rush" + i : "rush"] = buildLogo("rush", i); });
     SPR.push = buildPush();
     SPR.ok = true;
   }
@@ -470,6 +471,8 @@
   const FLY = { dur: 3.8, headH: 124, len: 380, slim: 0.8, fat: 1.0, taper: 0.22, tilt: 0.22, step: 3, waves: 1.4, amp: 16, speed: 6.5,
     join: [0.942, 0.335], bodyMid: 0.608, attach: [0, 0.911] };
   for (let i = 1; i <= 6; i++) IMG_FILES["minion" + i] = "minion" + i + ".png";
+  // the other jackpot fanfares and the backgrounds of the RUSH stages (optional)
+  Object.assign(IMG_FILES, { jackpot_art2: "jackpot_art2.jpg", jackpot_art3: "jackpot_art3.jpg", bg_rush2: "bg_rush2.jpg", bg_rush3: "bg_rush3.jpg" });
   // attack poses: swapped in while the 炎龍王 or a 龍兵 lunges (optional)
   for (const n of ["rival", "minion1", "minion2", "minion3", "minion4", "minion5", "minion6"]) IMG_FILES["atk_" + n] = "atk_" + n + ".png";
   for (let i = 1; i <= 10; i++) IMG_FILES["round" + i] = "round" + i + ".jpg";
@@ -490,13 +493,13 @@
   const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4",
     sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4", round2: "vid_round2.mp4", round3: "vid_round3.mp4",
     battle: "vid_battle.mp4", lose: "vid_lose.mp4", round4: "vid_round4.mp4", round5: "vid_round5.mp4", round6: "vid_round6.mp4",
-    awaken: "vid_awaken.mp4" };
+    awaken: "vid_awaken.mp4", jackpot2: "vid_jackpot2.mp4", jackpot3: "vid_jackpot3.mp4" };
   const ROUND_CLIPS = ["round", "round2", "round3", "round4", "round5", "round6"];
   const VID = {};
   let vidLayer = null;
   // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
   // first, so a phone does not fetch every clip at once on opening the page.
-  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "awaken", "round", "round2", "round3", "round4", "round5", "round6"];
+  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "awaken", "jackpot2", "jackpot3", "round", "round2", "round3", "round4", "round5", "round6"];
   const VID_GAP = 2.5;   // seconds between preloads
   function loadVideos(base) {
     for (const k in VID_FILES) {
@@ -1558,9 +1561,10 @@
     },
     rush: {
       draw(ctx, age) {
-        if (IMG.bg_rush) drawCover(ctx, IMG.bg_rush, -12, -12, W + 24, H + 24); else drawBg(ctx, "rush");
-        drawRays(ctx, CX, 160, C.cyan, age * 0.35, 0.3, 430, 20, true);
-        drawRays(ctx, CX, 160, C.gold, -age * 0.22, 0.14, 430, 14, true);
+        const st = RUSH_STAGES[rushStage()], bg = IMG[st.bg] || IMG.bg_rush;
+        if (bg) drawCover(ctx, bg, -12, -12, W + 24, H + 24); else drawBg(ctx, "rush");
+        drawRays(ctx, CX, 160, st.c1, age * 0.35, 0.3, 430, 20, true);
+        drawRays(ctx, CX, 160, st.c2, -age * 0.22, 0.14, 430, 14, true);
         speedLines(ctx, CX, 160, 34, C.white, 0.35, 70, Math.floor(age * 24));
         for (let k = 0; k < 3; k++) {
           const u = ((age * 0.7 + k / 3) % 1);
@@ -1665,12 +1669,13 @@
     jackpot: {
       draw(ctx, age) {
         sceneBg(ctx, "jackpot");
-        drawRays(ctx, CX, 172, C.white, age * 0.6, 0.5, 450, 22, true);
-        drawRays(ctx, CX, 172, C.gold, -age * 0.4, 0.4, 450, 16, true);
-        if (IMG.jackpot_art) {   // the hero and the 神龍, full screen with a slow push in
+        drawRays(ctx, CX, 172, jpVar.c1, age * 0.6, 0.5, 450, 22, true);
+        drawRays(ctx, CX, 172, jpVar.c2, -age * 0.4, 0.4, 450, 16, true);
+        const art = IMG[jpVar.art] || IMG.jackpot_art;
+        if (art) {   // the fanfare picture, full screen with a slow push in
           const z = 1 + 0.04 * Math.min(1, age / 6);
           ctx.save(); ctx.translate(CX, H / 2); ctx.scale(z, z); ctx.translate(-CX, -H / 2);
-          drawCover(ctx, IMG.jackpot_art, 0, 0, W, H); ctx.restore();
+          drawCover(ctx, art, 0, 0, W, H); ctx.restore();
           ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(0, 0, W, H);   // the 777 stays readable
         } else if (IMG.jackpot) { ctx.globalAlpha = 0.85; drawContain(ctx, IMG.jackpot, 0, 20, W, H - 20, true); ctx.globalAlpha = 1; }
         else {
@@ -1881,13 +1886,28 @@
   let mode = "normal";
   let aimSide = "left";
   let rushInfo = { st: 11, streak: 0, gained: 0 };
+  // RUSH climbs with the streak (the user found RUSH repetitive): 炎舞RUSH, then 紅蓮RUSH from the
+  // second hit in a row, then 神龍RUSH from the third, each with its own name, colours and background.
+  const RUSH_STAGES = [
+    { name: "lcd.rushName0", at: 0, pal: "ice", glow: "rgba(60,170,255,0.9)", bg: "bg_rush", c1: C.cyan, c2: C.gold },
+    { name: "lcd.rushName1", at: 2, pal: "fire", glow: "rgba(255,70,20,0.9)", bg: "bg_rush2", c1: C.red, c2: C.orange },
+    { name: "lcd.rushName2", at: 3, pal: "gold", glow: "rgba(255,200,60,0.95)", bg: "bg_rush3", c1: C.gold, c2: C.white },
+  ];
+  function rushStage() { let k = 0; RUSH_STAGES.forEach((s, i) => { if (rushInfo.streak >= s.at) k = i; }); return k; }
+  function rushStageUp() {
+    const st = RUSH_STAGES[rushStage()];
+    flash(C.white, 1, 2); shake(10);
+    burst("front", CX, 140, 50, { cols: [st.c1, st.c2, C.white], v0: 160, v1: 520, s0: 1.5, s1: 3.5, len: 30 });
+    telop(T("lcd.rushStageUp", { name: T(st.name) }), { x: CX, y: 140, size: 40, cls: rushStage() === 2 ? "gold" : "fire", anim: "slam", dur: 1.6, font: FONT_POP, jitter: 2 });
+    if (bonusEv) try { bonusEv("rushStage"); } catch (e) { console.error(e); }
+  }
   let curOpts = null;
   let pushWaiter = null;
   const renda = { on: false, n: 0, g: 0, auto: false, lastAuto: 0, onHit: null };
   let kpx = 2, lastW = 0, frameN = 0;
 
   // ------------------------------------------------------------------ logo + overlays
-  function logoVariant() { return mode === "rush" ? "rush" : "main"; }
+  function logoVariant() { if (mode !== "rush") return "main"; const k = rushStage(); return k ? "rush" + k : "rush"; }
   function drawLogo(ctx) {
     if (fx.logoA <= 0.01 || !SPR.logo.main || mode === "bonus") return;
     const sp = SPR.logo[logoVariant()];
@@ -2944,13 +2964,24 @@
   }
 
   // ------------------------------------------------------------------ jackpot / bonus / rush
+  // Three jackpot fanfares (the user found the jackpot repetitive): the gold of the 神龍, the crimson
+  // flame of the hero and the blue thunder, each with its own picture, clip and colours. 777 always
+  // gets the 神龍; otherwise one of those whose picture exists, at random.
+  const JP_VARS = [
+    { art: "jackpot_art", clip: "jackpot", c1: C.white, c2: C.gold },
+    { art: "jackpot_art2", clip: "jackpot2", c1: C.orange, c2: C.red },
+    { art: "jackpot_art3", clip: "jackpot3", c1: C.cyan, c2: C.blue },
+  ];
+  let jpVar = JP_VARS[0];
   async function playJackpotImpl(script) {
     const S = norm(script);
+    const pool = JP_VARS.filter((v, i) => !i || IMG[v.art]);
+    jpVar = S.final[0] === 7 ? JP_VARS[0] : pool[Math.floor(rng() * pool.length)];
     resetStage(true);
     hudHide = true;
     flash(C.white, 1, 1.4); shake(10);
     setScene("jackpot", 0);
-    const clip = playClip("jackpot");   // fills the LCD under 大当り!!, then shows the 777
+    const clip = playClip(VID[jpVar.clip] ? jpVar.clip : "jackpot");   // fills the LCD under 大当り!!, then shows the 777
     wait(1.0).then(() => hideClip(clip));
     tween(fx, { logoA: 0 }, 0.1);
     reels.forEach((r, i) => { reelSet(r, S.final[i]); r.glow = 1; r.dim = 0; });
@@ -3288,6 +3319,9 @@
     boss.on = false; awaken.on = false;
     layout("hidden", 0.2);
     if (next === "rush") {
+      const was = rushStage();
+      if (o.streak != null) rushInfo.streak = o.streak;   // enter at the stage this streak has reached
+      if (rushStage() > was) wait(1.4).then(rushStageUp);   // ...and say so once the entry has landed
       setScene("rush", 0.1);
       const clip = playClip("rush");   // fills the LCD under 炎舞RUSH突入, then shows the logo
       wait(1.3).then(() => hideClip(clip));
@@ -3295,7 +3329,7 @@
       burst("front", CX, 160, 60, { cols: [C.cyan, C.gold, C.white], v0: 200, v1: 600, s0: 1.6, s1: 3.6, len: 34 });
       addActor("mid", Infinity, (ctx, age) => {
         speedLines(ctx, CX, 160, 46, C.white, 0.5, 40, Math.floor(age * 30));
-        drawSpr(ctx, SPR.logo.rush, CX, 112 - 30 * (1 - E.back(clamp(age / 0.4, 0, 1))), 1.25);
+        drawSpr(ctx, SPR.logo[rushStage() ? "rush" + rushStage() : "rush"], CX, 112 - 30 * (1 - E.back(clamp(age / 0.4, 0, 1))), 1.25);
       }, { seq: true });
       await wait(0.45);
       telop(T("lcd.rushIn"), { x: CX, y: 178, size: 64, cls: "gold", anim: "slam", stay: true, jitter: 2 });
@@ -3474,7 +3508,11 @@
     setRush(o) {
       o = o || {};
       if (o.st != null && o.st !== rushInfo.st) { rushInfo.st = o.st; hudState.stPopT = clk.t; }
-      if (o.streak != null && o.streak !== rushInfo.streak) { rushInfo.streak = o.streak; hudState.skPopT = clk.t; }
+      if (o.streak != null && o.streak !== rushInfo.streak) {
+        const was = rushStage();
+        rushInfo.streak = o.streak; hudState.skPopT = clk.t;
+        if (mode === "rush" && rushStage() > was) rushStageUp();
+      }
       if (o.gained != null) rushInfo.gained = o.gained;
       if (!hud.stNum) return;
       setText(hud.stNum, String(rushInfo.st));

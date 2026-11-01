@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 39;
+  const VERSION = 40;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -643,7 +643,7 @@
         if (ok) { snd("rushIn"); rec.ach("awaken"); vo("awakenOk"); }
         else if (e.next === "jitan") { snd("lose"); caption("awakenNg"); vo("awakenNg"); }
       };
-      PK.LCD.playBonusEnd({ gained: e.gained, next: e.next, onReveal }).then(() => {
+      PK.LCD.playBonusEnd({ gained: e.gained, next: e.next, streak: eng.state.rushStreak, onReveal }).then(() => {
         eng.finishBonus();
         bonusFlow = false; holdFire = false;
         kick();
@@ -909,7 +909,7 @@
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
-    PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); });   // a 龍兵 claws
+    PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n === "rushStage") { snd("rushIn"); lights("rainbow"); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);

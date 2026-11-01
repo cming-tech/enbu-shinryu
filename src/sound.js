@@ -1020,11 +1020,17 @@
   // first use, and preferred over the synthesized bed of the same name.
   let fileBase = null;
   const fileRaw = {}, fileBuf = {}, fileJobs = {};
-  // The long beds have a second song (bgm_<name>2.mp3): they alternate, and after SONG_SWITCH
-  // seconds of one song the bed crossfades to the other (the user found one song too repetitive).
-  const ALT = ["normal", "bonus"];
+  // Beds have more songs (bgm_<name>2.mp3, bgm_<name>3.mp3; SONGS counts them with the first): each
+  // start of a bed plays the next song in turn, and after SONG_SWITCH seconds of one song the bed
+  // crossfades to the next (the user found one song too repetitive). Only the bed in use keeps its
+  // extra songs decoded (an older phone reloads the page when the music takes too much memory); the
+  // other beds keep their first song, and their files stay fetched for the next time.
+  const SONGS = { normal: 3, bonus: 3, rush: 3, reach: 2, battle: 2 };
+  const ALT = Object.keys(SONGS);
+  const altKeys = (name) => { const k = []; for (let i = 2; i <= (SONGS[name] || 1); i++) k.push(name + i); return k; };
+  const bedOf = (key) => key.replace(/[0-9]+$/, "");
   const SONG_SWITCH = 150, SONG_FADE = 2;
-  const altBuf = {}, lastAlt = {};
+  const altBuf = {}, lastAlt = {};   // altBuf[name] = { 2: buffer, 3: buffer }; lastAlt[name] = index played last
   // Files are fetched one at a time, the bed in use first, so its first notes do not wait behind
   // the rest of the music.
   const fileFetch = {};
@@ -1035,7 +1041,7 @@
     return fetch(fileBase + "bgm_" + key + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).then((ab) => {
       if (!ab || !ab.byteLength) return;
       fileRaw[key] = ab;
-      if (bedWant === key.replace(/2$/, "")) decodeFile(key);
+      if (bedWant === bedOf(key)) decodeFile(key);
     }, () => { /* no file: synthesized bed */ });
   }
   function pumpFiles() {
@@ -1127,10 +1133,14 @@
 
   function startBed(name, fade) {
     fade = fade || FADE;
-    const two = !!(altBuf[name] && fileBuf[name]);
-    const alt = two ? (lastAlt[name] = lastAlt[name] === undefined ? false : !lastAlt[name]) : false;
+    // the songs ready now: the first, then the extra ones decoded so far; the next one in turn plays
+    const songs = [bedBuf[name]];
+    if (fileBuf[name] && altBuf[name]) Object.keys(altBuf[name]).sort().forEach((i) => songs.push(altBuf[name][i]));
+    const two = songs.length > 1;
+    const k = two ? (lastAlt[name] = lastAlt[name] === undefined ? 0 : (lastAlt[name] + 1) % songs.length) : 0;
+    const alt = k > 0;
     const src = ctx.createBufferSource();
-    src.buffer = alt ? altBuf[name] : bedBuf[name];
+    src.buffer = songs[k];
     src.loop = true;
     const g = ctx.createGain();
     g.gain.value = 0;
@@ -1358,15 +1368,19 @@
   // key is a bed name, or a bed name + "2" for its second song.
   function decodeFile(key) {
     if (fileJobs[key] || !fileRaw[key] || !ctx) return;
-    const name = key.replace(/2$/, ""), second = key !== name;
+    const name = bedOf(key), second = key !== name;
     fileJobs[key] = new Promise((res, rej) => {
       const p = ctx.decodeAudioData(fileRaw[key].slice(0), res, rej);
       if (p && p.then) p.then(res, rej);
     }).then((buf) => {
       const loop = loopFromTrack(buf);
       if (!loop) return;
+      if (second) {   // used from the next start of the bed; the file stays to decode it again later
+        if (fileJobs[key] && bedWant === name) (altBuf[name] = altBuf[name] || {})[key.slice(name.length)] = loop;
+        else delete fileJobs[key];
+        return;
+      }
       delete fileRaw[key];
-      if (second) { altBuf[name] = loop; return; }   // used from the next start of the bed
       const wasSynth = !fileBuf[name];
       fileBuf[name] = bedBuf[name] = loop;
       if (wasSynth && bedCur && bedCur.name === name && !bedCur.dead) { fadeOutBed(bedCur); bedCur = null; applyBed(); }
@@ -1381,7 +1395,9 @@
     const name = bedWant;
     if (!name) return;
     decodeFile(name);
-    if (ALT.includes(name)) decodeFile(name + "2");
+    // only this bed keeps its extra songs decoded: free the others' (decoded again when they return)
+    Object.keys(altBuf).forEach((n) => { if (n !== name) { altKeys(n).forEach((key) => delete fileJobs[key]); delete altBuf[n]; } });
+    altKeys(name).forEach(decodeFile);
     pumpFiles();
     if (bedBuf[name]) { startBed(name); return; }
     ensureBed(name).then(() => {
@@ -1515,7 +1531,7 @@
       try {
         if (fileBase != null || typeof fetch !== "function") return;
         fileBase = String(base == null ? "assets/" : base);
-        fileQueue = BGM_NAMES.concat(ALT.map((n) => n + "2"));
+        fileQueue = BGM_NAMES.concat(...ALT.map(altKeys));
         pumpFiles();
       } catch (e) { /* never throw */ }
     },
@@ -1556,7 +1572,7 @@
     voices: rig ? rig.voices.length : 0, made: rig ? rig.made : 0, finished: rig ? rig.finished : 0,
     bed: bedCur && !bedCur.dead ? bedCur.name : null, bedsAlive: bedsAlive.length, want: bedWant,
     ready: Object.keys(bedBuf),
-    files: Object.keys(fileBuf).concat(Object.keys(altBuf).map((n) => n + "2")),
+    files: Object.keys(fileBuf).concat(...Object.keys(altBuf).map((n) => Object.keys(altBuf[n]).map((i) => n + i))),
     voiceLines: Object.keys(voiceBuf),
   });
   Sound._test = {

@@ -1031,6 +1031,10 @@
   const bedOf = (key) => key.replace(/[0-9]+$/, "");
   const SONG_SWITCH = 150, SONG_FADE = 2;
   const altBuf = {}, lastAlt = {};   // altBuf[name] = { 2: buffer, 3: buffer }; lastAlt[name] = index played last
+  // Where each bed's song stopped: a bed that comes back (normal after every reach) carries on with
+  // the same song from there, instead of a new song from its start (the user heard the music
+  // break off every half minute). bedPos[name] = { buf, pos } in seconds.
+  const bedPos = {};
   // Files are fetched one at a time, the bed in use first, so its first notes do not wait behind
   // the rest of the music.
   const fileFetch = {};
@@ -1123,6 +1127,8 @@
     fade = fade || FADE;
     b.fading = true;
     clearTimeout(b.switchT);
+    const dur = b.src.buffer.duration;
+    if (dur > 0) bedPos[b.name] = { buf: b.src.buffer, pos: (((ctx.currentTime - b.t0) % dur) + dur) % dur };
     try {
       fadeParam(b.g.gain, 0, fade);
       b.src.stop(ctx.currentTime + fade + 0.03);
@@ -1131,14 +1137,18 @@
     b.timer = setTimeout(() => killBed(b), (fade + 0.5) * 1000);
   }
 
-  function startBed(name, fade) {
+  function startBed(name, fade, next) {
     fade = fade || FADE;
-    // the songs ready now: the first, then the extra ones decoded so far; the next one in turn plays
+    // the songs ready now: the first, then the extra ones decoded so far. The song switch (next)
+    // plays the next one in turn; otherwise the bed's last song carries on from where it stopped.
     const songs = [bedBuf[name]];
     if (fileBuf[name] && altBuf[name]) Object.keys(altBuf[name]).sort().forEach((i) => songs.push(altBuf[name][i]));
     const two = songs.length > 1;
-    const k = two ? (lastAlt[name] = lastAlt[name] === undefined ? 0 : (lastAlt[name] + 1) % songs.length) : 0;
-    const alt = k > 0;
+    let k = lastAlt[name] || 0;
+    if (next) k = (k + 1) % songs.length;
+    if (k >= songs.length) k = 0;
+    lastAlt[name] = k;
+    const was = bedPos[name], offset = !next && was && was.buf === songs[k] ? was.pos : 0;
     const src = ctx.createBufferSource();
     src.buffer = songs[k];
     src.loop = true;
@@ -1146,14 +1156,15 @@
     g.gain.value = 0;
     src.connect(g);
     g.connect(rig.bgm);
-    fadeParam(g.gain, 1, fade);
-    src.start(ctx.currentTime + 0.005);
-    const b = bedCur = { name, src, g, dead: false, fading: false, timer: 0, switchT: 0, alt };
+    fadeParam(g.gain, 1, offset ? Math.max(fade, 0.8) : fade);
+    const t0 = ctx.currentTime + 0.005;
+    src.start(t0, offset);
+    const b = bedCur = { name, src, g, dead: false, fading: false, timer: 0, switchT: 0, alt: k > 0, t0: t0 - offset };
     bedsAlive.push(b);
     if (two) {
       b.switchT = setTimeout(() => {
-        if (bedCur === b && !b.dead && !b.fading) { fadeOutBed(b, SONG_FADE); bedCur = null; startBed(name, SONG_FADE); }
-      }, Math.max(SONG_SWITCH, 2 * src.buffer.duration) * 1000);
+        if (bedCur === b && !b.dead && !b.fading) { fadeOutBed(b, SONG_FADE); bedCur = null; startBed(name, SONG_FADE, true); }
+      }, Math.max(10, Math.max(SONG_SWITCH, 2 * src.buffer.duration) - offset) * 1000);
     }
   }
 
@@ -1335,6 +1346,30 @@
   // audio that follows the loop folded over its start (findLoop's beat or bar, at most 3 s; else
   // FILE_XFADE seconds), normalized like the synthesized beds.
   const FILE_XFADE = 2;
+  // Bring a loop's quiet and loud stretches closer: an AI track can open with half a minute of
+  // soft intro and then come in 11 dB louder (the user heard the music suddenly get loud). The gain
+  // follows a 3 s loudness envelope (read around the loop's seam, since it repeats) and corrects
+  // LEVEL_STRENGTH of each difference from the loop's own average, within LEVEL_RANGE.
+  const LEVEL_STRENGTH = 0.65, LEVEL_RANGE = [0.4, 3];
+  function levelLoop(d) {
+    const n = d.length, hop = Math.round(0.5 * BED_SR), half = Math.round(1.5 * BED_SR), m = Math.ceil(n / hop);
+    if (m < 4) return;
+    const env = new Float32Array(m);
+    let all = 0;
+    for (let i = 0; i < n; i++) all += d[i] * d[i];
+    const avg = all / n;
+    for (let h = 0; h < m; h++) {
+      let s = 0;
+      for (let i = h * hop - half, e = h * hop + half; i < e; i += 4) { const v = d[((i % n) + n) % n]; s += v * v; }
+      env[h] = s / (2 * half / 4);
+    }
+    const gain = new Float32Array(m);
+    for (let h = 0; h < m; h++) gain[h] = Math.min(LEVEL_RANGE[1], Math.max(LEVEL_RANGE[0], Math.pow(avg / (env[h] + 1e-9), LEVEL_STRENGTH / 2)));
+    for (let i = 0; i < n; i++) {
+      const x = i / hop, h = Math.floor(x), f = x - h;
+      d[i] *= gain[h] + (gain[(h + 1) % m] - gain[h]) * f;
+    }
+  }
   function loopFromTrack(buf) {
     const [a, end] = activeRange(buf);
     const sr = buf.sampleRate, lp = findLoop(buf, a, end);
@@ -1353,12 +1388,13 @@
       for (let i = 0; i < L; i++) tmp[i] += src[start + i] / nch;
       for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); tmp[i] += (src[start + L + i] * Math.cos(x) - src[start + i] * (1 - Math.sin(x))) / nch; }
     }
-    let sum = 0, peak = 0;
     for (let i = 0; i < Lo; i++) {
       const p = i * k, j = Math.floor(p), f = p - j;
-      const v = (d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0));
-      sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m;
+      d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0);
     }
+    levelLoop(d);
+    let sum = 0, peak = 0;
+    for (let i = 0; i < Lo; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
     const rms = Math.sqrt(sum / Lo), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
     for (let i = 0; i < Lo; i++) d[i] *= g;
     return out;
@@ -1396,7 +1432,12 @@
     if (!name) return;
     decodeFile(name);
     // only this bed keeps its extra songs decoded: free the others' (decoded again when they return)
-    Object.keys(altBuf).forEach((n) => { if (n !== name) { altKeys(n).forEach((key) => delete fileJobs[key]); delete altBuf[n]; } });
+    // (except the one it was playing, which carries on when the bed comes back)
+    Object.keys(altBuf).forEach((n) => {
+      if (n === name) return;
+      const keep = bedPos[n] && bedPos[n].buf;
+      Object.keys(altBuf[n]).forEach((i) => { if (altBuf[n][i] !== keep) { delete fileJobs[n + i]; delete altBuf[n][i]; } });
+    });
     altKeys(name).forEach(decodeFile);
     pumpFiles();
     if (bedBuf[name]) { startBed(name); return; }
@@ -1571,6 +1612,7 @@
     unlocked, enabled, volume, hidden,
     voices: rig ? rig.voices.length : 0, made: rig ? rig.made : 0, finished: rig ? rig.finished : 0,
     bed: bedCur && !bedCur.dead ? bedCur.name : null, bedsAlive: bedsAlive.length, want: bedWant,
+    song: bedCur && !bedCur.dead ? lastAlt[bedCur.name] || 0 : null, at: bedCur && !bedCur.dead ? (ctx.currentTime - bedCur.t0) % bedCur.src.buffer.duration : null,
     ready: Object.keys(bedBuf),
     files: Object.keys(fileBuf).concat(...Object.keys(altBuf).map((n) => Object.keys(altBuf[n]).map((i) => n + i))),
     voiceLines: Object.keys(voiceBuf),

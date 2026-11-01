@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 36;
+  const VERSION = 37;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -880,8 +880,17 @@
       const p = tutPage + 1;
       $("tutArt").innerHTML = TUT_ART[tutPage];
       $("tutTitle").textContent = t("tut.p" + p + "t");
-      $("tutBody").textContent = t("tut.p" + p);
+      // one line per paragraph, **word** highlighted (built as nodes, never as HTML)
+      const body = $("tutBody");
+      body.textContent = "";
+      t("tut.p" + p).split("\n").forEach((line) => {
+        const el = document.createElement("p");
+        line.split("**").forEach((part, i) => { const n = i % 2 ? document.createElement("b") : document.createTextNode(part); if (i % 2) n.textContent = part; el.appendChild(n); });
+        body.appendChild(el);
+      });
       $("tutColors").hidden = p !== 3;
+      $("tutTip").hidden = p !== TUT_ART.length;
+      $("tutStep").textContent = p + " / " + TUT_ART.length;
       $("tutDots").innerHTML = TUT_ART.map((_, i) => "<i" + (i === tutPage ? ' class="on"' : "") + "></i>").join("");
       $("tutPrev").textContent = t(tutPage ? "tut.prev" : "tut.skip");
       $("tutNext").textContent = t(p === TUT_ART.length ? "tut.go" : "tut.next");
@@ -943,11 +952,12 @@
     const a = Math.atan2(y2 - y1, x2 - x1), h = 6, p = (d) => (x2 - h * Math.cos(a + d)).toFixed(1) + " " + (y2 - h * Math.sin(a + d)).toFixed(1);
     return '<path d="M' + x1 + " " + y1 + " L" + x2 + " " + y2 + '" stroke="#ffc94d" stroke-width="2"/><path d="M' + x2 + " " + y2 + " L" + p(0.5) + " L" + p(-0.5) + ' Z" fill="#ffc94d"/>';
   };
-  const TUT_ART = [
-    SVG(pic(1) + arrow(160, 64, 160, 36) + tag(160, 76, t("tut.aHeso")) + arrow(267, 108, 267, 124) + tag(262, 96, t("tut.aHandle"))),
-    SVG(pic(2) + tag(160, 156, t("tut.aSame"))),
+  const TUT_ART = [   // one picture per page of tut.p1..p5
+    SVG(pic(1) + arrow(267, 108, 267, 124) + tag(262, 96, t("tut.aHandle"))),
+    SVG(pic(1) + arrow(160, 64, 160, 36) + tag(160, 76, t("tut.aHeso"))),
     SVG(pic(3) + arrow(196, 152, 136, 152) + tag(250, 152, t("tut.aHolds"))),
     SVG(pic(4) + tag(160, 156, t("tut.aReach"))),
+    SVG(pic(2) + tag(160, 156, t("tut.aSame"))),
   ];
 
   // ---------------------------------------------------------------- go

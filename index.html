@@ -241,7 +241,15 @@
   #msList li.got b { color: var(--gold); }
   .card p.note { margin: 12px 0 0; color: var(--dim); font-size: 12px; }
   .tutArt { display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: 320 / 170; border-radius: 12px; background: #0b0d14; border: 1px solid var(--line); margin-bottom: 12px; }
-  .tutDots { display: flex; gap: 6px; justify-content: center; margin: 4px 0 12px; }
+  /* the tutorial: a picture, the step, a short title and two short lines in a large size */
+  #tutorial .card h2 { margin-bottom: 10px; font-size: 24px; }
+  .tutStep { margin: 0 0 2px; font: 900 12px/1 var(--f-body); color: var(--dim); letter-spacing: 2px; }
+  .tutBody p { margin: 0 0 6px; font: 700 17px/1.65 var(--f-body); color: var(--ink); }
+  .tutBody b { color: var(--gold); font-weight: 900; }
+  #tutorial .colors { margin: 4px 0 8px; gap: 10px; font-size: 15px; }
+  .tutTip { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--metal); border: 1px solid var(--line); font-size: 14px; color: var(--dim); }
+  .tutTip span:first-child { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 900 14px/1 var(--f-num); color: #fff; background: radial-gradient(circle at 40% 35%, #3a4458, #121722); border: 1.5px solid #8a96ac; }
+  .tutDots { display: flex; gap: 6px; justify-content: center; margin: 10px 0 12px; }
   .tutDots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
   .tutDots i.on { background: var(--gold); }
   .tutBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -367,9 +375,11 @@
 
 <div class="sheet" id="tutorial" hidden><div class="card">
   <div id="tutArt"></div>
+  <p class="tutStep" id="tutStep"></p>
   <h2 id="tutTitle"></h2>
-  <p id="tutBody"></p>
+  <div class="tutBody" id="tutBody"></div>
   <div class="colors" id="tutColors" hidden></div>
+  <p class="tutTip" id="tutTip" hidden><span aria-hidden="true">?</span><span data-t="tut.tip"></span></p>
   <div class="tutDots" id="tutDots"></div>
   <div class="tutBtns"><button class="big" id="tutPrev" type="button"></button><button class="big primary" id="tutNext" type="button"></button></div>
 </div></div>

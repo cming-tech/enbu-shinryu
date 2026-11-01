@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 45;
+  const VERSION = 46;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -82,7 +82,7 @@
     ["glg.buttons", ["gl.handle", "gl.power", "gl.push", "gl.auto", "gl.right"]],
     ["glg.numbers", ["gl.balls", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.upgrade", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
-    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.zen", "gl.stLast"]],
+    ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.serif", "gl.premium", "gl.pushLong", "gl.zen", "gl.stLast"]],
   ];
 
   // ---------------------------------------------------------------- 力道旋鈕
@@ -195,7 +195,7 @@
   // ---------------------------------------------------------------- 我的紀錄 + 成就
   // Kept apart from the game save: 重新開始 starts a new game but keeps the player's records.
   const KEY_REC = "pk." + M.id + ".records";
-  const ACH = ["first", "rush", "s3", "s5", "s10", "r10", "boss", "boss10", "awaken", "spsp", "rainbow", "revive", "rich", "hits100"];
+  const ACH = ["first", "rush", "s3", "s5", "s10", "r10", "boss", "boss10", "awaken", "spsp", "rainbow", "revive", "premium", "rich", "hits100"];
   let queueToast = null;   // toasts that wait their turn (achievements, missions, levels)
   const rec = (function () {
     const r = Object.assign({ hits: 0, rushes: 0, bestStreak: 0, bestBonus: 0, bestRush: 0, boss: 0, got: {} }, parse(load(KEY_REC)));
@@ -375,10 +375,19 @@
   // ---------------------------------------------------------------- 日文配音
   // Voice lines by moment (assets/vo_<name>.wav, from assets/voice_jobs.json on the PC): the
   // narrator calls the 演出, the hero speaks in fights. The hero's attack lines take turns.
+  // A line with more takes (VO_TAKES: reach, reach_2, reach_3) plays one of them at random, so the
+  // frequent ones do not repeat word for word; a take not loaded yet falls back to the first.
+  const VO_TAKES = { reach: 3, jackpot: 3, push: 2, rushCont: 2, final: 2, win: 2, minionStart: 2, minionDown: 2 };
   const VOICE_LINES = ["reach", "spReach", "spsp", "battle", "push", "jackpot", "rushIn", "rushEnd", "chance", "hot",
-    "atk1", "atk2", "atk3", "final", "win", "lose", "revive", "minionStart", "minionDown", "awakenCall", "awakenOk", "awakenNg"];
+    "atk1", "atk2", "atk3", "atk4", "atk5", "final", "win", "lose", "revive", "minionStart", "minionDown", "awakenCall", "awakenOk", "awakenNg",
+    "zone", "zoneLast", "zen", "stLast", "chanceUp", "rushCont", "rushStage1", "rushStage2", "upgrade", "holdRainbow", "kokuchi",
+    "stepup", "pseudo", "battleHint", "pushLong", "premium", "serif_white", "serif_blue", "serif_green", "serif_red", "serif_gold"].concat(...Object.keys(VO_TAKES).map((n) => Array.from({ length: VO_TAKES[n] - 1 }, (_, i) => n + "_" + (i + 2))));
   let atkN = 0;
-  const vo = (name) => { if (set.voice) PK.Sound.voice(name); };
+  const vo = (name) => {
+    if (!set.voice) return;
+    const k = Math.floor(Math.random() * (VO_TAKES[name] || 1));
+    if (!(k && PK.Sound.voice(name + "_" + (k + 1)))) PK.Sound.voice(name);
+  };
 
   // ---------------------------------------------------------------- sound helpers
   let unlocked = false;
@@ -594,10 +603,10 @@
       const r = sc.reach || {};
       if (n === "spinStart") snd("spin");
       else if (n.startsWith("reelStop")) snd("stop");
-      else if (n.startsWith("stepup:")) { snd("stepup"); caption("stepup"); }
+      else if (n.startsWith("stepup:")) { snd("stepup"); caption("stepup"); if (+n.slice(7) >= 3) vo("stepup"); }
       else if (n === "gun") { snd("gun"); caption("gun"); }
       else if (n === "cutin") { snd("cutin"); caption("cutin"); vo(sc.cutin === "blue" ? "chance" : "hot"); }
-      else if (n.startsWith("pseudo:")) { snd("pseudo"); caption("pseudo"); }
+      else if (n.startsWith("pseudo:")) { snd("pseudo"); caption("pseudo"); vo("pseudo"); }
       else if (n === "holdChange") { snd("holdChange"); caption("holdChange"); }
       else if (n === "reach") {
         snd("reach");
@@ -608,24 +617,27 @@
         vo(r.type === "battle" ? "battle" : r.type === "sp" ? "spReach" : r.type === "spsp" ? "spsp" : "reach");
       } else if (n === "reachUp") { caption("skip"); snd("reachUp"); lights(r.color === "rainbow" ? "rainbow" : "hot"); PK.Cabinet.flash("#ff5a2a"); }
       else if (n === "pushPrompt") { snd("push"); pushPrompt(true); caption("push"); vo("push"); }
+      else if (n === "pushLong") { snd("push"); pushPrompt(true); caption("pushLong"); vo("pushLong"); }
+      else if (n.startsWith("serif:")) { snd(n === "serif:gold" || n === "serif:red" ? "holdChange" : "stepup"); caption("serif"); vo("serif_" + n.slice(6)); if (n === "serif:gold") lights("hot"); }
+      else if (n === "premium") { snd("kokuchi"); lights("rainbow"); caption("premium"); vo("premium"); rec.ach("premium"); }
       else if (n === "pushHit") { mis.add("push"); snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
-      else if (n === "zen") { snd("kokuchi"); lights("rainbow"); caption("zen"); }
-      else if (n === "stLast") { snd("reach"); caption("stLast"); }
-      else if (n === "zone") { snd("stepup"); lights("hot"); caption("zone"); }
-      else if (n === "zoneLast") { snd("reachUp"); PK.Cabinet.flash("#ff5a2a"); }
-      else if (n === "chanceUp") { snd("holdChange"); lights("hot"); caption("chanceUp"); }
+      else if (n === "zen") { snd("kokuchi"); lights("rainbow"); caption("zen"); vo("zen"); }
+      else if (n === "stLast") { snd("reach"); caption("stLast"); vo("stLast"); }
+      else if (n === "zone") { snd("stepup"); lights("hot"); caption("zone"); vo("zone"); }
+      else if (n === "zoneLast") { snd("reachUp"); PK.Cabinet.flash("#ff5a2a"); vo("zoneLast"); }
+      else if (n === "chanceUp") { snd("holdChange"); lights("hot"); caption("chanceUp"); vo("chanceUp"); }
       else if (n === "count") { snd("stepup"); caption("count"); }
       else if (n === "slip") snd("stop");
       else if (n === "devTease") { snd("reachUp"); PK.Cabinet.flash("#ffd84a"); }
-      else if (n === "atk:hero") { snd("slash"); vo("atk" + (atkN++ % 3 + 1)); }
+      else if (n === "atk:hero") { snd("slash"); vo("atk" + (atkN++ % 5 + 1)); }
       else if (n === "atk:dragon") snd("gun");
-      else if (n === "battleHint") { snd("holdChange"); lights("hot"); caption("battleHint"); }
+      else if (n === "battleHint") { snd("holdChange"); lights("hot"); caption("battleHint"); vo("battleHint"); }
       else if (n === "slowmo") snd("reachUp");
       else if (n === "finalBlow") { snd("cutin"); vo("final"); }
       else if (n === "battleWin") { snd("win"); vo("win"); }
       else if (n === "battleLose") { snd("lose"); vo("lose"); }
       else if (n === "revive") { snd("kokuchi"); lights("rainbow"); caption("revive"); rec.ach("revive"); vo("revive"); }
-      else if (n === "kokuchi") { snd("kokuchi"); lights("rainbow"); PK.Cabinet.flash("#ffffff"); caption("kokuchi"); }
+      else if (n === "kokuchi") { snd("kokuchi"); lights("rainbow"); PK.Cabinet.flash("#ffffff"); caption("kokuchi"); vo("kokuchi"); }
       else if (n === "hitConfirm") { lights("bonus"); PK.Cabinet.flash("#ffd84a"); }
       else if (n === "miss") { pushPrompt(false); modeLook(); }
     }
@@ -647,13 +659,13 @@
       lights("bonus"); PK.Cabinet.flash("#ffd84a");
       bgm("bonus");
       caption("jackpot");
-      vo("jackpot");
+      vo(mode === "rush" ? "rushCont" : "jackpot");
       shownRounds = sc.kind !== "3R" && sc.final[0] !== 7 && (sc.src === "heso" || Math.random() < 0.5) ? 3 : 0;
       PK.LCD.playJackpot(shownRounds ? Object.assign({}, sc, { kind: "3R" }) : sc).then(() => eng.beginBonus());
     }
     eng.on("roundStart", (e) => {
       holdFire = false;
-      if (shownRounds && e.round === 2) { shownRounds = 0; PK.LCD.playRoundUpgrade(e.rounds); snd("kokuchi"); lights("rainbow"); caption("upgrade"); }
+      if (shownRounds && e.round === 2) { shownRounds = 0; PK.LCD.playRoundUpgrade(e.rounds); snd("kokuchi"); lights("rainbow"); caption("upgrade"); vo("upgrade"); }
       showRounds(eng.state);
       snd("round");
       if (e.round >= e.rounds) { caption("awaken"); vo("awakenCall"); }
@@ -701,7 +713,7 @@
           const c = a[a.length - 1].color;
           if (c === "red") caption("holdHot");
           else if (c === "gold") caption("holdGold");
-          else if (c === "rainbow") { caption("holdRainbow"); rec.ach("rainbow"); }
+          else if (c === "rainbow") { caption("holdRainbow"); rec.ach("rainbow"); vo("holdRainbow"); }
         }
         prevHolds[q] = a.length;
       });
@@ -803,6 +815,7 @@
       else snd("button");
     }
     $("push").addEventListener("pointerdown", doPush);           // pointerdown: fast enough for 連打
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => $("push").addEventListener(ev, () => PK.LCD.release()));   // ends a 長押し
     $("push").addEventListener("click", (e) => { if (e.detail === 0) doPush(); });   // keyboard
     $("infoBtn").addEventListener("click", () => openSheet("glossary"));
     $("menuBtn").addEventListener("click", () => openSheet("menu"));
@@ -864,6 +877,8 @@
     $("sSaver").addEventListener("click", () => { set.saver = !set.saver; applySaver(); saveSettings(); showSaver(); snd("button"); });
     function showSettings() {
       $("sSound").setAttribute("aria-pressed", String(set.sound));
+      $("mSound").setAttribute("aria-pressed", String(set.sound));
+      $("mSound").setAttribute("aria-label", t(set.sound ? "ui.soundOff" : "ui.soundOn"));
       $("sSound").textContent = t(set.sound ? "set.on" : "set.off");
       $("sCaptions").setAttribute("aria-pressed", String(set.captions));
       $("sCaptions").textContent = t(set.captions ? "set.on" : "set.off");
@@ -873,6 +888,7 @@
       showVoice();
     }
     $("sSound").addEventListener("click", () => { set.sound = !set.sound; PK.Sound.setEnabled(set.sound); saveSettings(); showSettings(); snd("button"); });
+    $("mSound").addEventListener("click", () => $("sSound").click());
     $("sCaptions").addEventListener("click", () => {
       set.captions = !set.captions; saveSettings(); showSettings(); snd("button");
       if (!set.captions) $("caption").classList.remove("show");
@@ -959,7 +975,7 @@
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
     $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
-    PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n === "rushStage") { snd("rushIn"); lights("rainbow"); } });   // a 龍兵 claws; RUSH climbs a stage
+    PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n.startsWith("rushStage:")) { snd("rushIn"); lights("rainbow"); vo("rushStage" + n.slice(10)); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);

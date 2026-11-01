@@ -132,11 +132,20 @@
   #mPowerBox.off { opacity: 0.45; }
   #settings .seg2 { flex: none; }
   .seg2 button { white-space: nowrap; }
-  #modeBar { flex: none; display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+  #modeBar { flex: none; display: flex; justify-content: center; align-items: center; gap: 12px;
+    padding: 5px max(10px, env(safe-area-inset-right, 0px)) 5px max(10px, env(safe-area-inset-left, 0px));
     background: linear-gradient(180deg, var(--metal), var(--metal-2)); border-top: 1px solid var(--line); }
   #modeBar .mode { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); font-weight: 700; }
   #modeBar .mode.off { opacity: 0.45; }
+  #modeBar .seg2 button { padding: 6px 12px; }
+  @media (max-width: 380px) { #modeBar { gap: 6px; } #modeBar .mode { gap: 4px; } #modeBar .seg2 button { padding: 6px 9px; } }
+  /* sound on/off, one tap (the volume stays in 設定) */
+  #mSound { flex: none; width: 36px; height: 32px; border-radius: 999px; border: 1px solid var(--line); background: var(--metal); color: var(--gold); display: grid; place-items: center; padding: 0; }
+  #mSound svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #mSound .off { display: none; }
+  #mSound[aria-pressed="false"] { color: var(--dim); }
+  #mSound[aria-pressed="false"] .on { display: none; }
+  #mSound[aria-pressed="false"] .off { display: inline; }
   .seg2 { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
   .seg2 button { border: 0; background: var(--metal); color: var(--dim); padding: 7px 14px; font-weight: 900; font-size: 13px; }
   .seg2 button[aria-pressed="true"] { background: linear-gradient(#ffcf5a, #e08a12); color: #2a1500; }
@@ -324,6 +333,11 @@
     </div>
     <div id="caption" role="status" aria-live="polite"><b data-t="cap.tag"></b><span></span></div>
   </main>
+  <div id="modeBar">
+    <div class="mode"><span data-t="ui.fireMode"></span><div class="seg2" id="mFire"><button type="button" data-v="auto" data-t="ui.fireAuto"></button><button type="button" data-v="manual" data-t="ui.fireManual"></button></div></div>
+    <div class="mode" id="mPowerBox"><span data-t="ui.powerMode"></span><div class="seg2" id="mPower"><button type="button" data-v="best" data-t="ui.powerBest"></button><button type="button" data-v="self" data-t="ui.powerSelf"></button></div></div>
+    <button id="mSound" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg></button>
+  </div>
   <nav id="navBar">
     <button type="button" data-go="mMissions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l2 2 3-3M11 7h9M4 13l2 2 3-3M11 14h9M5 20h15"/></svg><span data-t="nav.missions"></span></button>
     <button type="button" data-go="mRecords"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 20v-7M11 20V5M16 20v-10"/></svg><span data-t="nav.records"></span></button>
@@ -354,9 +368,6 @@
   <div class="setRow"><div data-t="set.volume"></div><input type="range" id="sVolume" min="0" max="1" step="0.05"></div>
   <div class="setRow"><div><span data-t="set.captions"></span><small data-t="set.captionsHint"></small></div><button class="tog" id="sCaptions" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.autoPush"></span><small data-t="set.autoPushHint"></small></div><button class="tog" id="sAuto" type="button"></button></div>
-  <h3 data-t="set.controls"></h3>
-  <div class="setRow"><div><span data-t="ui.fireMode"></span><small data-t="set.fireHint"></small></div><div class="seg2" id="mFire"><button type="button" data-v="auto" data-t="ui.fireAuto"></button><button type="button" data-v="manual" data-t="ui.fireManual"></button></div></div>
-  <div class="setRow" id="mPowerBox"><div><span data-t="ui.powerMode"></span><small data-t="set.powerHint"></small></div><div class="seg2" id="mPower"><button type="button" data-v="best" data-t="ui.powerBest"></button><button type="button" data-v="self" data-t="ui.powerSelf"></button></div></div>
   <h3 data-t="set.display"></h3>
   <div class="setRow"><div><span data-t="set.saver"></span><small data-t="set.saverHint"></small></div><button class="tog" id="sSaver" type="button"></button></div>
   <div class="setRow"><div><span data-t="set.voice"></span><small data-t="set.voiceHint"></small></div><button class="tog" id="sVoice" type="button"></button></div>

@@ -1900,10 +1900,13 @@
     flash(C.white, 1, 2); shake(10);
     burst("front", CX, 140, 50, { cols: [st.c1, st.c2, C.white], v0: 160, v1: 520, s0: 1.5, s1: 3.5, len: 30 });
     telop(T("lcd.rushStageUp", { name: T(st.name) }), { x: CX, y: 140, size: 40, cls: rushStage() === 2 ? "gold" : "fire", anim: "slam", dur: 1.6, font: FONT_POP, jitter: 2 });
-    if (bonusEv) try { bonusEv("rushStage"); } catch (e) { console.error(e); }
+    if (bonusEv) try { bonusEv("rushStage:" + rushStage()); } catch (e) { console.error(e); }
   }
   let curOpts = null;
   let pushWaiter = null;
+  // 長押し PUSH: held while the finger is down (push() / release()); the gauge fills in LONG_PUSH.secs
+  const LONG_PUSH = { hit: 0.3, miss: 0.1, secs: 1.0 };
+  const hold = { on: false, down: false, g: 0 };
   const renda = { on: false, n: 0, g: 0, auto: false, lastAuto: 0, onHit: null };
   let kpx = 2, lastW = 0, frameN = 0;
 
@@ -2100,7 +2103,7 @@
     tween(fx, { dim: 0, gray: 0, vign: 0, tint: 0 }, 0.2);
     fx.vignP = 0; hitPulse.on = false;
     reels.forEach((r) => { r.glow = 0; r.dim = 0; });
-    renda.on = false; renda.onHit = null; pushWaiter = null;
+    renda.on = false; renda.onHit = null; pushWaiter = null; hold.on = false;
     white(0, 0.1);
     if (!keepScene) setScene(modeScene(), 0.25);
   }
@@ -2414,10 +2417,38 @@
       ctx.translate(CX, 196); ctx.scale(s, s);
       drawSpr(ctx, SPR.push, 0, 0, 1);
     }, { seq: true });
-    const tp = telop("PUSH!!", { x: CX, y: 118, size: 40, cls: "red", font: FONT_POP, anim: "pop", stay: true, pulse: 0.06 });
-    ctxs.emit("pushPrompt");
+    // 長押し: sometimes (more often on a hit) the button has to be held until the gauge fills
+    const S = ctxs.S || {}, long = S.longPush != null ? !!S.longPush : rng() < (S.hit ? LONG_PUSH.hit : LONG_PUSH.miss);
+    const tp = telop(long ? T("lcd.pushLong") : "PUSH!!", { x: CX, y: 118, size: 40, cls: long ? "gold" : "red", font: FONT_POP, anim: "pop", stay: true, pulse: 0.06 });
+    ctxs.emit(long ? "pushLong" : "pushPrompt");
     const auto = !!(ctxs.opts && ctxs.opts.autoPush);
-    const res = await waitPush(auto ? 3 : 6, auto);
+    let res;
+    if (long) {
+      Object.assign(hold, { on: true, down: false, g: 0 });
+      const gauge = addActor("top", Infinity, (ctx) => {
+        const x0 = CX - 110, y0 = 262, w = 220, h = 14;
+        ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(x0 - 3, y0 - 3, w + 6, h + 6);
+        const gr = ctx.createLinearGradient(x0, 0, x0 + w, 0); gr.addColorStop(0, "#ff7a1a"); gr.addColorStop(1, "#ffe070");
+        ctx.fillStyle = gr; ctx.fillRect(x0, y0, w * hold.g, h);
+        ctx.strokeStyle = "#ffd84a"; ctx.lineWidth = 2; ctx.strokeRect(x0 - 3, y0 - 3, w + 6, h + 6);
+      }, { seq: true });
+      const t0 = clk.t;
+      res = await new Promise((fin) => {
+        let last = clk.t;
+        const step = () => {
+          const dt = clk.t - last; last = clk.t;
+          if (auto && clk.t - t0 > 0.75) hold.down = true;
+          hold.g = clamp(hold.g + (hold.down ? dt / LONG_PUSH.secs : -dt / 0.6), 0, 1);
+          if (hold.g >= 1) return fin(auto ? "auto" : "push");
+          if (clk.t - t0 > 8 || !hold.on) return fin("timeout");
+          wait(0.03).then(step);
+        };
+        step();
+      });
+      Object.assign(hold, { on: false, down: false });
+      gauge.kill = true;
+      if (res === "push" && ctxs.opts && ctxs.opts.onPush) try { ctxs.opts.onPush("prompt"); } catch (e) { /* ignore */ }
+    } else res = await waitPush(auto ? 3 : 6, auto);
     btn.hitT = clk.t; telopOut(tp, 0.15);
     if (res !== "push" && ctxs.opts && ctxs.opts.onPush) try { ctxs.opts.onPush("auto"); } catch (e) { /* ignore */ }
     ctxs.emit("pushHit");
@@ -2893,7 +2924,7 @@
   async function playSpinImpl(script, opts) {
     opts = opts || {};
     const S = norm(script);
-    const ctxs = { emit: mkEmit(opts), opts, stops: 0 };
+    const ctxs = { emit: mkEmit(opts), opts, stops: 0, S };
     curOpts = opts;
     clk.scale = Math.max(opts.speed > 0 ? opts.speed : 1, skipping ? SKIP_SPEED : 0);
     try {
@@ -2904,7 +2935,9 @@
       pedIn(S.holdColor);
       zoneSet(S, ctxs);
       const rushy = S.mode !== "normal";
-      const heavy = !!(S.reach || S.pseudo || S.stepup || S.gun || S.cutin || S.kokuchi || S.holdChangeTo);
+      const serif = S.mode === "normal" && !opts.skip ? serifPick(S) : null;
+      const premium = S.hit && S.mode === "normal" && !opts.skip && (S.premium != null ? !!S.premium : rng() < PREMIUM_RATE);
+      const heavy = !!(S.reach || S.pseudo || S.stepup || S.gun || S.cutin || S.kokuchi || S.holdChangeTo || serif || premium);
       // RUSH extras: the last ST spin is played out (ラスト1回転), and a RUSH hit may be 全回転 (all
       // three reels turn as one: a sure hit). S.zen forces it either way (tests).
       const stLast = S.mode === "rush" && S.stAfter === 0;
@@ -2925,7 +2958,9 @@
           await stopE(1, S.final[1], 0.16, ctxs);
         } else {
           const t0 = clk.t;
+          if (premium) await premiumFx(ctxs);
           if (S.holdChangeTo) { await wait(0.32); holdChangeFx(S.holdChangeTo, ctxs); await wait(0.55); }
+          if (serif) { serifFx(serif, ctxs); await wait(1.5); }
           if (S.kokuchi) { await wait(0.15); kokuchiFx(ctxs); await wait(1.3); }
           if (S.stepup > 0) await stepupFx(Math.min(5, S.stepup), ctxs);
           if (S.gun) { gunFx(ctxs); await wait(1.75); }
@@ -2961,6 +2996,80 @@
     }
   }
   const ZEN_RATE = 0.1;   // share of RUSH hits shown as 全回転
+  // セリフ予告: at the start of a normal spin the hero says a line in a coloured box. Like a real
+  // machine's, the colour is the hint: white < blue < green < red < gold. Whether it shows and its
+  // colour lean on the result (SERIF), so a red or gold line means something. S.serif forces it (tests).
+  const SERIF_COLS = ["white", "blue", "green", "red", "gold"];
+  const SERIF = { show: { hit: 0.45, reach: 0.25, plain: 0.04 }, hit: [2, 3, 3, 3, 1.5], miss: [5, 4, 2, 0.8, 0.1] };
+  const SERIF_RGB = { white: [235, 235, 240], blue: [70, 150, 255], green: [60, 220, 110], red: [255, 60, 50], gold: [255, 200, 60] };
+  function serifPick(S) {
+    if (S.serif !== undefined) return S.serif || null;
+    if (rng() >= (S.hit ? SERIF.show.hit : S.reach ? SERIF.show.reach : SERIF.show.plain)) return null;
+    const w = S.hit ? SERIF.hit : SERIF.miss;
+    let v = rng() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < w.length; i++) { v -= w[i]; if (v < 0) return SERIF_COLS[i]; }
+    return "white";
+  }
+  function serifFx(col, ctxs) {
+    const c = SERIF_RGB[col] || SERIF_RGB.white, txt = T("lcd.serif." + col), gold = col === "gold";
+    addActor("front", 1.5, (ctx, age) => {
+      const ui = E.back(clamp(age / 0.22, 0, 1)), uo = clamp((age - 1.25) / 0.25, 0, 1);
+      ctx.globalAlpha = 1 - uo;
+      // the hero's face, bottom left
+      if (IMG.cutin_hero) {
+        ctx.save(); ctx.beginPath(); ctx.arc(70, 262, 50, 0, TAU); ctx.clip();
+        ctx.fillStyle = "#000"; ctx.fillRect(20, 212, 100, 100);
+        const dw = 300, dh = (dw * IMG.cutin_hero.naturalHeight) / IMG.cutin_hero.naturalWidth;   // the face (66%, 42% of the picture) in the circle
+        ctx.drawImage(IMG.cutin_hero, 70 - 0.66 * dw, 262 - 0.42 * dh, dw, dh);
+        ctx.restore();
+        ring(ctx, 70, 262, 50, 4, c, 1);
+      }
+      // the box, in the hint colour
+      const bw = 248, bh = 54, bx = 128, by = 236 - (1 - ui) * 20;
+      ctx.save(); ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(0.6 + 0.4 * ui, 0.6 + 0.4 * ui);
+      if (gold) { ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, 0, 0, 170, 0.5 + 0.2 * Math.sin(age * 12)); ctx.restore(); }
+      ctx.fillStyle = "rgba(8,8,14,0.88)"; ctx.strokeStyle = rgba(c, 1); ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 12); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-bw / 2, 6); ctx.lineTo(-bw / 2 - 16, 16); ctx.lineTo(-bw / 2, 16); ctx.closePath(); ctx.fillStyle = rgba(c, 1); ctx.fill();
+      let fs = 21;
+      ctx.font = "700 " + fs + "px " + FONT_POP; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      while (ctx.measureText(txt).width > bw - 20 && fs > 13) { fs--; ctx.font = "700 " + fs + "px " + FONT_POP; }
+      ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.strokeText(txt, 0, 1);
+      ctx.fillStyle = rgba(c, 1); ctx.fillText(txt, 0, 1);
+      ctx.restore();
+    }, { seq: true });
+    if (col === "red" || gold) { flash(SERIF_RGB[col], 0.3, 4); shake(gold ? 4 : 2); }
+    ctxs.emit("serif:" + col);
+  }
+  // 神龍飛来 (プレミア): on a rare normal hit the 神龍 flies across the whole screen before anything
+  // else, then the gold ズドン!!: a sure hit. S.premium forces it either way (tests).
+  const PREMIUM_RATE = 0.03;
+  async function premiumFx(ctxs) {
+    ctxs.emit("premium");
+    tween(fx, { dim: 0.35 }, 0.2);
+    const fly = IMG.fly_head && IMG.fly_body && IMG.fly_tail, sd = goldDragon() || IMG.shinryu;
+    const dur = 3.0;
+    addActor("front", dur, (ctx, age) => {
+      const v = clamp(age / dur, 0, 1), ve = 0.4 * v + 0.6 * E.io(v), k = Math.sin(v * Math.PI);
+      ctx.save(); ctx.globalAlpha = 0.3 * k; ctx.fillStyle = "#2a1600"; ctx.fillRect(0, 0, W, H); ctx.restore();
+      speedLines(ctx, CX, 168, 40, C.gold, 0.5 * k, 60, Math.floor(age * 30));
+      if (fly) {
+        const hw = (FLY.headH * IMG.fly_head.naturalWidth) / IMG.fly_head.naturalHeight, back = (FLY.join[0] - 0.5) * hw + FLY.len + 80;
+        const sc = 1.7, x = lerp(W + (hw / 2) * sc + 10, -back * sc - 10, ve), y = 200 - k * 40 + Math.sin(age * 2) * 6;   // bigger than in 龍神リーチ
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, x, y, hw * sc * 0.8, 0.6); ctx.restore();
+        ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); drawFlyDragon(ctx, 0, 0, age); ctx.restore();
+      } else if (sd) {
+        const x = lerp(W + 200, -200, ve), y = 170 + Math.sin(age * 2) * 8;
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, x, y, 180, 0.6); ctx.restore();
+        drawContain(ctx, sd, x - 170, y - 130, 340, 260);
+      }
+    }, { seq: true });
+    await wait(0.5);
+    telop(T("lcd.premium"), { x: CX, y: 70, size: 44, cls: "gold", anim: "slam", dur: 1.8, font: FONT_POP, jitter: 2 });
+    await wait(dur - 0.5);
+    tween(fx, { dim: 0 }, 0.2);
+    kokuchiFx(ctxs); await wait(1.3);
+  }
   // 全回転: the three reels turn slowly as one, showing the same digit all the way, and land together.
   async function zenSeq(S, ctxs) {
     ctxs.emit("zen");
@@ -3519,6 +3628,7 @@
     // the 龍兵 (bossDown: knocked out, the shell pays the reward) or "awaken" when it fed the
     // 神龍覚醒 gauge; else false.
     push() {
+      if (hold.on) { hold.down = true; return true; }
       if (mode === "bonus" && awaken.on && awaken.res == null && !pushWaiter && !renda.on) return awakenTap();
       if (mode === "bonus" && boss.on && !boss.down && !boss.flee && !pushWaiter && !renda.on) return bossHit();
       if (pushWaiter) {
@@ -3529,6 +3639,8 @@
       if (renda.on) { rendaHit(false); return true; }
       return false;
     },
+    // the finger left PUSH (ends a 長押し)
+    release() { hold.down = false; },
     // true while PUSH has a bonus target (the 龍兵, or the 神龍覚醒 gauge): AUTO PUSH taps it
     bossActive() { return mode === "bonus" && ((boss.on && !boss.down && !boss.flee) || (awaken.on && awaken.res == null)); },
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },

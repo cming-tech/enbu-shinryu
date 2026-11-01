@@ -23,7 +23,8 @@
   const BGM_NAMES = ["normal", "reach", "battle", "bonus", "rush"];
 
   const MAX_VOICES = 24;     // hard cap on simultaneous SFX voices (oldest is stolen)
-  const FADE = 0.3;          // BGM crossfade, seconds
+  const FADE = 1.2;          // BGM crossfade, seconds (the user asked for the music to fade in and out)
+  const FIRST_FADE = 2.0;    // the first music of the session fades in slower
   const BGM_LEVEL = 0.6;     // BGM bus level under the SFX
   const BED_SR = 32000;      // beds are rendered at this rate (memory vs. fidelity)
   const BED_TAIL = 2.0;      // seconds of ring-out folded back onto the loop start
@@ -1137,8 +1138,10 @@
     b.timer = setTimeout(() => killBed(b), (fade + 0.5) * 1000);
   }
 
+  let bedStarted = false;
   function startBed(name, fade, next) {
-    fade = fade || FADE;
+    fade = fade || (bedStarted ? FADE : FIRST_FADE);
+    bedStarted = true;
     // the songs ready now: the first, then the extra ones decoded so far. The song switch (next)
     // plays the next one in turn; otherwise the bed's last song carries on from where it stopped.
     const songs = [bedBuf[name]];

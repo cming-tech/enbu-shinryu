@@ -26,7 +26,11 @@
   // Fixed board features (design units).
   const WARP = { x: 91, y: 352 }; // warp entrance on the LCD bezel's left side
   const WM = { x: 68, y: 408, r: 9 }; // windmill (風車) in the left lane
-  const SLOPE = { ax: 536, ay: 498, bx: 488, by: 588 }; // chrome guide to the attacker
+  const SLOPE_ENBU = { ax: 536, ay: 498, bx: 488, by: 588 }; // chrome guide to the attacker
+  // 霓虹天使: the attacker sits in the centre under the heso (ATT_X 294), so its slope runs from the right
+  // lane all the way down to the door's right end; the right wing hangs under it (drawAngelWings).
+  const SLOPE_ANGEL = { ax: 536, ay: 500, bx: 356, by: 588 };
+  let SLOPE = SLOPE_ENBU, ATT_X = 432; // attacker door centre (its y stays 612); set per layout in mount
   const STAGE = { x0: 120, x1: 468, yc: 490, rise: 12 }; // ledge under the LCD
   const BEZEL = { x: 96, y: 142, w: 408, h: 336, r: 50 };
   // Energy swirl: a wide band of flowing light between frame offsets s0..s1 (the reference's
@@ -258,15 +262,16 @@
       const vx = b[0] - a[0], vy = b[1] - a[1], u = clamp(((x - a[0]) * vx + (y - a[1]) * vy) / (vx * vx + vy * vy), 0, 1);
       return Math.hypot(x - a[0] - u * vx, y - a[1] - u * vy);
     };
+    const centre = ATT_X === 294;
     const routes = [ // [polyline, clearance]
-      [[[503, 446], [504, 476], [503, 576], [494, 592]], 11],  // past the 電チュー, down onto the slope
+      [centre ? [[503, 446], [504, 476], [503, 516]] : [[503, 446], [504, 476], [503, 576], [494, 592]], 11],  // past the 電チュー, down onto the slope
       [[[SLOPE.ax, SLOPE.ay], [SLOPE.bx, SLOPE.by]], 13],      // slope to the attacker
       [[[549, 462], [548, 520], [543, 566], [526, 620]], 11],  // right edge to the right out
-      [[[474, 597], [384, 597], [364, 630], [302, 638]], 11],  // over the closed door to the centre out
+      [centre ? [[342, 597], [246, 597], [226, 632], [302, 638]] : [[474, 597], [384, 597], [364, 630], [302, 638]], 11],  // over the closed door to the centre out
     ];
     const holes = [[528, 468, 20], [L.outs[2].x, L.outs[2].y, 16], [L.outs[1].x, L.outs[1].y, 16], [L.outs[0].x, L.outs[0].y, 18]];
     const boxes = [ // x0, y0, x1, y1
-      [L.attacker.x - L.attacker.w / 2 - 10, L.attacker.y - 24, L.attacker.x + L.attacker.w / 2 + 6, L.attacker.y + 20],
+      [ATT_X - L.attacker.w / 2 - 10, L.attacker.y - 24, ATT_X + L.attacker.w / 2 + 6, L.attacker.y + 20],
       [0, 460, 264, 530],     // left lane exit and the road (道釘)
       [130, 480, 264, 646],   // 炎 block and the drops behind it
       [252, 494, 338, 646],   // heso field, 袴 and the miss paths
@@ -327,7 +332,12 @@
     // circuit traces on the lower board: runs of pins 14 apart; a point is kept only where machine 1's
     // decoration could stand (pinsEnbu marked those "D"), so every route and pocket stays clear
     const free = PINS.all.filter((p) => p.g === "D");
-    const okAt = (x, y) => free.some((p) => Math.abs(p.x - x) <= 10 && Math.abs(p.y - y) <= 9) && inWin(x, y, -12) && !all.some((p) => Math.hypot(x - p.x, y - p.y) < 11);
+    // the "D" spots allow 10 of slack, so also keep 13 clear of the slope (its end is right by the door)
+    const offSlope = (x, y) => {
+      const vx = SLOPE.bx - SLOPE.ax, vy = SLOPE.by - SLOPE.ay, u = clamp(((x - SLOPE.ax) * vx + (y - SLOPE.ay) * vy) / (vx * vx + vy * vy), 0, 1);
+      return Math.hypot(x - SLOPE.ax - u * vx, y - SLOPE.ay - u * vy) >= 13;
+    };
+    const okAt = (x, y) => offSlope(x, y) && free.some((p) => Math.abs(p.x - x) <= 10 && Math.abs(p.y - y) <= 9) && inWin(x, y, -12) && !all.some((p) => Math.hypot(x - p.x, y - p.y) < 11);
     const run = (pts) => {
       for (let i = 1; i < pts.length; i++) {
         const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 14));
@@ -530,8 +540,8 @@
     // 電チュー mouth.
     s += `<ellipse cx="528" cy="463" rx="10" ry="3.2" fill="#000"/>`;
     // Attacker recess.
-    s += `<rect x="378" y="601" width="108" height="22" rx="3" fill="#050506" stroke="#000" stroke-width="2"/>`;
-    s += `<rect x="382" y="606" width="100" height="2" fill="#ffcc55" opacity=".5"/>`;
+    s += `<rect x="${ATT_X - 54}" y="601" width="108" height="22" rx="3" fill="#050506" stroke="#000" stroke-width="2"/>`;
+    s += `<rect x="${ATT_X - 50}" y="606" width="100" height="2" fill="#ffcc55" opacity=".5"/>`;
     // Slope to the attacker.
     s += `<path d="M${SLOPE.ax + 1.5},${SLOPE.ay + 2} L${SLOPE.bx + 1.5},${SLOPE.by + 2}" stroke="#000" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>`;
     s += `<path d="M${SLOPE.ax},${SLOPE.ay} L${SLOPE.bx},${SLOPE.by}" stroke="url(#pkc-bChrome)" stroke-width="4" stroke-linecap="round"/>`;
@@ -797,24 +807,9 @@
 
     // --- kanji gimmick
     let gim = "";
-    L.gimmick.forEach((g, i) => {
+    if (pinLayout !== "angel") L.gimmick.forEach((g, i) => {   // 霓虹天使 has wings instead (drawAngelWings)
       const cx = g.x + g.w / 2, cy = g.y + g.h / 2, rot = i ? 5 : -7;
       gim += `<g transform="translate(${cx},${cy}) rotate(${rot})">`;
-      if (S.neon) {   // 霓虹天使 (光環舞台): a wing panel; the two lean into a V over the start pocket
-        const sd = i ? -1 : 1, hx = g.w / 2, hy = g.h / 2;
-        gim = gim.replace(/rotate\([^)]*\)">$/, `rotate(${sd * 24})">`);
-        const wing = `M${-hx * sd},${hy * 0.2} L${hx * sd},${-hy} L${hx * 0.7 * sd},${hy * 0.2} L${hx * 0.2 * sd},${hy * 0.9} L${-hx * 0.6 * sd},${hy * 0.9} Z`;
-        gim += `<path d="${wing}" fill="#0a0c1c" fill-opacity=".86" stroke="#21e6ff" stroke-width="6" stroke-opacity=".3" stroke-linejoin="round"/>`;
-        gim += `<path d="${wing}" fill="none" stroke="#ff4fd8" stroke-width="2" stroke-linejoin="round"/>`;
-        for (let f = 0; f < 3; f++) gim += `<path d="M${-hx * 0.4 * sd},${hy * (0.62 - f * 0.28)} L${hx * (0.6 - f * 0.1) * sd},${-hy * (0.55 - f * 0.12)}" stroke="#bfefff" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/>`;
-        const font = `font-family="'Dela Gothic One','Noto Sans TC','Arial Black',sans-serif" font-size="${g.h * 0.6}" text-anchor="middle" dominant-baseline="central"`;
-        const ch = (S.gimmick && S.gimmick[i]) || g.ch;
-        gim += `<text ${font} y="3" fill="none" stroke="#21e6ff" stroke-opacity=".45" stroke-width="7" stroke-linejoin="round">${ch}</text>`;
-        gim += `<text ${font} y="3" fill="#ffffff" stroke="#ff4fd8" stroke-width="1.6">${ch}</text>`;
-        gim += `</g>`;
-        ART.sprites.push({ x: cx, y: cy, r: 60, g: 0.45, fire: 1 });
-        return;
-      }
       gim += `<rect x="${-g.w / 2}" y="${-g.h / 2}" width="${g.w}" height="${g.h}" rx="16" fill="url(#pkc-block)" stroke="url(#pkc-blockEdge)" stroke-width="2.2"/>`;
       gim += `<rect x="${-g.w / 2 + 5}" y="${-g.h / 2 + 5}" width="${g.w - 10}" height="${g.h - 10}" rx="12" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="1"/>`;
       gim += `<path d="M${-g.w / 2 + 8},${g.h / 2 - 6} C-30,10 -10,30 -18,-20 C0,6 10,0 8,-40 C26,-6 36,10 ${g.w / 2 - 10},${g.h / 2 - 6} Z" fill="url(#pkc-flameFill)" opacity=".55"/>`;
@@ -1453,8 +1448,8 @@
     const g = x.createLinearGradient(0, 597, 0, 627);
     g.addColorStop(0, "#f4f7fb"); g.addColorStop(0.4, "#6c7480"); g.addColorStop(0.6, "#dfe5ec"); g.addColorStop(1, "#3e444d");
     x.strokeStyle = g; x.lineWidth = 4;
-    x.beginPath(); x.rect(376, 599, 112, 26); x.stroke();
-    x.strokeStyle = "#000"; x.lineWidth = 1; x.strokeRect(373.5, 596.5, 117, 31);
+    x.beginPath(); x.rect(ATT_X - 56, 599, 112, 26); x.stroke();
+    x.strokeStyle = "#000"; x.lineWidth = 1; x.strokeRect(ATT_X - 58.5, 596.5, 117, 31);
     x.restore();
   }
   function drawDenchuBody(x) {
@@ -1715,7 +1710,12 @@
     pb.hop(294 + dir * 20, 556, -90);   // between the 命釘 and the upper 袴 pin
     const h = dir < 0 ? PINS.hakama[2] : PINS.hakama[3];
     pb.hop(h.x + dir * -4.5, h.y - 5.6, pb.vy * 0.1);
-    pb.hop(294 + dir * 5, 633, -60);
+    if (ATT_X === 294) {   // 霓虹天使: the closed door is right under the 袴
+      pb.hop(294 + dir * 6, 597.5, -40);
+      pb.roll([[294 + dir * 50, 597.5]], 200, 300, 0, 1);
+      pb.hop(294 + dir * 68, 632, -40);
+      pb.roll([[294 + dir * 8, 637]], 230, 300, 0, 1);
+    } else pb.hop(294 + dir * 5, 633, -60);
     pb.enter(294, 641, "out");
   }
 
@@ -1787,15 +1787,16 @@
     pb.hop(p1[0], p1[1], pb.vy * 0.2);
     pb.roll([p2], 180, 300, 0, 1);
     if (target === "attacker") {
-      pb.hop(rr(446, 468), 609, -50);
+      pb.hop(ATT_X + rr(14, 36), 609, -50);
       pb.enter(pb.x - 2, 616, "attacker");
       return;
     }
-    // Over the closed door, off its left end, to the centre out.
-    pb.hop(474, 597.5, -30);
-    pb.roll([[384, 597.5]], 260, 330, 0, 1);
-    pb.hop(364, 630, -50);
-    pb.roll([[302, 638]], 230, 300, 0, 1);
+    // Over the closed door, off its left end, to the centre out (under the door on 霓虹天使).
+    const centre = ATT_X === 294;
+    pb.hop(ATT_X + 42, 597.5, -30);
+    pb.roll([[ATT_X - 48, 597.5]], 260, 330, 0, 1);
+    pb.hop(centre ? 226 : 364, 630, -50);
+    pb.roll([[centre ? 286 : 302, 638]], 230, 300, 0, 1);
     pb.enter(294, 641, "out");
   }
 
@@ -1887,6 +1888,7 @@
     }
     x.restore();
 
+    if (pinLayout === "angel") drawAngelWings(x, t);
     // Pins.
     x.drawImage(S.pins, 0, 0, S.cw, S.ch, 0, 0, L.stage.w, L.stage.h);
     drawWindmill(x);
@@ -2124,35 +2126,97 @@
     }
   }
 
+  // 霓虹天使's 役物: two neon wings either side of the centre attacker. The right wing's leading edge is the
+  // slope the right-shot balls roll down; the left one mirrors it. Folded in normal play, they fan open
+  // while the door is open. Drawn behind the pins and balls, so no ball path has to avoid them.
+  function drawAngelWings(x, t) {
+    const k = smooth(S.attK), ex = SLOPE.ax - SLOPE.bx, ey = SLOPE.ay - SLOPE.by, len = Math.hypot(ex, ey);
+    const ea = Math.atan2(ey, ex);
+    x.save();
+    x.lineJoin = "round"; x.lineCap = "round";
+    for (const sd of [1, -1]) {
+      const bx = 294 + sd * (SLOPE.bx - 294), by = SLOPE.by;
+      const ang = sd > 0 ? ea : Math.PI - ea, wl = sd > 0 ? len : len * 0.7;
+      const n = sd > 0 ? 7 : 5;
+      // each feather hangs from the leading edge and sweeps out toward the tip; it fans down when open
+      const fth = [];
+      for (let f = 0; f < n; f++) {
+        const u = 0.08 + (0.88 * f) / (n - 1);
+        const px = bx + Math.cos(ang) * wl * u, py = by + Math.sin(ang) * wl * u;
+        const fa = ang + sd * (0.6 - 0.03 * f + k * (0.36 + 0.03 * f) + 0.04 * Math.sin(t * 1.6 + f));
+        const fl = (30 + 11 * f) * (sd > 0 ? 1 : 0.85) * (0.9 + 0.25 * k);
+        fth.push([px, py, px + Math.cos(fa) * fl, py + Math.sin(fa) * fl, fa]);
+      }
+      // the wing's body: from its root along the edge, back through the feather tips
+      x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(ang) * wl, by + Math.sin(ang) * wl);
+      for (let f = n - 1; f >= 0; f--) x.lineTo(fth[f][2], fth[f][3]);
+      x.closePath();
+      x.fillStyle = `rgba(14,20,58,${0.6 + 0.1 * k})`; x.fill();
+      x.strokeStyle = `rgba(120,230,255,${0.25 + 0.3 * k})`; x.lineWidth = 1; x.stroke();
+      for (let f = n - 1; f >= 0; f--) {
+        const [px, py, qx, qy, fa] = fth[f];
+        const nx = -Math.sin(fa) * 7 * sd, ny = Math.cos(fa) * 7 * sd;
+        x.beginPath();
+        x.moveTo(px, py);
+        x.quadraticCurveTo((px + qx) / 2 - nx, (py + qy) / 2 - ny, qx, qy);
+        x.quadraticCurveTo((px + qx) / 2 + nx * 0.4, (py + qy) / 2 + ny * 0.4, px - Math.cos(ang) * 14 * sd, py - Math.sin(ang) * 14 * sd);
+        x.closePath();
+        x.fillStyle = `rgba(${f % 2 ? "255,79,216" : "33,230,255"},${0.3 + 0.2 * k})`;
+        x.fill();
+        x.strokeStyle = `rgba(${f % 2 ? "255,170,242" : "170,246,255"},${0.8 + 0.2 * k})`;
+        x.lineWidth = 1.6;
+        x.stroke();
+      }
+      if (sd < 0) {   // the left wing's leading edge (the right one is the chrome slope itself)
+        x.strokeStyle = "rgba(0,0,0,.6)"; x.lineWidth = 5;
+        x.beginPath(); x.moveTo(bx + 1.5, by + 2); x.lineTo(bx + Math.cos(ang) * wl + 1.5, by + Math.sin(ang) * wl + 2); x.stroke();
+        x.strokeStyle = "#dff6ff"; x.lineWidth = 3.4;
+        x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(ang) * wl, by + Math.sin(ang) * wl); x.stroke();
+      }
+      if (k > 0.02) {   // open: light chases out along the feathers
+        x.globalCompositeOperation = "lighter";
+        for (let f = 0; f < n; f++) {
+          const u = 0.1 + (0.86 * f) / (n - 1), a = k * (0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(t * 9 - f * 0.8), 3));
+          x.globalAlpha = a;
+          x.drawImage(sprite(255, 120, 235), bx + Math.cos(ang) * wl * u - 14, by + Math.sin(ang) * wl * u - 14, 28, 28);
+        }
+        x.globalAlpha = 1;
+        x.globalCompositeOperation = "source-over";
+      }
+    }
+    x.restore();
+  }
+
   function drawAttackerDoor(x) {
     const k = smooth(S.attK);
     x.save();
     if (k > 0.01) {
       // Opening interior glow.
       const g = x.createLinearGradient(0, 603, 0, 621);
-      g.addColorStop(0, "#1a0a00"); g.addColorStop(1, "#7a3a00");
+      g.addColorStop(0, S.neon ? "#100620" : "#1a0a00"); g.addColorStop(1, S.neon ? "#5a1a7a" : "#7a3a00");
       x.fillStyle = g;
-      x.fillRect(380, 603, 104, 14 * k + 1);
+      x.fillRect(ATT_X - 52, 603, 104, 14 * k + 1);
       x.globalCompositeOperation = "lighter";
       x.globalAlpha = 0.7 * k;
-      for (let i = 0; i < 5; i++) x.drawImage(sprite(255, 170, 40), 386 + i * 23 - 12, 606 - 12, 24, 24);
+      for (let i = 0; i < 5; i++) x.drawImage(S.neon ? sprite(255, 90, 230) : sprite(255, 170, 40), ATT_X - 46 + i * 23 - 12, 606 - 12, 24, 24);
       x.globalAlpha = 1;
       x.globalCompositeOperation = "source-over";
     }
     // Door plate (tilts toward the viewer when open).
     const top = 603 + 14 * k, bot = 621 + 3 * k, sp = 3 * k;
     const g2 = x.createLinearGradient(0, top, 0, bot);
-    g2.addColorStop(0, k > 0.5 ? "#ffd27a" : "#ff6a2a"); g2.addColorStop(0.5, "#d0280c"); g2.addColorStop(1, "#5a0800");
+    if (S.neon) { g2.addColorStop(0, k > 0.5 ? "#bff8ff" : "#ff7ae6"); g2.addColorStop(0.5, "#b0168e"); g2.addColorStop(1, "#30063e"); }
+    else { g2.addColorStop(0, k > 0.5 ? "#ffd27a" : "#ff6a2a"); g2.addColorStop(0.5, "#d0280c"); g2.addColorStop(1, "#5a0800"); }
     x.fillStyle = g2; x.strokeStyle = "#200200"; x.lineWidth = 1;
-    x.beginPath(); x.moveTo(380, top); x.lineTo(484, top); x.lineTo(484 + sp, bot); x.lineTo(380 - sp, bot); x.closePath(); x.fill(); x.stroke();
+    x.beginPath(); x.moveTo(ATT_X - 52, top); x.lineTo(ATT_X + 52, top); x.lineTo(ATT_X + 52 + sp, bot); x.lineTo(ATT_X - 52 - sp, bot); x.closePath(); x.fill(); x.stroke();
     if (k < 0.6) {
       x.globalAlpha = 1 - k / 0.6;
-      x.strokeStyle = "#ffe08a"; x.lineWidth = 1.6; x.lineJoin = "round";
+      x.strokeStyle = S.neon ? "#bff8ff" : "#ffe08a"; x.lineWidth = 1.6; x.lineJoin = "round";
       x.beginPath();
-      for (let i = 0; i < 6; i++) { const cx = 398 + i * 14; x.moveTo(cx - 3, 607); x.lineTo(cx + 3, 612); x.lineTo(cx - 3, 617); }
+      for (let i = 0; i < 6; i++) { const cx = ATT_X - 34 + i * 14; x.moveTo(cx - 3, 607); x.lineTo(cx + 3, 612); x.lineTo(cx - 3, 617); }
       x.stroke();
       x.fillStyle = "rgba(255,255,255,.35)";
-      x.fillRect(382, 604, 100, 2);
+      x.fillRect(ATT_X - 50, 604, 100, 2);
       x.globalAlpha = 1;
     }
     x.restore();
@@ -2162,7 +2226,7 @@
     for (let i = 0; i < 9; i++) {
       const on = k > 0.3 ? 0.4 + 0.6 * Math.pow(0.5 + 0.5 * Math.sin(t * 14 - i * 0.9), 3) : 0.12;
       x.globalAlpha = on;
-      x.drawImage(sprite(255, 200, 70), 384 + i * 12 - 5, 599 - 5, 10, 10);
+      x.drawImage(S.neon ? sprite(120, 240, 255) : sprite(255, 200, 70), ATT_X - 48 + i * 12 - 5, 599 - 5, 10, 10);
     }
     x.globalAlpha = 1;
     x.globalCompositeOperation = "source-over";
@@ -2172,7 +2236,7 @@
     x.globalCompositeOperation = "lighter";
     const gl = S.glow;
     if (gl.heso > 0.02) { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, 551 - 26, 52, 52); }
-    if (gl.attacker > 0.02) { x.globalAlpha = gl.attacker; x.drawImage(sprite(255, 210, 90), 432 - 50, 612 - 30, 100, 60); }
+    if (gl.attacker > 0.02) { x.globalAlpha = gl.attacker; x.drawImage(sprite(255, 210, 90), ATT_X - 50, 612 - 30, 100, 60); }
     if (gl.out > 0.02) { x.globalAlpha = gl.out * 0.35; x.drawImage(sprite(160, 180, 255), 294 - 12, 641 - 12, 24, 24); }
     if (gl.stage > 0.02) { x.globalAlpha = gl.stage * 0.45; x.drawImage(sprite(255, 190, 90), 294 - 120, 486 - 20, 240, 40); }
     if (gl.warp > 0.02) { x.globalAlpha = gl.warp * 0.8; x.drawImage(sprite(140, 210, 255), WARP.x - 16, WARP.y - 16, 32, 32); }
@@ -2220,6 +2284,8 @@
     S.neon = els.theme === "neon";
     S.gimmick = mc.gimmick || null;
     pinLayout = mc.pins || "enbu";
+    ATT_X = pinLayout === "angel" ? 294 : 432;
+    SLOPE = pinLayout === "angel" ? SLOPE_ANGEL : SLOPE_ENBU;
     DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {};
     buildPins();
     if (S.back) buildBack(S.back);
@@ -2361,6 +2427,6 @@
       }
       return { arrive: tArr / rate, total: pb.T / rate, kind, route: pb.route, samples };
     },
-    _geom: { inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice() },
+    _geom: { inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice(), attX: () => ATT_X },
   };
 })();

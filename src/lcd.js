@@ -193,7 +193,7 @@
     const top = y - asc, bot = y + dsc;
     const lwO = fs * (o.outline || 0.11);
     if (o.glow) {
-      g.save(); g.shadowColor = o.glow; g.shadowBlur = fs * (o.glowBlur || 0.16) * K;
+      g.save(); g.shadowColor = o.glow; g.shadowBlur = fs * (o.glowBlur || 0.16) * PK.shadowK(K);
       g.strokeStyle = o.glow; g.fillStyle = o.glow; g.lineWidth = lwO;
       g.strokeText(text, x, y); g.strokeText(text, x, y); g.restore();
     }
@@ -350,7 +350,7 @@
       g.restore();
     }
     g.restore();
-    g.shadowColor = "rgba(255,120,0,0.9)"; g.shadowBlur = r * 0.35 * K;
+    g.shadowColor = "rgba(255,120,0,0.9)"; g.shadowBlur = r * 0.35 * PK.shadowK(K);
     g.fillStyle = "#1a0200"; g.beginPath(); g.arc(x, y, r * 1.08, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -412,7 +412,7 @@
     const c = mkCanvas(S * K, S * K), g = c.getContext("2d");
     g.scale(K, K);
     const x = S / 2, y = S / 2, r = 48;
-    g.shadowColor = "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
+    g.shadowColor = "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * PK.shadowK(K);
     g.fillStyle = "#200"; g.beginPath(); g.arc(x, y, r + 4, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -890,7 +890,7 @@
     const gold = variant === "gold";
     const rimA = gold ? "#fff0a0" : "#ffb04a", rimB = gold ? "#ffe680" : "#ff5a1a";
     const glow = gold ? "rgba(255,210,80,0.95)" : "rgba(255,90,20,0.9)";
-    g.save(); g.shadowColor = glow; g.shadowBlur = 18 * K; g.fillStyle = "#000"; g.fill(body); g.fill(body); g.restore();
+    g.save(); g.shadowColor = glow; g.shadowBlur = 18 * PK.shadowK(K); g.fillStyle = "#000"; g.fill(body); g.fill(body); g.restore();
     g.save(); g.translate(3.6, -2.2); g.fillStyle = rimA; g.fill(body); g.restore();
     g.save(); g.translate(-3, -1.6); g.fillStyle = rimB; g.globalAlpha = 0.8; g.fill(body); g.restore();
     const df = g.createLinearGradient(0, -260, 0, 0);
@@ -1468,7 +1468,7 @@
       const gr = g.createLinearGradient(0, 270, 0, H + 12);
       gr.addColorStop(0, "rgba(10,0,0,0)"); gr.addColorStop(1, "#080000"); g.fillStyle = gr; g.fillRect(-12, 270, W + 24, 70);
       // lava cracks
-      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 6 * K; g.strokeStyle = "rgba(255,150,40,0.9)"; g.lineWidth = 1.3;
+      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 6 * PK.shadowK(K); g.strokeStyle = "rgba(255,150,40,0.9)"; g.lineWidth = 1.3;
       for (let i = 0; i < 9; i++) {
         let x = rand(0, W), y = rand(286, 330);
         g.beginPath(); g.moveTo(x, y);
@@ -1483,7 +1483,7 @@
       rGrad(g, 292, 84, 170, [[0, "rgba(200,225,255,0.55)"], [0.3, "rgba(90,130,220,0.22)"], [1, "rgba(0,0,0,0)"]]);
       const mg = g.createRadialGradient(282, 74, 4, 292, 84, 46);
       mg.addColorStop(0, "#ffffff"); mg.addColorStop(0.6, "#dfeaff"); mg.addColorStop(1, "#8aa6d8");
-      g.save(); g.shadowColor = "rgba(180,210,255,0.9)"; g.shadowBlur = 24 * K;
+      g.save(); g.shadowColor = "rgba(180,210,255,0.9)"; g.shadowBlur = 24 * PK.shadowK(K);
       g.fillStyle = mg; g.beginPath(); g.arc(292, 84, 44, 0, TAU); g.fill(); g.restore();
       g.fillStyle = "rgba(120,140,190,0.35)";
       [[278, 70, 8], [304, 96, 11], [300, 66, 5], [270, 98, 6]].forEach((m) => { g.beginPath(); g.arc(m[0], m[1], m[2], 0, TAU); g.fill(); });
@@ -1505,7 +1505,7 @@
         g.beginPath(); g.moveTo(x - 3, 232 - h); g.lineTo(x + w / 2, 232 - h - rand(4, 12)); g.lineTo(x + w + 3, 232 - h); g.fill();
       }
       ridge(g, 246, 18, 0.03, 3.3, "#0a0101", "rgba(255,120,30,0.7)");
-      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 5 * K; g.strokeStyle = "rgba(255,140,40,0.85)"; g.lineWidth = 1.2;
+      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 5 * PK.shadowK(K); g.strokeStyle = "rgba(255,140,40,0.85)"; g.lineWidth = 1.2;
       for (let i = 0; i < 7; i++) {
         let x = rand(0, W), y = rand(262, 320); g.beginPath(); g.moveTo(x, y);
         for (let k = 0; k < 5; k++) { x += rand(-20, 20); y += rand(-4, 4); g.lineTo(x, y); }

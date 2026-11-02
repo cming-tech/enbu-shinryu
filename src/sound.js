@@ -26,7 +26,8 @@
   const FADE = 1.2;          // BGM crossfade, seconds (the user asked for the music to fade in and out)
   const FIRST_FADE = 2.0;    // the first music of the session fades in slower
   const BGM_LEVEL = 0.6;     // BGM bus level under the SFX
-  const BED_SR = 32000;      // beds are rendered at this rate (memory vs. fidelity)
+  let BED_SR = 32000;        // beds are rendered at this rate (memory vs. fidelity)
+  const BED_SR_LOW = 22050;  // setLowMemory: a third less memory for the music, a little duller
   const BED_TAIL = 2.0;      // seconds of ring-out folded back onto the loop start
   const BED_RMS = 0.16;      // beds are normalized to this RMS (peak capped at 0.95)
   const EPS = 0.0001;
@@ -1550,6 +1551,13 @@
         }
       } catch (e) { /* never throw */ }
     },
+    // A phone short of memory (or 省電模式) keeps the music at a lower rate. Only before any music
+    // is made: rendered and decoded beds keep their rate.
+    setLowMemory(on) {
+      if (ctx) return false;
+      BED_SR = on ? BED_SR_LOW : 32000;
+      return true;
+    },
     setVolume(v) {
       try {
         v = Number(v);
@@ -1616,6 +1624,7 @@
     voices: rig ? rig.voices.length : 0, made: rig ? rig.made : 0, finished: rig ? rig.finished : 0,
     bed: bedCur && !bedCur.dead ? bedCur.name : null, bedsAlive: bedsAlive.length, want: bedWant,
     song: bedCur && !bedCur.dead ? lastAlt[bedCur.name] || 0 : null, at: bedCur && !bedCur.dead ? (ctx.currentTime - bedCur.t0) % bedCur.src.buffer.duration : null,
+    rate: bedCur && !bedCur.dead ? bedCur.src.buffer.sampleRate : null,
     ready: Object.keys(bedBuf),
     files: Object.keys(fileBuf).concat(...Object.keys(altBuf).map((n) => Object.keys(altBuf[n]).map((i) => n + i))),
     voiceLines: Object.keys(voiceBuf),

@@ -45,6 +45,12 @@
     },
     // ラウンド昇格 (2026-11-01): a heso hit is 10R one time in ten (one in five made the payout ~135%, from ~113%); the shell shows it as 3R that
     // grows at round 2, so the first jackpot is no longer always the small one.
+    // 設定 → 機率調整: the presets offered for this machine, 1/n per spin.
+    odds: {
+      hit: [49.9, 69.9, 99.9, 149.9, 199.9],                        // per normal spin
+      hitMinutes: { 49.9: 4, 69.9: 5, 99.9: 7, 149.9: 11, 199.9: 13 }, // mean minutes to a jackpot (simulated)
+      rush: [20, 16, 12, 9, 5.5],                                    // per RUSH spin (ST 8)
+    },
     engine: { spec: { normalChance: 1 / 99.9, rushChance: 1 / 16, st: 8, hesoKinds: { "3R": 0.9, "10R": 0.1 } }, units: { hesoRate: 1 / 7 } },
   };
 })();

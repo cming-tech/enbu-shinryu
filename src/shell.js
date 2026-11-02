@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 46;
+  const VERSION = 47;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -27,18 +27,25 @@
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
 
   // ---------------------------------------------------------------- 機率調整
-  // Each player can pick the odds on their own phone (設定 → 機率調整): presets over the machine's
-  // numbers (set.hitN / set.rushN = 1/n per spin, null = the machine's own). A change applies on a
-  // reload, so one engine always runs on one set of tables; the save and the records are kept.
-  const ODDS = {
-    hit: [49.9, 69.9, 99.9, 149.9, 199.9],                        // 1/n per normal spin
-    hitMinutes: { 49.9: 4, 69.9: 5, 99.9: 7, 149.9: 11, 199.9: 13 }, // mean minutes to a jackpot (simulated)
-    rush: [20, 16, 12, 9, 5.5],                                    // 1/n per RUSH spin
-  };
+  // Each player can pick the odds on their own phone (設定 → 機率調整): the machine's presets
+  // (M.odds) over its own numbers, kept per machine (set.odds[id] = { hitN, rushN }, 1/n per spin;
+  // none = the machine's own). A change applies on a reload, so one engine always runs on one set
+  // of tables; the save and the records are kept.
+  const ODDS = M.odds || PK.MACHINES.enbu.odds;
+  if (set.hitN || set.rushN) {   // before v47 the odds were one setting for all (only 炎舞神龍 existed)
+    set.odds = Object.assign({ enbu: { hitN: set.hitN || null, rushN: set.rushN || null } }, set.odds);
+    delete set.hitN; delete set.rushN;
+    saveSettings();
+  }
+  const myOdds = () => (set.odds && set.odds[M.id]) || {};
+  function setMyOdds(o) {
+    set.odds = Object.assign({}, set.odds);
+    if (o) set.odds[M.id] = o; else delete set.odds[M.id];
+  }
   function odds() {
     const sp = Object.assign({}, PK.engineTables.spec, M.engine && M.engine.spec);
-    const own = (c) => Math.round(10 / c) / 10;
-    return { hitN: set.hitN || own(sp.normalChance), rushN: set.rushN || own(sp.rushChance), st: sp.st };
+    const own = (c) => Math.round(10 / c) / 10, my = myOdds();
+    return { hitN: my.hitN || own(sp.normalChance), rushN: my.rushN || own(sp.rushChance), st: sp.st };
   }
   const rushPct = (rushN, st) => Math.round(100 * (1 - Math.pow(1 - 1 / rushN, st)));
   const oddsTables = () => ({ spec: { normalChance: 1 / odds().hitN, rushChance: 1 / odds().rushN } });
@@ -197,8 +204,9 @@
   const KEY_REC = "pk." + M.id + ".records";
   const ACH = ["first", "rush", "s3", "s5", "s10", "r10", "boss", "boss10", "awaken", "spsp", "rainbow", "revive", "premium", "rich", "hits100"];
   let queueToast = null;   // toasts that wait their turn (achievements, missions, levels)
+  let replaying = false;   // a 演出鑑賞 replay: counts toward nothing
   const rec = (function () {
-    const r = Object.assign({ hits: 0, rushes: 0, bestStreak: 0, bestBonus: 0, bestRush: 0, boss: 0, got: {} }, parse(load(KEY_REC)));
+    const r = Object.assign({ hits: 0, rushes: 0, bestStreak: 0, bestBonus: 0, bestRush: 0, boss: 0, got: {}, seen: {} }, parse(load(KEY_REC)));
     const keep = () => store(KEY_REC, JSON.stringify(r));
     const best = (k, v) => { if (v > r[k]) r[k] = v; };
     // unlock toasts wait their turn, so two at once are both read
@@ -210,12 +218,17 @@
     }
     queueToast = (msg) => { queue.push(msg); if (queue.length === 1) nextToast(); };
     function ach(id) {
-      if (r.got[id]) return;
+      if (replaying || r.got[id]) return;
       r.got[id] = Date.now();
       queueToast(t("rec.unlocked", { name: t("ach." + id).split("|")[0] }));
     }
     return {
       data: r, ach: (id) => { ach(id); keep(); },
+      seen(id) {   // 演出鑑賞: the first time an 演出 plays, it joins the gallery
+        if (replaying || r.seen[id] || !EXHIBIT.some((x) => x[0] === id)) return;
+        r.seen[id] = Date.now(); keep();
+        queueToast(t("ex.new", { name: t("ex." + id).split("|")[0] }));
+      },
       hit(kind, streak, reach) {
         r.hits++; best("bestStreak", streak);
         ach("first");
@@ -233,6 +246,56 @@
       boss() { r.boss++; ach("boss"); if (r.boss >= 10) ach("boss10"); keep(); },
     };
   })();
+  // ---------------------------------------------------------------- 演出鑑賞
+  // Every 演出 seen in play is kept (rec.seen) and can be replayed on the machine from the menu:
+  // [id, the spin script that shows it]. A replay plays only on the LCD (no balls, no engine) and
+  // counts toward no record, achievement or mission.
+  const RX = (type, color, extra) => Object.assign({ type, color, push: false, revive: false }, extra || {});
+  const WIN = (f) => ({ hit: true, kind: "3R", final: [f, f, f] });
+  const EXHIBIT = [
+    ["reach", { final: [4, 5, 4], reach: RX("normal", "blue") }],
+    ["chanceUp", Object.assign(WIN(6), { reach: RX("normal", "gold"), extras: { from: "red" } })],
+    ["count", Object.assign(WIN(2), { reach: RX("normal", "red"), extras: { count: true } })],
+    ["slip", Object.assign(WIN(5), { reach: RX("normal", "red"), extras: { slip: true } })],
+    ["devTease", { final: [8, 2, 8], reach: RX("normal", "blue"), extras: { tease: "fail" } }],
+    ["sp", Object.assign(WIN(5), { reach: RX("sp", "red") })],
+    ["battleWin", Object.assign(WIN(7), { reach: RX("battle", "red", { push: true }) })],
+    ["battleLose", { final: [6, 7, 6], reach: RX("battle", "blue", { push: true }) }],
+    ["revive", Object.assign(WIN(1), { reach: RX("sp", "gold", { revive: true }) })],
+    ["spsp", Object.assign(WIN(9), { reach: RX("spsp", "rainbow", { push: true }) })],
+    ["stepup", { final: [1, 9, 4], stepup: 5 }],
+    ["gun", { final: [6, 2, 6], gun: true, reach: RX("normal", "red") }],
+    ["pseudo", { final: [5, 3, 7], pseudo: 3 }],
+    ["cutinGold", Object.assign(WIN(8), { cutin: "gold", reach: RX("normal", "gold") })],
+    ["serifGold", Object.assign(WIN(5), { serif: "gold", reach: RX("normal", "red") })],
+    ["holdRainbow", Object.assign(WIN(3), { holdColor: "gold", holdChangeTo: "rainbow", reach: RX("normal", "gold") })],
+    ["zone", Object.assign(WIN(2), { zoneLast: true, reach: RX("normal", "red") })],
+    ["kokuchi", Object.assign(WIN(3), { kokuchi: true, reach: RX("normal", "gold") })],
+    ["premium", Object.assign(WIN(3), { premium: true, reach: RX("normal", "blue") })],
+    ["pushLong", Object.assign(WIN(7), { longPush: true, reach: RX("battle", "gold", { push: true }) })],
+  ];
+  let exPlay = null;   // set at boot: (script) => plays it, or false when the machine is busy
+  function showGallery() {
+    const ul = $("exList"), seen = rec.data.seen;
+    ul.innerHTML = "";
+    $("exHead").textContent = t("ex.head", { n: EXHIBIT.filter((x) => seen[x[0]]).length, m: EXHIBIT.length });
+    EXHIBIT.forEach(([id, sc]) => {
+      const [name, how] = t("ex." + id).split("|"), got = !!seen[id];
+      const li = document.createElement("li");
+      li.className = got ? "got" : "";
+      li.innerHTML = "<div><b></b><small></small></div>";
+      li.querySelector("b").textContent = name;
+      li.querySelector("small").textContent = got ? how : t("ex.locked");
+      if (got) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "exPlay"; b.textContent = t("ex.play");
+        b.addEventListener("click", () => { if (exPlay && exPlay(sc) === false) toast(t("ex.busy")); });
+        li.appendChild(b);
+      }
+      ul.appendChild(li);
+    });
+  }
+
   // ---------------------------------------------------------------- 每日任務 + 等級
   // Three missions a day, the same three all day (picked from MISSIONS by the date), each paying
   // balls and 經驗. 經驗 also comes from every jackpot and 龍兵; levels bring titles. Kept with the
@@ -244,6 +307,7 @@
   const XP = { hit: 10, boss: 5 };
   const LV_TITLE_AT = [1, 3, 6, 10, 15];   // the level each title in lv.titles starts at
   const xpFor = (lv) => 100 * lv;          // 經驗 from level lv to lv + 1
+  const LOGIN = [200, 300, 400, 500, 600, 800, 1000];   // balls on day 1..7 in a row, then day 7's
   const mis = (function () {
     const r = rec.data;
     r.lv = Object.assign({ n: 1, xp: 0 }, r.lv);
@@ -282,8 +346,19 @@
         save(true);
       } else save(id === "fire" ? false : true);
     }
+    // 每日登入: the first visit of a day pays, more on each day in a row (a missed day starts over).
+    const loginPay = (d) => LOGIN[Math.min(d, LOGIN.length) - 1];
+    function login() {
+      const d = today(), L = r.login || {};
+      if (L.last === d) return null;
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const streak = L.last === y.toDateString() ? (L.streak || 0) + 1 : 1;
+      r.login = { last: d, streak };
+      save(true);
+      return { streak, n: loginPay(streak) };
+    }
     return {
-      pay: null,
+      pay: null, login, loginPay,
       add(id, n) { step(id, n || 1, false); },
       max(id, v) { step(id, v, true); },
       xp(kind) { gainXp(XP[kind] || 0); save(true); },
@@ -319,6 +394,8 @@
     $("msLevel").textContent = t("lv.level", { n: r.lv.n, title: mis.title() });
     $("msXp").style.width = Math.round((100 * r.lv.xp) / xpFor(r.lv.n)) + "%";
     $("msXpTxt").textContent = t("lv.xp", { a: r.lv.xp, b: xpFor(r.lv.n) });
+    const d = (r.login && r.login.streak) || 1;
+    $("msLogin").textContent = t("login.line", { d, n: fmt(mis.loginPay(d + 1)) });
     ul.innerHTML = "";
     day.ids.forEach((id) => {
       const m = MISSIONS.find((x) => x[0] === id), v = day.prog[id] || 0, li = document.createElement("li");
@@ -598,9 +675,31 @@
         else { modeLook(); kick(); }
       });
     }
+    // 演出鑑賞: a replay holds the spins back (spinning) and plays the script on the LCD only, in
+    // normal play; afterwards the machine carries on as before.
+    exPlay = (sc) => {
+      if (spinning || bonusFlow || mode !== "normal") return false;
+      closeSheets();
+      spinning = true; replaying = true;
+      const s = Object.assign({ id: Date.now(), mode: "normal", hit: false, kind: null, next: null, holdColor: "blue", holdChangeTo: null, pseudo: 0, stepup: 0,
+        gun: false, cutin: null, kokuchi: false, reach: null, fast: false, stAfter: null, serif: null, premium: false, longPush: false }, sc);
+      PK.LCD.playSpin(s, { speed: set.speed, autoPush: set.autoPush, onEvent: (n) => onLcdEvent(n, s) }).then(() => {
+        spinning = false; replaying = false;
+        pushPrompt(false);
+        modeLook(); kick();
+      });
+      return true;
+    };
     // LCD 演出 events -> lights, sound, captions.
     function onLcdEvent(n, sc) {
       const r = sc.reach || {};
+      const seenAs = { chanceUp: 1, count: 1, slip: 1, devTease: 1, battleWin: 1, battleLose: 1, revive: 1, gun: 1, zone: 1, kokuchi: 1, premium: 1, pushLong: 1 };
+      if (seenAs[n]) rec.seen(n);
+      else if (n === "reach" && (r.type === "normal" || r.type === "sp" || r.type === "spsp")) rec.seen(r.type === "normal" ? "reach" : r.type);
+      else if (n === "stepup:5") rec.seen("stepup");
+      else if (n.startsWith("pseudo:")) rec.seen("pseudo");
+      else if (n === "cutin" && sc.cutin === "gold") rec.seen("cutinGold");
+      else if (n === "serif:gold") rec.seen("serifGold");
       if (n === "spinStart") snd("spin");
       else if (n.startsWith("reelStop")) snd("stop");
       else if (n.startsWith("stepup:")) { snd("stepup"); caption("stepup"); if (+n.slice(7) >= 3) vo("stepup"); }
@@ -610,7 +709,7 @@
       else if (n === "holdChange") { snd("holdChange"); caption("holdChange"); }
       else if (n === "reach") {
         snd("reach");
-        mis.add("reach"); if (r.type !== "normal") mis.add("sp");
+        if (!replaying) { mis.add("reach"); if (r.type !== "normal") mis.add("sp"); }
         bgm(r.type === "battle" ? "battle" : "reach");
         lights(r.color === "rainbow" ? "rainbow" : r.color === "gold" || r.type === "spsp" ? "hot" : "reach");
         caption(r.type === "battle" ? "battle" : r.type === "spsp" ? "spsp" : "reach");
@@ -620,7 +719,7 @@
       else if (n === "pushLong") { snd("push"); pushPrompt(true); caption("pushLong"); vo("pushLong"); }
       else if (n.startsWith("serif:")) { snd(n === "serif:gold" || n === "serif:red" ? "holdChange" : "stepup"); caption("serif"); vo("serif_" + n.slice(6)); if (n === "serif:gold") lights("hot"); }
       else if (n === "premium") { snd("kokuchi"); lights("rainbow"); caption("premium"); vo("premium"); rec.ach("premium"); }
-      else if (n === "pushHit") { mis.add("push"); snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
+      else if (n === "pushHit") { if (!replaying) mis.add("push"); snd("pushHit"); pushPrompt(false); PK.Cabinet.flash("#ffffff"); }
       else if (n === "zen") { snd("kokuchi"); lights("rainbow"); caption("zen"); vo("zen"); }
       else if (n === "stLast") { snd("reach"); caption("stLast"); vo("stLast"); }
       else if (n === "zone") { snd("stepup"); lights("hot"); caption("zone"); vo("zone"); }
@@ -713,7 +812,7 @@
           const c = a[a.length - 1].color;
           if (c === "red") caption("holdHot");
           else if (c === "gold") caption("holdGold");
-          else if (c === "rainbow") { caption("holdRainbow"); rec.ach("rainbow"); vo("holdRainbow"); }
+          else if (c === "rainbow") { caption("holdRainbow"); rec.ach("rainbow"); rec.seen("holdRainbow"); vo("holdRainbow"); }
         }
         prevHolds[q] = a.length;
       });
@@ -839,6 +938,7 @@
     $("mGlossary").addEventListener("click", () => openSheet("glossary"));
     $("mTutorial").addEventListener("click", () => openTutorial());
     $("mRecords").addEventListener("click", () => { showRecords(); openSheet("records"); drawSlump(); });
+    $("mGallery").addEventListener("click", () => { showGallery(); openSheet("gallery"); });
     // the nav bar opens what the (shorter) menu used to
     document.querySelectorAll("#navBar [data-go]").forEach((b) => b.addEventListener("click", () => $(b.dataset.go).click()));
     // the data bar folds the full counter and the 大當履歷 away; the machine gets the room
@@ -849,6 +949,8 @@
     $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
     $("mLobby").addEventListener("click", () => { showLobby(); openSheet("lobby"); });
     mis.pay = (n) => { eng.refill(n); PK.Cabinet.flash("#ffd84a"); };
+    const lg = mis.login();
+    if (lg) { mis.pay(lg.n); queueToast(t("login.bonus", { d: lg.streak, n: fmt(lg.n) })); }
 
     function openRefill() {
       $("refillTitle").textContent = t(eng.state.chips < 1 ? "refill.title" : "refill.titleMenu");
@@ -873,7 +975,12 @@
       $("sSaver").setAttribute("aria-pressed", String(set.saver));
       $("sSaver").textContent = t(set.saver ? "set.on" : "set.off");
     }
-    const applySaver = () => { PK.LCD.setSaver(set.saver); PK.Cabinet.setSaver(set.saver); };
+    // 省電模式, or a phone that reports 4 GB or less (Android Chrome does; iPhones report nothing),
+    // also keeps the music lighter: it takes effect before the first sound, so a reload applies it.
+    const applySaver = () => {
+      PK.LCD.setSaver(set.saver); PK.Cabinet.setSaver(set.saver);
+      PK.Sound.setLowMemory(set.saver || (navigator.deviceMemory || 8) <= 4);
+    };
     $("sSaver").addEventListener("click", () => { set.saver = !set.saver; applySaver(); saveSettings(); showSaver(); snd("button"); });
     function showSettings() {
       $("sSound").setAttribute("aria-pressed", String(set.sound));
@@ -910,7 +1017,7 @@
       $("sHitHint").textContent = t("set.hitHint", { m: ODDS.hitMinutes[h] || "?" });
       $("sRushHint").textContent = t("set.rushHint", { k: (p / (1 - p)).toFixed(1) });
       $("sOddsApply").hidden = h === o.hitN && r === o.rushN;
-      $("sOddsDefault").hidden = !(set.hitN || set.rushN) || !$("sOddsApply").hidden;   // only when the odds are not the machine's own
+      $("sOddsDefault").hidden = !(myOdds().hitN || myOdds().rushN) || !$("sOddsApply").hidden;   // only when the odds are not the machine's own
     }
     [["sHit", ODDS.hit, "hitN", (n) => "1/" + n], ["sRush", ODDS.rush, "rushN", (n) => rushPct(n, odds().st) + "%"]].forEach(([id, list, key, label]) => {
       list.forEach((n) => {
@@ -922,13 +1029,13 @@
     });
     $("sOddsApply").addEventListener("click", () => {
       const o = odds();
-      set.hitN = pend.hitN || o.hitN; set.rushN = pend.rushN || o.rushN;
+      setMyOdds({ hitN: pend.hitN || o.hitN, rushN: pend.rushN || o.rushN });
       saveSettings(); save(true);
       location.reload();
     });
     // 恢復預設: the machine's own odds again, kept apart from 重新開始 (the user's choice)
     $("sOddsDefault").addEventListener("click", () => {
-      set.hitN = set.rushN = null;
+      setMyOdds(null);
       saveSettings(); save(true);
       location.reload();
     });
@@ -993,6 +1100,13 @@
     drawKnob(shown); showModes();
     requestAnimationFrame(loop);
     if (!set.tutorialSeen) openTutorial();
+    // 加到主畫面: once, on the visit after the tutorial, on the public site (it has the manifest)
+    // and not already opened from the home screen.
+    else if (!set.homeTip && document.querySelector("link[rel=manifest]") && !navigator.standalone &&
+      !(window.matchMedia && matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches)) {
+      set.homeTip = true; saveSettings();
+      openSheet("homeTip");
+    }
     else caption("start");
     $("menuVer").textContent = t("ui.version", { v: VERSION });
     const lastVer = +load(KEY_VER) || 0;

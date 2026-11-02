@@ -493,13 +493,14 @@
   const VID_FILES = { kokuchi: "vid_kokuchi.mp4", win: "vid_win.mp4", rush: "vid_rush.mp4", jackpot: "vid_jackpot.mp4",
     sp: "vid_sp.mp4", spsp: "vid_spsp.mp4", round: "vid_round.mp4", round2: "vid_round2.mp4", round3: "vid_round3.mp4",
     battle: "vid_battle.mp4", lose: "vid_lose.mp4", round4: "vid_round4.mp4", round5: "vid_round5.mp4", round6: "vid_round6.mp4",
-    awaken: "vid_awaken.mp4", jackpot2: "vid_jackpot2.mp4", jackpot3: "vid_jackpot3.mp4" };
+    awaken: "vid_awaken.mp4", jackpot2: "vid_jackpot2.mp4", jackpot3: "vid_jackpot3.mp4", cutin: "vid_cutin.mp4", dev: "vid_dev.mp4" };
   const ROUND_CLIPS = ["round", "round2", "round3", "round4", "round5", "round6"];
+  const CUTIN_CLIP = 1.1, DEV_CLIP = 1.0;   // seconds of vid_cutin (red/gold カットイン) and vid_dev (into 龍神リーチ)
   const VID = {};
   let vidLayer = null;
   // Clips first load only their headers; the rest follows one clip at a time, the most common 演出
   // first, so a phone does not fetch every clip at once on opening the page.
-  const VID_ORDER = ["kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "awaken", "jackpot2", "jackpot3", "round", "round2", "round3", "round4", "round5", "round6"];
+  const VID_ORDER = ["cutin", "dev", "kokuchi", "sp", "battle", "win", "lose", "spsp", "jackpot", "rush", "awaken", "jackpot2", "jackpot3", "round", "round2", "round3", "round4", "round5", "round6"];
   const VID_GAP = 2.5;   // seconds between preloads
   function loadVideos(base) {
     for (const k in VID_FILES) {
@@ -2490,6 +2491,7 @@
   let forceX = null;   // tests: _debug.forceExtras
   function reachExtras(S, r) {
     if (forceX) return Object.assign({}, forceX);
+    if (S.extras) return Object.assign({}, S.extras);   // a replay (演出鑑賞) names its extras
     const x = {}, h = S.hit;
     const cool = { red: "blue", gold: "red", rainbow: "gold" }[r.color];
     if (cool && rng() < (h ? 0.4 : 0.25)) x.from = cool;
@@ -2569,7 +2571,11 @@
     reels[0].glow = reels[2].glow = 0;
     layout("corner", 0.35);
     reelSpeed(reels[1], 12, 6);
-    if (r.type === "sp") await spSeq(S, r, ctxs);
+    if (r.type === "sp") {
+      const v = playClip("dev");   // a rush through a vortex of fire into the 龍神 stage
+      if (v) { await wait(DEV_CLIP); hideClip(v); flash(C.white, 0.9, 3); }
+      await spSeq(S, r, ctxs);
+    }
     else if (r.type === "battle") { await battleSeq(S, r, ctxs); return; }
     else await spspSeq(S, r, ctxs);
     if (r.push) await pushFinish(ctxs);
@@ -2964,7 +2970,12 @@
           if (S.kokuchi) { await wait(0.15); kokuchiFx(ctxs); await wait(1.3); }
           if (S.stepup > 0) await stepupFx(Math.min(5, S.stepup), ctxs);
           if (S.gun) { gunFx(ctxs); await wait(1.75); }
-          if (S.cutin) { cutinFx(S.cutin, ctxs); await wait(1.3); }
+          if (S.cutin) {
+            // red and gold: the hero turns to the camera (the clip) before the band slides in
+            const v = S.cutin !== "blue" ? playClip("cutin") : null;
+            if (v) { flash(C.white, 0.8, 4); await wait(CUTIN_CLIP); hideClip(v); }
+            cutinFx(S.cutin, ctxs); await wait(1.3);
+          }
           const minRun = rushy ? 0.45 : 1.25;
           if (clk.t - t0 < minRun) await wait(minRun - (clk.t - t0));
           for (let p = 0; p < Math.min(3, S.pseudo || 0); p++) await pseudoCycle(p + 2, ctxs);

@@ -179,6 +179,24 @@
     ctx.globalAlpha = a; ctx.drawImage(glowSpr(c), x - r, y - r, 2 * r, 2 * r);
   }
 
+  // A blurred copy of canvas `src` (sigma about `sig` device px), without shadowBlur or ctx.filter
+  // (Safari lacks the filter): shrink it, average 5 shifted copies across then down (additive, so a
+  // true box average), and scale it back up with smoothing.
+  function blurCanvas(src, sig) {
+    const f = Math.max(1, sig / 1.45), sw = Math.max(2, Math.round(src.width / f)), sh = Math.max(2, Math.round(src.height / f));
+    const a = mkCanvas(sw, sh), b = mkCanvas(sw, sh), ag = a.getContext("2d"), bg = b.getContext("2d");
+    ag.imageSmoothingQuality = "high"; ag.drawImage(src, 0, 0, sw, sh);
+    for (const [dx, dy, from, to] of [[1, 0, a, bg], [0, 1, b, ag]]) {
+      if (to === ag) ag.clearRect(0, 0, sw, sh);
+      to.globalCompositeOperation = "lighter"; to.globalAlpha = 0.2;
+      for (let i = -2; i <= 2; i++) to.drawImage(from, i * dx, i * dy);
+      to.globalCompositeOperation = "source-over"; to.globalAlpha = 1;
+    }
+    const out = mkCanvas(src.width, src.height), og = out.getContext("2d");
+    og.imageSmoothingQuality = "high"; og.drawImage(a, 0, 0, src.width, src.height);
+    return out;
+  }
+
   // ------------------------------------------------------------------ fancy (metallic) text
   // Draws text with glow, 3D extrusion, dark outline, metal rim, gradient face, bevel and gloss.
   // g must already have its transform set; K = device px per unit (for shadowBlur).
@@ -193,9 +211,15 @@
     const top = y - asc, bot = y + dsc;
     const lwO = fs * (o.outline || 0.11);
     if (o.glow) {
-      g.save(); g.shadowColor = o.glow; g.shadowBlur = fs * (o.glowBlur || 0.16) * PK.shadowK(K);
-      g.strokeStyle = o.glow; g.fillStyle = o.glow; g.lineWidth = lwO;
-      g.strokeText(text, x, y); g.strokeText(text, x, y); g.restore();
+      // The outline in the glow colour, blurred by hand and drawn twice under the text. Not shadowBlur:
+      // iPhone Safari draws a text's blurred shadow as a block filling the whole sprite (coloured
+      // rectangles behind the LCD digits, the user's screenshots 2026-11-02); shapes' shadows are fine.
+      const gc = mkCanvas(g.canvas.width, g.canvas.height), gg = gc.getContext("2d");
+      gg.setTransform(g.getTransform());
+      gg.font = g.font; gg.textAlign = g.textAlign; gg.textBaseline = "alphabetic"; gg.lineJoin = "round"; gg.miterLimit = 2;
+      gg.strokeStyle = o.glow; gg.lineWidth = lwO; gg.strokeText(text, x, y);
+      const bl = blurCanvas(gc, fs * (o.glowBlur || 0.16) * K / 2);
+      g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(bl, 0, 0); g.drawImage(bl, 0, 0); g.drawImage(gc, 0, 0); g.restore();
     }
     const dep = fs * (o.depth != null ? o.depth : 0.07);
     const steps = Math.ceil(dep);
@@ -350,7 +374,7 @@
       g.restore();
     }
     g.restore();
-    g.shadowColor = "rgba(255,120,0,0.9)"; g.shadowBlur = r * 0.35 * PK.shadowK(K);
+    g.shadowColor = "rgba(255,120,0,0.9)"; g.shadowBlur = r * 0.35 * K;
     g.fillStyle = "#1a0200"; g.beginPath(); g.arc(x, y, r * 1.08, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -412,7 +436,7 @@
     const c = mkCanvas(S * K, S * K), g = c.getContext("2d");
     g.scale(K, K);
     const x = S / 2, y = S / 2, r = 48;
-    g.shadowColor = "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * PK.shadowK(K);
+    g.shadowColor = "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
     g.fillStyle = "#200"; g.beginPath(); g.arc(x, y, r + 4, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -890,7 +914,7 @@
     const gold = variant === "gold";
     const rimA = gold ? "#fff0a0" : "#ffb04a", rimB = gold ? "#ffe680" : "#ff5a1a";
     const glow = gold ? "rgba(255,210,80,0.95)" : "rgba(255,90,20,0.9)";
-    g.save(); g.shadowColor = glow; g.shadowBlur = 18 * PK.shadowK(K); g.fillStyle = "#000"; g.fill(body); g.fill(body); g.restore();
+    g.save(); g.shadowColor = glow; g.shadowBlur = 18 * K; g.fillStyle = "#000"; g.fill(body); g.fill(body); g.restore();
     g.save(); g.translate(3.6, -2.2); g.fillStyle = rimA; g.fill(body); g.restore();
     g.save(); g.translate(-3, -1.6); g.fillStyle = rimB; g.globalAlpha = 0.8; g.fill(body); g.restore();
     const df = g.createLinearGradient(0, -260, 0, 0);
@@ -1468,7 +1492,7 @@
       const gr = g.createLinearGradient(0, 270, 0, H + 12);
       gr.addColorStop(0, "rgba(10,0,0,0)"); gr.addColorStop(1, "#080000"); g.fillStyle = gr; g.fillRect(-12, 270, W + 24, 70);
       // lava cracks
-      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 6 * PK.shadowK(K); g.strokeStyle = "rgba(255,150,40,0.9)"; g.lineWidth = 1.3;
+      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 6 * K; g.strokeStyle = "rgba(255,150,40,0.9)"; g.lineWidth = 1.3;
       for (let i = 0; i < 9; i++) {
         let x = rand(0, W), y = rand(286, 330);
         g.beginPath(); g.moveTo(x, y);
@@ -1483,7 +1507,7 @@
       rGrad(g, 292, 84, 170, [[0, "rgba(200,225,255,0.55)"], [0.3, "rgba(90,130,220,0.22)"], [1, "rgba(0,0,0,0)"]]);
       const mg = g.createRadialGradient(282, 74, 4, 292, 84, 46);
       mg.addColorStop(0, "#ffffff"); mg.addColorStop(0.6, "#dfeaff"); mg.addColorStop(1, "#8aa6d8");
-      g.save(); g.shadowColor = "rgba(180,210,255,0.9)"; g.shadowBlur = 24 * PK.shadowK(K);
+      g.save(); g.shadowColor = "rgba(180,210,255,0.9)"; g.shadowBlur = 24 * K;
       g.fillStyle = mg; g.beginPath(); g.arc(292, 84, 44, 0, TAU); g.fill(); g.restore();
       g.fillStyle = "rgba(120,140,190,0.35)";
       [[278, 70, 8], [304, 96, 11], [300, 66, 5], [270, 98, 6]].forEach((m) => { g.beginPath(); g.arc(m[0], m[1], m[2], 0, TAU); g.fill(); });
@@ -1505,7 +1529,7 @@
         g.beginPath(); g.moveTo(x - 3, 232 - h); g.lineTo(x + w / 2, 232 - h - rand(4, 12)); g.lineTo(x + w + 3, 232 - h); g.fill();
       }
       ridge(g, 246, 18, 0.03, 3.3, "#0a0101", "rgba(255,120,30,0.7)");
-      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 5 * PK.shadowK(K); g.strokeStyle = "rgba(255,140,40,0.85)"; g.lineWidth = 1.2;
+      g.save(); g.shadowColor = "rgba(255,90,0,1)"; g.shadowBlur = 5 * K; g.strokeStyle = "rgba(255,140,40,0.85)"; g.lineWidth = 1.2;
       for (let i = 0; i < 7; i++) {
         let x = rand(0, W), y = rand(262, 320); g.beginPath(); g.moveTo(x, y);
         for (let k = 0; k < 5; k++) { x += rand(-20, 20); y += rand(-4, 4); g.lineTo(x, y); }

@@ -1189,7 +1189,7 @@
       const s0 = SWIRL.inner + R() * span, drift = (R() * 2 - 1) * span * 0.3, wob = R() * TAU;
       const w = 0.6 + R() * R() * 5, al = 0.25 + R() * 0.65, n = 18, core = R() < 0.45;
       for (let pass = 0; pass < (core ? 2 : 1); pass++) {   // glow, then a bright thin core
-        x.shadowBlur = pass ? 0 : w * 1.6 * PK.shadowK(k);
+        x.shadowBlur = pass ? 0 : w * 1.6 * k;
         for (let j = 0; j < n; j++) {   // tapered: thick in the middle, thin at both ends
           const f0 = j / n, f1 = (j + 1) / n, taper = Math.sin(Math.PI * (f0 + 0.5 / n));
           const p0 = fpt(a0 + dir * len * f0, s0 + drift * f0 + 2.5 * Math.sin(wob + f0 * 7));
@@ -1202,7 +1202,7 @@
     }
     for (let i = 0; i < 90; i++) {   // flame tongues licking in over the board edge, curling outward
       const a = R() * 360, l = span * (0.4 + R() * 0.6), curl = (R() * 2 - 1) * 14, w = 1.5 + R() * 4;
-      x.shadowBlur = w * 3 * PK.shadowK(k);
+      x.shadowBlur = w * 3 * k;
       x.beginPath();
       for (let j = 0; j <= 12; j++) {
         const f = j / 12, p = fpt(a + curl * f * f, SWIRL.inner + 2 + l * f);

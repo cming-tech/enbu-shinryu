@@ -72,21 +72,4 @@
   };
 
   PK.L = L;
-
-  // shadowBlur is in device pixels and must ignore the canvas transform, so the modules write
-  // `units * K` (K = device px per unit). iPhone Safari scales it by the transform anyway, which made
-  // the glow K times too wide: past its sprite's edges, cut off into coloured blocks behind the LCD
-  // digits (the user's iPhone screenshot, 2026-11-02). Measured once: does a blur of 2 under a x8
-  // transform reach 4 px past a square? Then shadowK(K) is 1 there.
-  const SHADOW_SCALED = (function () {
-    try {
-      const c = document.createElement("canvas"); c.width = c.height = 64;
-      const g = c.getContext("2d");
-      g.scale(8, 8); g.shadowColor = "#000"; g.shadowBlur = 2; g.fillStyle = "#000";
-      g.fillRect(3.5, 3.5, 1, 1);   // device 28..36
-      return g.getImageData(40, 32, 1, 1).data[3] > 6;   // 4 px out: 0 unscaled, ~23 scaled (Chromium)
-    } catch (e) { return false; }
-  })();
-  PK.shadowK = (k) => (SHADOW_SCALED ? 1 : k);
-  PK.shadowScaled = SHADOW_SCALED;
 })();

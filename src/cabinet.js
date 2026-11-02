@@ -337,6 +337,15 @@
     const ring = (cx, cy, r) => { for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); if (okAt(x, y)) add(x, y, "D"); } };
     ANGEL_TRACES.forEach(run);
     ANGEL_NODES.forEach(([x, y, r]) => ring(x, y, r));
+    // 光環: pins on an ellipse 18 outside the round screen. Only where machine 1 had no lane (x 104-496),
+    // above the stage (y < 466), and 11 clear of every other pin: the balls' flights never cross it.
+    const B = BEZEL, hx = B.x + B.w / 2, hy = B.y + B.h / 2;
+    for (let k = 0; k < 64; k++) {
+      const a = (k / 64) * TAU, x = hx + (B.w / 2 + 14) * Math.cos(a), y = hy + (B.h / 2 + 14) * Math.sin(a);
+      if (x < 104 || x > 496 || y > 466 || y < 126) continue;
+      if (all.some((p) => Math.hypot(x - p.x, y - p.y) < 11)) continue;
+      add(x, y, "H");
+    }
     PINS.all = all;
   }
 
@@ -485,16 +494,14 @@
     }
     // LCD bezel: gold frame with flourishes (霓虹天使: a cut-corner neon frame).
     const B = BEZEL;
-    if (S.neon) {
-      const oct = (d, c) => { const x = B.x - d, y = B.y - d, w = B.w + 2 * d, h = B.h + 2 * d; return `M${x + c},${y} L${x + w - c},${y} L${x + w},${y + c} L${x + w},${y + h - c} L${x + w - c},${y + h} L${x + c},${y + h} L${x},${y + h - c} L${x},${y + c} Z`; };
-      s += `<path d="${oct(6, 46)}" fill="none" stroke="#000" stroke-opacity=".6" stroke-width="6"/>`;
-      s += `<path d="${oct(0, 42)}" fill="#05060f" stroke="#21e6ff" stroke-opacity=".3" stroke-width="12"/>`;
-      s += `<path d="${oct(0, 42)}" fill="none" stroke="#bfefff" stroke-width="3"/>`;
-      s += `<path d="${oct(-6, 38)}" fill="none" stroke="#ff4fd8" stroke-width="2"/>`;
-      // corner chevrons
-      [[B.x + 8, B.y + 8, 1, 1], [B.x + B.w - 8, B.y + 8, -1, 1], [B.x + 8, B.y + B.h - 8, 1, -1], [B.x + B.w - 8, B.y + B.h - 8, -1, -1]].forEach(([x, y, sx, sy]) => {
-        s += `<path d="M${x},${y + sy * 30} L${x},${y + sy * 10} L${x + sx * 10},${y} L${x + sx * 30},${y}" fill="none" stroke="#ff9ff0" stroke-width="2.4" stroke-linecap="round"/>`;
-      });
+    if (S.neon) {   // 光環舞台: the screen is an ellipse inside a halo of light
+      const cx = B.x + B.w / 2, cy = B.y + B.h / 2, rx = B.w / 2 - 4, ry = B.h / 2 - 4;
+      const el = (d, extra) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx + d}" ry="${ry + d}" ${extra}/>`;
+      s += el(10, `fill="none" stroke="#000" stroke-opacity=".55" stroke-width="8"`);
+      s += el(4, `fill="#05060f" stroke="#21e6ff" stroke-opacity=".28" stroke-width="16"`);
+      s += el(4, `fill="none" stroke="#dff6ff" stroke-width="3.2"`);
+      s += el(-1, `fill="none" stroke="#ff4fd8" stroke-width="2"`);
+      s += el(14, `fill="none" stroke="#ff9ff0" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="3 9"`);
     } else {
     s += `<rect x="${B.x - 5}" y="${B.y - 5}" width="${B.w + 10}" height="${B.h + 10}" rx="${B.r + 5}" fill="none" stroke="#000" stroke-opacity=".55" stroke-width="5"/>`;
     s += `<rect x="${B.x}" y="${B.y}" width="${B.w}" height="${B.h}" rx="${B.r}" fill="#07070c" stroke="url(#pkc-bGold)" stroke-width="7"/>`;
@@ -793,10 +800,13 @@
     L.gimmick.forEach((g, i) => {
       const cx = g.x + g.w / 2, cy = g.y + g.h / 2, rot = i ? 5 : -7;
       gim += `<g transform="translate(${cx},${cy}) rotate(${rot})">`;
-      if (S.neon) {   // 霓虹天使: a hexagonal glass panel with a neon rim
-        const hx = g.w / 2, hy = g.h / 2, hex = `M${-hx * 0.5},${-hy} L${hx * 0.5},${-hy} L${hx},0 L${hx * 0.5},${hy} L${-hx * 0.5},${hy} L${-hx},0 Z`;
-        gim += `<path d="${hex}" fill="#0a0c1c" fill-opacity=".86" stroke="#21e6ff" stroke-width="5" stroke-opacity=".35"/>`;
-        gim += `<path d="${hex}" fill="none" stroke="#ff4fd8" stroke-width="2"/>`;
+      if (S.neon) {   // 霓虹天使 (光環舞台): a wing panel; the two lean into a V over the start pocket
+        const sd = i ? -1 : 1, hx = g.w / 2, hy = g.h / 2;
+        gim = gim.replace(/rotate\([^)]*\)">$/, `rotate(${sd * 24})">`);
+        const wing = `M${-hx * sd},${hy * 0.2} L${hx * sd},${-hy} L${hx * 0.7 * sd},${hy * 0.2} L${hx * 0.2 * sd},${hy * 0.9} L${-hx * 0.6 * sd},${hy * 0.9} Z`;
+        gim += `<path d="${wing}" fill="#0a0c1c" fill-opacity=".86" stroke="#21e6ff" stroke-width="6" stroke-opacity=".3" stroke-linejoin="round"/>`;
+        gim += `<path d="${wing}" fill="none" stroke="#ff4fd8" stroke-width="2" stroke-linejoin="round"/>`;
+        for (let f = 0; f < 3; f++) gim += `<path d="M${-hx * 0.4 * sd},${hy * (0.62 - f * 0.28)} L${hx * (0.6 - f * 0.1) * sd},${-hy * (0.55 - f * 0.12)}" stroke="#bfefff" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/>`;
         const font = `font-family="'Dela Gothic One','Noto Sans TC','Arial Black',sans-serif" font-size="${g.h * 0.6}" text-anchor="middle" dominant-baseline="central"`;
         const ch = (S.gimmick && S.gimmick[i]) || g.ch;
         gim += `<text ${font} y="3" fill="none" stroke="#21e6ff" stroke-opacity=".45" stroke-width="7" stroke-linejoin="round">${ch}</text>`;

@@ -311,3 +311,4 @@
   #app[data-machine="angel"] #autoBtn[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); color: #fff; }
   #app[data-machine="angel"] .big.primary, #app[data-machine="angel"] .tog[aria-pressed="true"], #app[data-machine="angel"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); border-color: #ff9ff0; color: #fff; }
   #app[data-machine="angel"] #coins b, #app[data-machine="angel"] #dataBar b, #app[data-machine="angel"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(33, 230, 255, 0.55); }
+  #app[data-machine="angel"] #lcd { border-radius: 50% !important; }   /* 光環舞台: a round screen */

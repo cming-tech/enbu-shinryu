@@ -464,7 +464,12 @@
   function applyTheme(theme) {
     THEME = theme === "neon" ? "neon" : "fire";
     if (THEME !== "neon") return;
+    LAY.corner = [[118, 104, 0.27, 1], [148, 104, 0.27, 1], [178, 104, 0.27, 1]];
     FONT_DIGIT = '"Orbitron","Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
+    // 光環舞台: the screen is an ellipse (src/ui.css), so what sat in its corners moves inside it
+    HOLD_SLOT_X = (i) => 170 - i * 24; HOLD_Y = 286;
+    ped.y = 286;
+    FACE_BOX.x = 236; FACE_BOX.y = 226; FACE_BOX.w = 54; FACE_BOX.h = 64;
     FONT_BRUSH = '"Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
     const CHROME = [[0, "#ffffff"], [0.3, "#d8e2f4"], [0.55, "#5a6680"], [0.78, "#f2f6ff"], [1, "#3a4458"]];
     // odd digits neon pink, even neon cyan (7 stays gold): the 炎舞神龍 red and blue, in this machine's colours
@@ -1332,7 +1337,7 @@
   }
 
   // ------------------------------------------------------------------ holds (保留)
-  const HOLD_SLOT_X = (i) => 160 - i * 27, HOLD_Y = 300;
+  let HOLD_SLOT_X = (i) => 160 - i * 27, HOLD_Y = 300;
   let holdView = [];       // [{c, x, born}]
   let holdSrc = { holds: [], rush: [] };
   const ped = { c: null, a: 0, x: CX, y: 298, s: 1, t0: -9, chT0: -9 };
@@ -1828,7 +1833,8 @@
   const CSS_NEON = `
 .g-fire{--gr:linear-gradient(180deg,#ffffff 0%,#ffd6f6 22%,#ff6fe0 44%,#c0149e 64%,#6a0a8a 82%,#ff9ff0 100%);--bk:#2a0024;--bk2:#10000e;--gl:rgba(255,63,208,.9);--hl:#fff0fb;}
 .g-red{--gr:linear-gradient(180deg,#ffffff 0%,#ffc0f0 22%,#ff3fd0 46%,#8a0070 62%,#ff5fe0 82%,#ffd0f6 100%);--bk:#24001e;--bk2:#0e000c;--gl:rgba(255,40,200,.9);--hl:#ffe8fa;}
-.g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#c8f8ff 22%,#21e6ff 46%,#005a7a 62%,#3af0ff 82%,#d0fbff 100%);--bk:#001a24;--bk2:#000a10;--gl:rgba(33,230,255,.9);--hl:#e8fdff;}`;
+.g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#c8f8ff 22%,#21e6ff 46%,#005a7a 62%,#3af0ff 82%,#d0fbff 100%);--bk:#001a24;--bk2:#000a10;--gl:rgba(33,230,255,.9);--hl:#e8fdff;}
+.pkl-aim{left:262px;top:226px;background:linear-gradient(180deg,#ff5fe0,#8a0a70);border-color:#ffd0f6;box-shadow:0 0 12px rgba(255,63,208,.9);}`;
   function injectCss() {
     if (document.getElementById("pkl-css")) return;
     const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : "");
@@ -1899,15 +1905,16 @@
   function buildHud() {
     // RUSH / 時短 HUD
     const r = document.createElement("div"); r.className = "pkl-hud";
-    const st = document.createElement("div"); st.className = "pkl-box"; st.style.cssText = "left:14px;top:78px;width:74px;height:64px;";
+    const rnd = THEME === "neon";   // 霓虹天使's elliptical screen: the boxes sit further in
+    const st = document.createElement("div"); st.className = "pkl-box"; st.style.cssText = rnd ? "left:36px;top:96px;width:70px;height:60px;" : "left:14px;top:78px;width:74px;height:64px;";
     hud.stLbl = document.createElement("div"); hud.stLbl.className = "pkl-lbl"; hud.stLbl.textContent = T("lcd.stLeft");
     hud.stNum = mkText("11", "cyan", 38, FONT_DIGIT, true);
     st.appendChild(hud.stLbl); st.appendChild(hud.stNum);
-    const sk = document.createElement("div"); sk.className = "pkl-box"; sk.style.cssText = "left:290px;top:78px;width:74px;height:64px;";   // clear of the cabinet sub display
+    const sk = document.createElement("div"); sk.className = "pkl-box"; sk.style.cssText = rnd ? "left:286px;top:96px;width:70px;height:60px;" : "left:290px;top:78px;width:74px;height:64px;";   // clear of the cabinet sub display
     hud.skNum = mkText(T("lcd.streakN", { n: 1 }), "gold", 26, FONT_DIGIT, true);
     hud.skLbl = document.createElement("div"); hud.skLbl.className = "pkl-lbl"; hud.skLbl.textContent = T("lcd.streakLbl");
     sk.appendChild(hud.skLbl); sk.appendChild(hud.skNum);
-    const gn = document.createElement("div"); gn.style.cssText = "position:absolute;left:16px;top:252px;";
+    const gn = document.createElement("div"); gn.style.cssText = rnd ? "position:absolute;left:66px;top:238px;" : "position:absolute;left:16px;top:252px;";
     hud.rGain = mkText("TOTAL 0", "gold", 16, FONT_DIGIT, true);
     hud.rGain.style.display = "inline-block";
     gn.appendChild(hud.rGain);
@@ -1915,7 +1922,7 @@
     hud.rush = r; hud.stBox = st; hud.skBox = sk;
     // Bonus HUD
     const b = document.createElement("div"); b.className = "pkl-hud";
-    const top = document.createElement("div"); top.className = "pkl-gain"; top.style.top = "10px";
+    const top = document.createElement("div"); top.className = "pkl-gain"; top.style.top = rnd ? "34px" : "10px";
     hud.bRound = mkText("ROUND 1", "gold", 34, FONT_DIGIT, true); hud.bRound.style.display = "inline-block";
     hud.bOf = mkText("/10R", "silver", 20, FONT_DIGIT, true); hud.bOf.style.display = "inline-block"; hud.bOf.style.marginLeft = "4px";
     top.appendChild(hud.bRound); top.appendChild(hud.bOf);
@@ -2079,7 +2086,7 @@
   const face = { a: 0, mood: "calm", prev: null, mixT0: -9 };
   function faceMoodNow() {
     const id = scene.id;
-    if (id === "jackpot" || id === "result" || id === "bonus") return null;
+    if (id === "jackpot" || id === "result" || id === "bonus" || hudState.aimOn) return null;   // the 右打ち sign takes her corner
     if (id === "spsp" || id === "rush") return "od";
     if (id === "sp") return "wow";
     if (id === "battle") return "watch";
@@ -2160,7 +2167,7 @@
   }
   function drawDownload(ctx) {
     dl.v += (dl.target - dl.v) * 0.012;   // fills slowly through the round
-    const x = 120, y = H - 16, w = W - 200, h = 8;
+    const x = 112, y = H - 26, w = 168, h = 8;   // under the 獲得 count, inside the round screen
     ctx.save();
     ctx.fillStyle = "rgba(4,6,16,0.72)"; ctx.fillRect(x - 6, y - 15, w + 12, h + 19);
     ctx.strokeStyle = rgba(C.cyan, 0.8); ctx.lineWidth = 1.2; ctx.strokeRect(x, y, w, h);
@@ -2934,20 +2941,22 @@
     addActor("top", Infinity, (ctx) => {
       if (B.hpA <= 0.01) return;
       ctx.globalAlpha = B.hpA;
+      const oy = THEME === "neon" ? 40 : 0;   // inside 霓虹天使's elliptical screen
       const bar = (x, w, v, c1, c2, label, right) => {
-        ctx.fillStyle = "rgba(0,0,0,0.75)"; roundRect(ctx, x - 2, 14, w + 4, 16, 5); ctx.fill();
-        const gr = ctx.createLinearGradient(0, 16, 0, 28); gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+        ctx.fillStyle = "rgba(0,0,0,0.75)"; roundRect(ctx, x - 2, 14 + oy, w + 4, 16, 5); ctx.fill();
+        const gr = ctx.createLinearGradient(0, 16 + oy, 0, 28 + oy); gr.addColorStop(0, c1); gr.addColorStop(1, c2);
         ctx.fillStyle = gr; const vw = w * clamp(v, 0, 1);
-        roundRect(ctx, right ? x + w - vw : x, 16, Math.max(2, vw), 12, 4); ctx.fill();
-        ctx.strokeStyle = "#ffe08a"; ctx.lineWidth = 1.2; roundRect(ctx, x - 2, 14, w + 4, 16, 5); ctx.stroke();
+        roundRect(ctx, right ? x + w - vw : x, 16 + oy, Math.max(2, vw), 12, 4); ctx.fill();
+        ctx.strokeStyle = "#ffe08a"; ctx.lineWidth = 1.2; roundRect(ctx, x - 2, 14 + oy, w + 4, 16, 5); ctx.stroke();
         // names sit at the inner (VS) ends, clear of the small corner digits at the top left
         ctx.font = "11px " + FONT_TC; ctx.textAlign = right ? "left" : "right"; ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.fillStyle = "#fff";
-        ctx.strokeText(label, right ? x : x + w, 44); ctx.fillText(label, right ? x : x + w, 44);
+        ctx.strokeText(label, right ? x : x + w, 44 + oy); ctx.fillText(label, right ? x : x + w, 44 + oy);
       };
-      bar(40, 128, B.hp1, "#9affb0", "#10a040", T("lcd.hero"), false);
-      bar(224, 128, B.hp2, "#ffb08a", "#c01000", T("lcd.rival"), true);
+      const bw = oy ? 104 : 128;
+      bar(oy ? 66 : 40, bw, B.hp1, "#9affb0", "#10a040", T("lcd.hero"), false);
+      bar(oy ? 222 : 224, bw, B.hp2, "#ffb08a", "#c01000", T("lcd.rival"), true);
       ctx.font = "16px " + FONT_DIGIT; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.fillStyle = "#ffd24a";
-      ctx.strokeText("VS", CX, 29); ctx.fillText("VS", CX, 29);
+      ctx.strokeText("VS", CX, 29 + oy); ctx.fillText("VS", CX, 29 + oy);
     }, { seq: true });
     addActor("top", Infinity, (ctx) => drawPops(ctx, B.pops), { seq: true });
     const pop = (v, x, y, size, col) => { B.pops.push({ v, x, y, t: clk.t, size, col }); if (B.pops.length > 16) B.pops.shift(); };
@@ -3516,7 +3525,7 @@
     if (k < 0.14) { ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.white, bx, by - 20, 90, 0.8 * (1 - k / 0.14)); }
     ctx.restore();
     // life bar
-    const x0 = W - 164, y0 = 70, bw = 150, f = boss.hp / boss.max;   // below the ROUND header
+    const x0 = THEME === "neon" ? W - 194 : W - 164, y0 = THEME === "neon" ? 84 : 70, bw = 150, f = boss.hp / boss.max;   // below the ROUND header
     ctx.save();
     ctx.globalAlpha = al;
     ctx.fillStyle = "rgba(0,0,0,0.65)"; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.fill();

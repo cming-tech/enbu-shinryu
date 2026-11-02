@@ -182,7 +182,7 @@
     "lobby.title": "選擇機台",
     "lobby.playing": "遊玩中",
     "lobby.play": "切換",
-    "lobby.soon": "第 2 台　製作中",
+    "lobby.soon": "更多機台　製作中",
     "lobby.soonBody": "不同風格、不同玩法，敬請期待",
     "lobby.note": "每台機台的珠子、存檔和紀錄分開保存，切換不會不見。",
     "ms.title": "每日任務・等級",

@@ -8,6 +8,9 @@
   "use strict";
   const PK = (window.PK = window.PK || {});
   PK.MACHINES = PK.MACHINES || {};
+  // The version the player sees (menu, and a toast after an update): the Artifact version this is
+  // published as. Bump it on every publish; both machines' pages and the public site read it here.
+  PK.VERSION = 51;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -52,5 +55,18 @@
       rush: [20, 16, 12, 9, 5.5],                                    // per RUSH spin (ST 8)
     },
     engine: { spec: { normalChance: 1 / 99.9, rushChance: 1 / 16, st: 8, hesoKinds: { "3R": 0.9, "10R": 0.1 } }, units: { hesoRate: 1 / 7 } },
+  };
+
+  // Machine 2, a 羽根物 with real ball physics (src/hane/hane.js) instead of 炎舞神龍's engine and
+  // LCD, so it has its own page (`page`) and shell (src/hane/hane_shell.js); the lobby switches
+  // pages. Design in dev/MACHINE2.md.
+  PK.MACHINES.neon = {
+    id: "neon",
+    name: "霓虹天使",
+    page: "hane.html",
+    assetsBase: "assets/",
+    refill: 10000,
+    card: "hane/topper.jpg",
+    tagline: "機器人少女的羽根物：手臂接珠、碰上 V 窗就大當",
   };
 })();

@@ -9,12 +9,12 @@
 
   // The machine being played: the one picked in the lobby (選擇機台), else the first one.
   const KEY_MACHINE = "pk.machine";
-  const M = PK.MACHINES[(function () { try { return localStorage.getItem(KEY_MACHINE); } catch (e) { return null; } })()] || PK.MACHINES.enbu;
+  const picked = PK.MACHINES[(function () { try { return localStorage.getItem(KEY_MACHINE); } catch (e) { return null; } })()];
+  if (picked && picked.page) { location.replace(picked.page); return; }   // a machine with a page of its own (霓虹天使)
+  const M = picked || PK.MACHINES.enbu;
   Object.assign(PK.TEXT, M.text);
 
-  // The version the player sees (menu, and a toast after an update): the Artifact version this is
-  // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 50;
+  const VERSION = PK.VERSION;   // in src/machines.js
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -405,7 +405,7 @@
     Object.keys(PK.MACHINES).forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
       card(m.card ? m.assetsBase + m.card : null, m.name, m.tagline || "", on ? t("lobby.playing") : t("lobby.play"), on,
-        on ? null : () => { store(KEY_MACHINE, id); location.reload(); });
+        on ? null : () => { store(KEY_MACHINE, id); if (m.page) location.href = m.page; else location.reload(); });
     });
     card(null, t("lobby.soon"), t("lobby.soonBody"), "", false, null).classList.add("soon");
   }

@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05070f">
+<title>霓虹天使</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Noto+Serif+TC:wght@700;900&family=Orbitron:wght@900&family=Dela+Gothic+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/ui.css">
+<style>
+  /* 霓虹天使 (machine 2): the shared shell (src/ui.css) in neon colours, and the cabinet around the
+     field canvas. The shell's logic is src/hane/hane_shell.js. */
+  :root { --gold: #ff6fe0; --ice: #21e6ff; --led-ui: #21e6ff; --mag: #ff3fd0; --cyan: #21e6ff; --ground: #04060d; --metal: #10142a; --metal-2: #171d38; --line: #2b3458; }
+  .crest { background: radial-gradient(circle at 35% 30%, #ffffff, #ffb3ee 40%, #ff3fd0 75%, #5a0a48); box-shadow: 0 0 0 2px #4a0a3a, 0 0 14px rgba(255, 63, 208, 0.6); color: #3a0030; font-family: "Orbitron", var(--f-body); font-size: 15px; }
+  #brand b { background: linear-gradient(180deg, #ffffff 0%, #ffb3ee 45%, #ff3fd0 100%); -webkit-background-clip: text; background-clip: text; }
+  #coins b { color: var(--cyan); }
+  .big.primary, .tog[aria-pressed="true"], .seg2 button[aria-pressed="true"], .exPlay, #recAch li.got > i, #msList li.got > i { background: linear-gradient(#ff8fe8, #c0249e); border-color: #ff9ff0; color: #fff; }
+  .bar u { background: linear-gradient(90deg, #21e6ff, #ff3fd0); }
+  .card { border-top-color: var(--gold); }
+  .card h2 { background-image: linear-gradient(90deg, var(--gold), rgba(255, 111, 224, 0)); }
+  #dataBar b { color: var(--cyan); }
+  #app { --amb: rgba(33, 160, 255, 0.3); }
+  #stageWrap { display: flex; align-items: center; justify-content: center; }
+  #hpow { flex: 1; min-width: 0; max-width: 260px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); font-weight: 700; }
+  #hpow input { flex: 1; min-width: 0; width: auto; accent-color: var(--cyan); }
+  #powV { width: 2em; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+  #best { flex: none; border: 1px solid var(--line); background: var(--metal); color: var(--ink); border-radius: 999px; padding: 5px 12px; font: 700 12px/1 var(--f-body); }
+  .tutArt { object-fit: cover; }
+
+  /* the cabinet: a topper with her picture and the logo, a gunmetal frame whose LEDs follow the state
+     (blue normal, pink on a chance, gold in a bonus or on a golden ball, cycling colours in OVERDRIVE) */
+  /* Sizes follow --w, the field's width in px (set by fit()). Everything that moves animates transform
+     or opacity only, so the cabinet costs the phone almost nothing per frame. */
+  #cab { --w: 330px; --pad: calc(var(--w) * 0.045); --led: rgba(33, 230, 255, 0.8); --speed: 1.6s;
+    position: relative; display: flex; flex-direction: column; align-items: center; }
+  #cab[data-s="chance"] { --led: rgba(255, 63, 208, 0.95); --speed: 0.8s; }
+  #cab[data-s="gold"], #cab[data-s="bonus"] { --led: rgba(255, 211, 77, 0.95); --speed: 0.6s; }
+  #cab[data-s="od"] { --led: rgba(255, 211, 77, 0.95); --speed: 0.35s; }
+
+  /* ---- the head: her picture in a panel, the halo above, the wing sculptures either side */
+  .head { position: relative; width: calc(var(--w) + var(--pad) * 2); height: calc(var(--w) * 0.4); margin-top: calc(var(--w) * 0.13); z-index: 3; }
+  .topper { position: absolute; left: 17%; right: 17%; top: 14%; bottom: 0; overflow: hidden; border-radius: 40% 40% 10px 10px / 30% 30% 10px 10px;
+    background: #0a0f22 url("assets/hane/topper.jpg") center 26% / cover;
+    box-shadow: 0 0 0 2px #c9d3ea, 0 0 0 4px var(--led), 0 0 18px var(--led); transition: box-shadow 0.4s; }
+  .topper::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4, 6, 13, 0) 52%, rgba(4, 6, 13, 0.92)); }
+  .halo { position: absolute; left: 34%; right: 34%; top: 0; height: 15%; border-radius: 50%; border: 3px solid var(--led);
+    box-shadow: 0 0 12px var(--led), inset 0 0 8px var(--led); transition: border-color 0.4s, box-shadow 0.4s; animation: halo 3s ease-in-out infinite; }
+  @keyframes halo { 50% { transform: translateY(-3px); opacity: 0.75; } }
+  .wing { position: absolute; top: -34%; pointer-events: none; z-index: -1;
+    filter: drop-shadow(0 0 6px rgba(255, 63, 208, 0.45)); }
+  .wing.l { right: 64%; }
+  .wing.r { left: 64%; transform: scaleX(-1); }
+  /* the logo in chrome letters (gradient clipped to the text), pink glow */
+  .logo { position: absolute; left: 0; right: 0; bottom: 5%; z-index: 1; margin: 0; text-align: center;
+    font: 900 calc(var(--w) * 0.075)/1 "Orbitron", var(--f-body); letter-spacing: 0.1em;
+    background: linear-gradient(180deg, #ffffff 0%, #dfe6f5 38%, #6d7894 52%, #f4f7ff 70%, #9aa6c2 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 4px var(--mag)) drop-shadow(0 1px 1px #000); }
+  .logo small { display: block; margin-top: 3px; font: 800 calc(var(--w) * 0.036)/1.2 var(--f-body); letter-spacing: 0.6em; color: var(--cyan);
+    -webkit-text-fill-color: var(--cyan); filter: drop-shadow(0 0 4px var(--cyan)); }
+
+  /* ---- the frame: carbon fibre, screws, running LEDs down both sides, light pulses along the traces */
+  .frame { position: relative; margin-top: calc(var(--w) * -0.01); padding: var(--pad); border-radius: 10px 10px 22px 22px;
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.06) 60%, rgba(0, 0, 0, 0.3)),
+      repeating-linear-gradient(45deg, #1d2234 0 3px, #12161f 3px 6px),
+      #161a26;
+    box-shadow: 0 0 0 2px #59627c, 0 0 0 4px var(--led), 0 0 16px var(--led), inset 0 0 10px #000; transition: box-shadow 0.4s; }
+  .frame #hfield { display: block; position: relative; z-index: 1; width: auto; height: auto; border-radius: 3px 3px 14px 14px; box-shadow: 0 0 0 2px #0a0d16; }
+  .screw { position: absolute; width: calc(var(--pad) * 0.62); height: calc(var(--pad) * 0.62); border-radius: 50%; z-index: 2;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #9aa4bd 40%, #3b4258 75%); box-shadow: 0 1px 2px #000; }
+  .screw::after { content: ""; position: absolute; left: 20%; right: 20%; top: 45%; height: 10%; background: #2a3044; transform: rotate(35deg); }
+  .screw.tl { left: 19%; top: 19%; } .screw.tr { right: 19%; top: 19%; } .screw.bl { left: 19%; bottom: 19%; } .screw.br { right: 19%; bottom: 19%; }
+  .frame .screw.tl, .frame .screw.tr { top: calc(var(--pad) * 0.2); } .frame .screw.bl, .frame .screw.br { bottom: calc(var(--pad) * 0.2); }
+  .frame .screw.tl, .frame .screw.bl { left: calc(var(--pad) * 0.2); } .frame .screw.tr, .frame .screw.br { right: calc(var(--pad) * 0.2); }
+  /* LEDs: a light bar down each side with a bright band running up it (no dots: the user felt
+     trypophobia at rows of them); faster on a chance / bonus / OVERDRIVE */
+  .leds { position: absolute; top: calc(var(--pad) * 1.4); bottom: calc(var(--pad) * 1.4); width: calc(var(--pad) * 0.32); z-index: 0; overflow: hidden;
+    border-radius: 99px; background: var(--led); opacity: 0.55; box-shadow: 0 0 8px var(--led); transition: background 0.4s; }
+  .leds.l { left: calc(var(--pad) * 0.34); } .leds.r { right: calc(var(--pad) * 0.34); }
+  .leds i { position: absolute; left: 0; right: 0; top: 0; height: 30%; background: linear-gradient(180deg, transparent, #fff, transparent);
+    animation: rise calc(var(--speed) * 1.8) linear infinite; }
+  .leds i + i { animation-delay: calc(var(--speed) * -0.9); }
+  @keyframes rise { from { transform: translateY(340%); } to { transform: translateY(-100%); } }
+  /* light pulses running along the bottom trace and up the sides */
+  .trace { position: absolute; z-index: 0; overflow: hidden; pointer-events: none; }
+  .trace.b { left: calc(var(--pad) * 2); right: calc(var(--pad) * 2); bottom: calc(var(--pad) * 0.38); height: 2px; background: rgba(33, 230, 255, 0.18); }
+  .trace.b::after { content: ""; position: absolute; top: -1px; left: 0; width: 22%; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--led), #fff, var(--led), transparent); animation: run calc(var(--speed) * 2.2) linear infinite; }
+  @keyframes run { from { transform: translateX(-100%); } to { transform: translateX(460%); } }
+  /* OVERDRIVE: rings of pink and cyan light over the gold LEDs, fading in turn. Opacity only, so the
+     compositor does it: animating hue-rotate or the colours cost ~6 fps at 4x throttle. */
+  .frame::before, .frame::after, .topper::before { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 3px solid #ff3fd0;
+    box-shadow: 0 0 18px #ff3fd0; opacity: 0; pointer-events: none; z-index: 2; }
+  .frame::after { border-color: #21e6ff; box-shadow: 0 0 18px #21e6ff; }
+  #cab[data-s="od"] .frame::before, #cab[data-s="od"] .topper::before { animation: od 1.2s ease-in-out infinite; }
+  #cab[data-s="od"] .frame::after { animation: od 1.2s ease-in-out -0.6s infinite; }
+  @keyframes od { 50% { opacity: 1; } }
+
+  /* ---- the console: speaker, ball tray, HACK button, PLAY knob, speaker */
+  .console { position: relative; width: calc(var(--w) + var(--pad) * 2); height: calc(var(--w) * 0.27); margin-top: 6px; border-radius: 16px 16px 20px 20px;
+    display: grid; grid-template-columns: 0.55fr 1.25fr 1fr 1fr 0.55fr; align-items: center; justify-items: center; padding: 0 6px; box-sizing: border-box;
+    background: linear-gradient(180deg, #3b4560, #1a1f2f 45%, #0e121c); box-shadow: 0 0 0 2px #59627c, 0 0 0 4px var(--led), 0 0 12px var(--led), inset 0 2px 0 rgba(255, 255, 255, 0.15);
+    transition: box-shadow 0.4s; }
+  .spk { position: relative; width: calc(var(--w) * 0.12); aspect-ratio: 1; border-radius: 50%;
+    background: repeating-radial-gradient(circle, #10141f 0 2px, #3a4258 2px 4px);
+    box-shadow: 0 0 0 2px #8e98b2, 0 0 0 3px #11151f, inset 0 0 6px #000; }
+  .spk::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--led); opacity: 0.25;
+    animation: beat var(--beat, 0.6s) ease-out infinite; }
+  @keyframes beat { 0% { opacity: 0.9; transform: scale(1.06); } 60%, 100% { opacity: 0.2; transform: scale(1); } }
+  .tray { width: 92%; height: 64%; border-radius: 10px; display: grid; place-content: center; text-align: center;
+    background: linear-gradient(180deg, #05070d, #10162a); box-shadow: inset 0 0 0 1px #2b3554, inset 0 0 10px #000, 0 1px 0 rgba(255, 255, 255, 0.12); }
+  .tray small { font-size: calc(var(--w) * 0.03); color: var(--dim); letter-spacing: 0.2em; }
+  .tray b { font: 900 calc(var(--w) * 0.058)/1.1 "Orbitron", var(--f-body); color: var(--cyan); text-shadow: 0 0 8px rgba(33, 230, 255, 0.7); font-variant-numeric: tabular-nums; }
+  #hack, #play { width: calc(var(--w) * 0.19); aspect-ratio: 1; border-radius: 50%; padding: 0; cursor: pointer; font: 900 calc(var(--w) * 0.042)/1 "Orbitron", var(--f-body); letter-spacing: 0.04em; }
+  #hack { color: #fff; border: 0; background: radial-gradient(circle at 40% 32%, #ffb3ee, #ff3fd0 38%, #8a0a6e 80%);
+    box-shadow: 0 0 0 3px #c9d3ea, 0 0 0 5px #3b4258, 0 4px 8px #000, inset 0 -4px 8px rgba(0, 0, 0, 0.4); text-shadow: 0 1px 2px #4a0038; }
+  #hack[data-lit="1"] { animation: lit 0.5s ease-in-out infinite alternate; }
+  @keyframes lit { to { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #ff3fd0, 0 0 22px 6px #ff3fd0, inset 0 -4px 8px rgba(0, 0, 0, 0.3); } }
+  #hack:active { transform: translateY(2px) scale(0.97); }
+  #play { color: #0b1022; border: 0; background: radial-gradient(circle at 40% 32%, #ffffff, #cfd8ea 40%, #6c7690 85%);
+    box-shadow: 0 0 0 3px #3b4258, 0 0 0 6px var(--led), 0 4px 8px #000; }
+  #play[aria-pressed="true"] { color: #fff; background: radial-gradient(circle at 40% 32%, #b3f6ff, #21b6d6 40%, #0a4a66 85%); }
+  #hack:focus-visible, #play:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    .halo, .leds i, .trace.b::after, .spk::after, #hack[data-lit="1"] { animation: none; }
+  }
+
+  /* the cut-in: a slanted band with her picture slides across the lower field */
+  #cut { position: absolute; inset: var(--pad); z-index: 2; overflow: hidden; pointer-events: none; border-radius: 3px 3px 14px 14px; }
+  #cut .band { --cc: #ff3fd0; position: absolute; left: -8%; right: -8%; top: 60%; height: 22%; opacity: 0;
+    background: #000 url("assets/hane/cutin.jpg") center 30% / cover;
+    border-block: 3px solid var(--cc); box-shadow: 0 0 20px var(--cc); transform: translateX(120%) skewX(-12deg); }
+  #cut .band b { position: absolute; right: 12%; bottom: 8%; color: #fff; font: 900 clamp(18px, 7vw, 32px)/1 "Orbitron", var(--f-body);
+    letter-spacing: 0.05em; text-shadow: 0 0 8px var(--cc), 0 0 2px #000, 0 2px 4px #000; transform: skewX(12deg); }
+  #cut.go .band { animation: cut 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  @keyframes cut {
+    0% { opacity: 1; transform: translateX(120%) skewX(-12deg); }
+    18% { transform: translateX(0) skewX(-12deg); }
+    80% { opacity: 1; transform: translateX(-4%) skewX(-12deg); }
+    100% { opacity: 1; transform: translateX(-130%) skewX(-12deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #cab[data-s="od"] .frame::before, #cab[data-s="od"] .frame::after, #cab[data-s="od"] .topper::before { animation: none; opacity: 0.6; }
+    #cut.go .band { animation: cutFade 1.5s forwards; }
+    @keyframes cutFade { 0%, 80% { opacity: 1; transform: skewX(-12deg); } 100% { opacity: 0; transform: skewX(-12deg); } }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button class="iconBtn" id="menuBtn" type="button" aria-label="選單"><i class="burger"></i></button>
+    <div id="brand"><span class="crest">N</span><b>霓虹天使</b></div>
+    <div id="coins"><span>珠子</span><b id="coinsVal">0</b></div>
+  </header>
+  <div id="dataBar">
+    <span>今日大當</span><b id="dbToday">0</b><i aria-hidden="true">·</i>
+    <span>總大當</span><b id="dbHits">0</b><i aria-hidden="true">·</i>
+    <span>最多連</span><b id="dbBest">0</b><span>回合</span>
+  </div>
+  <main id="stageWrap">
+    <div id="cab" data-s="normal">
+      <div class="head">
+        <canvas class="wing l" aria-hidden="true"></canvas>
+        <canvas class="wing r" aria-hidden="true"></canvas>
+        <div class="halo"></div>
+        <div class="topper" id="topper"><p class="logo">NEON ANGEL<small>霓虹天使</small></p></div>
+      </div>
+      <div class="frame">
+        <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+        <div class="leds l"><i></i><i></i></div><div class="leds r"><i></i><i></i></div>
+        <div class="trace b"></div>
+        <canvas id="hfield" aria-label="霓虹天使的機台：珠子落下，機械手臂接珠進中間機關，碰上 V 窗就中大當"></canvas>
+        <div id="cut" aria-hidden="true"><div class="band"><b id="cutT">CHANCE!!</b></div></div>
+      </div>
+      <div class="console">
+        <div class="spk" aria-hidden="true"></div>
+        <div class="tray"><small>珠子</small><b id="trayN">0</b></div>
+        <button id="hack" type="button" aria-label="HACK 按鈕：發光時按下">HACK</button>
+        <button id="play" type="button" aria-pressed="false">PLAY</button>
+        <div class="spk" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div id="caption" role="status" aria-live="polite"><b>提示</b><span></span></div>
+  </main>
+  <div id="modeBar">
+    <div id="hpow"><label for="power">力道</label><input id="power" type="range" min="0" max="1" step="0.01"><span id="powV">45</span></div>
+    <button id="best" type="button">最佳</button>
+    <button id="mSound" type="button" aria-pressed="true" aria-label="關閉聲音"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg></button>
+  </div>
+  <nav id="navBar">
+    <button type="button" data-go="mMissions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l2 2 3-3M11 7h9M4 13l2 2 3-3M11 14h9M5 20h15"/></svg><span>任務</span></button>
+    <button type="button" data-go="mRecords"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 20v-7M11 20V5M16 20v-10"/></svg><span>紀錄</span></button>
+    <button type="button" data-go="mRefill" class="gold"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>補珠</span></button>
+    <button type="button" data-go="mGlossary"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6M12 17v.4"/></svg><span>說明</span></button>
+    <button type="button" data-go="mSettings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg><span>設定</span></button>
+  </nav>
+</div>
+
+<div class="sheet" id="menu" hidden><div class="card">
+  <h2>選單</h2>
+  <div class="list">
+    <button class="big primary" id="mRefill" type="button" hidden>免費補充珠子</button>
+    <button class="big" id="mLobby" type="button">選擇機台</button>
+    <button class="big" id="mMissions" type="button" hidden>每日任務・等級</button>
+    <button class="big" id="mRecords" type="button" hidden>我的紀錄</button>
+    <button class="big" id="mSettings" type="button" hidden>設定</button>
+    <button class="big" id="mGlossary" type="button">名詞說明</button>
+    <button class="big" id="mTutorial" type="button">新手教學</button>
+    <button class="big" data-close type="button">關閉</button>
+  </div>
+  <p class="ver" id="menuVer"></p>
+</div></div>
+
+<div class="sheet" id="settings" hidden><div class="card">
+  <h2>設定</h2>
+  <div class="setRow"><div>音效與音樂</div><button class="tog" id="sSound" type="button"></button></div>
+  <div class="setRow"><div>音量</div><input type="range" id="sVolume" min="0" max="1" step="0.05"></div>
+  <div class="setRow"><div><span>日文配音</span><small>她的日文語音</small></div><button class="tog" id="sVoice" type="button"></button></div>
+  <div class="setRow"><div><span>提示字幕</span><small>第一次遇到時，告訴你現在發生什麼事</small></div><button class="tog" id="sCaptions" type="button"></button></div>
+  <h3>畫面</h3>
+  <div class="setRow col"><div><span>玩的時候螢幕保持開啟</span><small>最後一次碰螢幕後，保持亮著多久；之後照手機自己的設定關螢幕，避免整晚亮著</small></div><div class="seg" id="sWake">
+    <button type="button" data-min="0">關</button><button type="button" data-min="5">5 分</button><button type="button" data-min="15">15 分</button><button type="button" data-min="30">30 分</button><button type="button" data-min="60">60 分</button>
+  </div></div>
+  <div class="setRow"><div><span>玩太久提醒</span><small>每連續玩 1 小時提醒休息一下</small></div><button class="tog" id="sRemind" type="button"></button></div>
+  <div class="list" style="margin-top:14px">
+    <div id="resetBox"><button class="big danger" id="sReset" type="button">重新開始（珠子從頭來）</button></div>
+    <div id="resetAsk" hidden>
+      <p id="resetQ"></p>
+      <div class="tutBtns"><button class="big" id="sResetNo" type="button">取消</button><button class="big danger" id="sResetYes" type="button">重新開始</button></div>
+    </div>
+    <button class="big" data-close type="button">關閉</button>
+  </div>
+</div></div>
+
+<div class="sheet" id="lobby" hidden><div class="card">
+  <h2>選擇機台</h2>
+  <ul id="lobbyList"></ul>
+  <p class="note">每台機台的珠子、存檔和紀錄分開保存，切換不會不見。</p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button">關閉</button></div>
+</div></div>
+
+<div class="sheet" id="missions" hidden><div class="card">
+  <h2>每日任務・等級</h2>
+  <p class="lvl"><b id="msLevel"></b><span class="bar"><u id="msXp"></u></span><small id="msXpTxt"></small></p>
+  <p class="note" id="msLogin"></p>
+  <h3>今天的任務</h3>
+  <ul id="msList"></ul>
+  <p class="note">每天換 3 個新任務，完成就送珠子和經驗。中大當也有經驗。等級和稱號按「重新開始」也不會清除。</p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button">關閉</button></div>
+</div></div>
+
+<div class="sheet" id="records" hidden><div class="card">
+  <h2>我的紀錄</h2>
+  <dl id="recStats"></dl>
+  <h3 id="recAchHead"></h3>
+  <ul id="recAch"></ul>
+  <p class="note">紀錄會一直保留，按「重新開始」也不會清除。</p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button">關閉</button></div>
+</div></div>
+
+<div class="sheet" id="glossary" hidden><div class="card">
+  <h2>名詞說明</h2>
+  <p>霓虹天使是「羽根物」：沒有大螢幕轉數字，看的是珠子本身怎麼滾。</p>
+  <div id="glList"></div>
+  <p class="note">配音：VOICEVOX:冥鳴ひまり</p>
+  <div class="list" style="margin-top:16px"><button class="big" data-close type="button">關閉</button></div>
+</div></div>
+
+<div class="sheet" id="tutorial" hidden><div class="card">
+  <div id="tutArt"></div>
+  <p class="tutStep" id="tutStep"></p>
+  <h2 id="tutTitle"></h2>
+  <div class="tutBody" id="tutBody"></div>
+  <div class="tutDots" id="tutDots"></div>
+  <div class="tutBtns"><button class="big" id="tutPrev" type="button"></button><button class="big primary" id="tutNext" type="button"></button></div>
+</div></div>
+
+<div class="sheet" id="refill" hidden><div class="card">
+  <h2 id="refillTitle">免費補充珠子</h2>
+  <p id="refillBody"></p>
+  <div class="list"><button class="big primary" id="refillBtn" type="button"></button><button class="big" data-close type="button">關閉</button></div>
+</div></div>
+
+<div id="toast" role="status" hidden></div>
+
+<script src="src/machines.js"></script>
+<script src="src/hane/hane.js"></script>
+<script src="src/hane/hane_shell.js"></script>
+</body>
+</html>

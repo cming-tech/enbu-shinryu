@@ -11,6 +11,8 @@
     "lcd.logoL": "炎舞",
     "lcd.logoR": "神龍",
     "lcd.crest": "龍",
+    "lcd.push": "PUSH",              // the PUSH button drawn on the LCD
+    "lcd.pushCall": "PUSH!!",        // the call to press it
     "lcd.next": "続",                 // 擬似連 "continue" digit
     "lcd.stLeft": "ST残り",
     "lcd.jitanLeft": "時短残り",

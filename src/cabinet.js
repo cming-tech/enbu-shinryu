@@ -202,7 +202,7 @@
   const PINS = { all: [], L: [], R: [], road: [], yori: [], inochi: [], hakama: [] };
   // Pin layouts by name (PK.MACHINES[id].cabinet.pins). Each fills PINS; the ball paths below use
   // its lanes (L, R, road, yori, inochi, hakama), so a new layout keeps those groups.
-  const PIN_LAYOUTS = { enbu: pinsEnbu };
+  const PIN_LAYOUTS = { enbu: pinsEnbu, angel: pinsAngel };
   let pinLayout = "enbu";
   function buildPins() { (PIN_LAYOUTS[pinLayout] || pinsEnbu)(); }
   function pinsEnbu() {
@@ -283,6 +283,60 @@
         add(x, y, "D");
       }
     }
+    PINS.all = all;
+  }
+
+  // 霓虹天使's board (the user: the same pin layout made machine 2 look like a recolour). The pins that
+  // decide where balls go keep 炎舞神龍's spacing rules, so the odds are unchanged: the road (道釘), the
+  // 寄り / 命釘 / 袴 and the right lane are the same pins. What changes is the look:
+  //  - the left lane: rows slanted like feathers (each row falls 0.3 to the left), staggered 10, so a
+  //    ball always finds pins 15-21 below and 10 aside (walk() takes 8-31 below, 6.5-21 aside);
+  //  - no 天釘 strip under the rail: two short arcs of pins near its top, like a halo;
+  //  - the lower board: pins along circuit traces (horizontal runs, 45-degree bends, ring nodes)
+  //    instead of a staggered grid, with the same clearances as machine 1's decoration.
+  const ANGEL_TRACES = [
+    [[30, 478], [90, 478], [118, 506], [118, 560]], [[40, 520], [40, 600], [70, 630], [120, 630]],
+    [[150, 640], [150, 600], [178, 572], [230, 572]], [[350, 640], [350, 610], [380, 580], [440, 580]],
+    [[420, 640], [470, 640], [500, 610], [560, 610]], [[350, 500], [420, 500], [450, 530], [470, 530]],
+  ];
+  const ANGEL_NODES = [[70, 560, 12], [470, 545, 12], [250, 618, 11]];
+  function pinsAngel() {
+    pinsEnbu();   // the functional groups and the exclusions, then the decorative parts are replaced
+    const keep = PINS.all.filter((p) => p.g !== "L" && p.g !== "T" && p.g !== "D");
+    const all = keep.slice();
+    const add = (x, y, g) => { const p = { x, y, g }; all.push(p); return p; };
+    PINS.L = [];
+    for (let r = 0, y0 = 236; y0 <= 470; r++, y0 += 18) {
+      const off = (r % 2) * 10;
+      for (let x = 92 - off; x >= 20; x -= 20) {
+        const y = y0 + (92 - x) * 0.3;
+        if (y > 466 || x < railLeftX(y) + 11.5) continue;
+        if (Math.hypot(x - WM.x, y - WM.y) < WM.r + 9) continue;
+        if (Math.hypot(x - WARP.x, y - WARP.y) < 11) continue;
+        PINS.L.push(add(x, y, "L"));
+      }
+    }
+    // the halo: two short arcs under the top of the rail, clear of the bezel
+    for (const [a0, a1, d] of [[236, 256, -15], [284, 304, -15], [240, 252, -27], [288, 300, -27]]) {
+      for (let a = a0; a <= a1; a += 4) {
+        const q = railPt(a, d);
+        if (inRRect(q[0], q[1], BEZEL.x - 7, BEZEL.y - 7, BEZEL.w + 14, BEZEL.h + 14, BEZEL.r + 7)) continue;
+        add(q[0], q[1], "T");
+      }
+    }
+    // circuit traces on the lower board: runs of pins 14 apart; a point is kept only where machine 1's
+    // decoration could stand (pinsEnbu marked those "D"), so every route and pocket stays clear
+    const free = PINS.all.filter((p) => p.g === "D");
+    const okAt = (x, y) => free.some((p) => Math.abs(p.x - x) <= 10 && Math.abs(p.y - y) <= 9) && inWin(x, y, -12) && !all.some((p) => Math.hypot(x - p.x, y - p.y) < 11);
+    const run = (pts) => {
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 14));
+        for (let k = i === 1 ? 0 : 1; k <= n; k++) { const x = ax + ((bx - ax) * k) / n, y = ay + ((by - ay) * k) / n; if (okAt(x, y)) add(x, y, "D"); }
+      }
+    };
+    const ring = (cx, cy, r) => { for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); if (okAt(x, y)) add(x, y, "D"); } };
+    ANGEL_TRACES.forEach(run);
+    ANGEL_NODES.forEach(([x, y, r]) => ring(x, y, r));
     PINS.all = all;
   }
 
@@ -419,10 +473,29 @@
         s += `<circle cx="${f1((507 + x1) / 2)}" cy="${y}" r="2.6" fill="#2a8cff" stroke="#bfe0ff" stroke-width=".8"/>`;
       });
       const vt = `font-family="'Yuji Syuku','Dela Gothic One','Noto Sans TC',serif" font-size="20" fill="#ffcf6a" fill-opacity=".22" text-anchor="middle"`;
-      s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
+      if (!S.neon) s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
+      if (pinLayout === "angel") {   // the circuit traces under 霓虹天使's pins (the pins sit on them)
+        const pl = (pts) => pts.map((q) => q[0] + "," + q[1]).join(" ");
+        ANGEL_TRACES.forEach((t) => {
+          s += `<polyline points="${pl(t)}" fill="none" stroke="#21e6ff" stroke-opacity=".16" stroke-width="7" stroke-linejoin="round"/>`;
+          s += `<polyline points="${pl(t)}" fill="none" stroke="#7af4ff" stroke-opacity=".55" stroke-width="1.6" stroke-linejoin="round"/>`;
+        });
+        ANGEL_NODES.forEach(([x, y, r]) => { s += `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#ff6fe0" stroke-opacity=".6" stroke-width="1.6"/><circle cx="${x}" cy="${y}" r="3" fill="#ff6fe0" fill-opacity=".7"/>`; });
+      }
     }
-    // LCD bezel: gold frame with flourishes.
+    // LCD bezel: gold frame with flourishes (霓虹天使: a cut-corner neon frame).
     const B = BEZEL;
+    if (S.neon) {
+      const oct = (d, c) => { const x = B.x - d, y = B.y - d, w = B.w + 2 * d, h = B.h + 2 * d; return `M${x + c},${y} L${x + w - c},${y} L${x + w},${y + c} L${x + w},${y + h - c} L${x + w - c},${y + h} L${x + c},${y + h} L${x},${y + h - c} L${x},${y + c} Z`; };
+      s += `<path d="${oct(6, 46)}" fill="none" stroke="#000" stroke-opacity=".6" stroke-width="6"/>`;
+      s += `<path d="${oct(0, 42)}" fill="#05060f" stroke="#21e6ff" stroke-opacity=".3" stroke-width="12"/>`;
+      s += `<path d="${oct(0, 42)}" fill="none" stroke="#bfefff" stroke-width="3"/>`;
+      s += `<path d="${oct(-6, 38)}" fill="none" stroke="#ff4fd8" stroke-width="2"/>`;
+      // corner chevrons
+      [[B.x + 8, B.y + 8, 1, 1], [B.x + B.w - 8, B.y + 8, -1, 1], [B.x + 8, B.y + B.h - 8, 1, -1], [B.x + B.w - 8, B.y + B.h - 8, -1, -1]].forEach(([x, y, sx, sy]) => {
+        s += `<path d="M${x},${y + sy * 30} L${x},${y + sy * 10} L${x + sx * 10},${y} L${x + sx * 30},${y}" fill="none" stroke="#ff9ff0" stroke-width="2.4" stroke-linecap="round"/>`;
+      });
+    } else {
     s += `<rect x="${B.x - 5}" y="${B.y - 5}" width="${B.w + 10}" height="${B.h + 10}" rx="${B.r + 5}" fill="none" stroke="#000" stroke-opacity=".55" stroke-width="5"/>`;
     s += `<rect x="${B.x}" y="${B.y}" width="${B.w}" height="${B.h}" rx="${B.r}" fill="#07070c" stroke="url(#pkc-bGold)" stroke-width="7"/>`;
     s += `<rect x="${B.x + 4.5}" y="${B.y + 4.5}" width="${B.w - 9}" height="${B.h - 9}" rx="${B.r - 4}" fill="none" stroke="#2a1a06" stroke-width="1.5"/>`;
@@ -430,6 +503,7 @@
     // Corner flourishes (gold scrolls).
     const scroll = (x, y, sx, sy) => `<path transform="translate(${x},${y}) scale(${sx},${sy})" d="M0,0 C14,-4 22,-16 18,-28 C15,-36 6,-36 4,-30 C2,-24 8,-20 12,-24 M0,0 C-4,14 -16,22 -28,18 C-36,15 -36,6 -30,4 C-24,2 -20,8 -24,12" fill="none" stroke="url(#pkc-bGold)" stroke-width="2.6" stroke-linecap="round"/>`;
     s += scroll(106, 468, 1, 1) + scroll(482, 468, -1, 1);
+    }
     // Warp tube + entrance.
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="12"/>`;
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="url(#pkc-tube)" stroke-width="10" stroke-linecap="round"/>`;
@@ -493,7 +567,7 @@
     const g0 = railPt(121, 0);
     s += `<g transform="translate(${f1(g0[0])},${f1(g0[1])}) rotate(31)"><rect x="-9" y="-7" width="18" height="14" rx="3" fill="#20242b" stroke="url(#pkc-bChrome)" stroke-width="1.6"/><rect x="-6" y="-2" width="12" height="4" rx="2" fill="#ffcf4a" opacity=".7"/></g>`;
     s += `</g>`;
-    svg.innerHTML = s;
+    svg.innerHTML = neonSvg(s);
   }
 
   // ---------------------------------------------------------------- SVG: front (cabinet body)
@@ -719,14 +793,27 @@
     L.gimmick.forEach((g, i) => {
       const cx = g.x + g.w / 2, cy = g.y + g.h / 2, rot = i ? 5 : -7;
       gim += `<g transform="translate(${cx},${cy}) rotate(${rot})">`;
+      if (S.neon) {   // 霓虹天使: a hexagonal glass panel with a neon rim
+        const hx = g.w / 2, hy = g.h / 2, hex = `M${-hx * 0.5},${-hy} L${hx * 0.5},${-hy} L${hx},0 L${hx * 0.5},${hy} L${-hx * 0.5},${hy} L${-hx},0 Z`;
+        gim += `<path d="${hex}" fill="#0a0c1c" fill-opacity=".86" stroke="#21e6ff" stroke-width="5" stroke-opacity=".35"/>`;
+        gim += `<path d="${hex}" fill="none" stroke="#ff4fd8" stroke-width="2"/>`;
+        const font = `font-family="'Dela Gothic One','Noto Sans TC','Arial Black',sans-serif" font-size="${g.h * 0.6}" text-anchor="middle" dominant-baseline="central"`;
+        const ch = (S.gimmick && S.gimmick[i]) || g.ch;
+        gim += `<text ${font} y="3" fill="none" stroke="#21e6ff" stroke-opacity=".45" stroke-width="7" stroke-linejoin="round">${ch}</text>`;
+        gim += `<text ${font} y="3" fill="#ffffff" stroke="#ff4fd8" stroke-width="1.6">${ch}</text>`;
+        gim += `</g>`;
+        ART.sprites.push({ x: cx, y: cy, r: 60, g: 0.45, fire: 1 });
+        return;
+      }
       gim += `<rect x="${-g.w / 2}" y="${-g.h / 2}" width="${g.w}" height="${g.h}" rx="16" fill="url(#pkc-block)" stroke="url(#pkc-blockEdge)" stroke-width="2.2"/>`;
       gim += `<rect x="${-g.w / 2 + 5}" y="${-g.h / 2 + 5}" width="${g.w - 10}" height="${g.h - 10}" rx="12" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="1"/>`;
       gim += `<path d="M${-g.w / 2 + 8},${g.h / 2 - 6} C-30,10 -10,30 -18,-20 C0,6 10,0 8,-40 C26,-6 36,10 ${g.w / 2 - 10},${g.h / 2 - 6} Z" fill="url(#pkc-flameFill)" opacity=".55"/>`;
       const font = `font-family="'Yuji Syuku','Dela Gothic One','Noto Sans TC','Arial Black',Impact,sans-serif" font-size="${g.h * 0.84}" text-anchor="middle" dominant-baseline="central"`;
-      gim += `<text ${font} y="4" fill="none" stroke="#2a0000" stroke-opacity=".85" stroke-width="13" stroke-linejoin="round">${g.ch}</text>`;
-      gim += `<text ${font} y="4" fill="none" stroke="#ff4a00" stroke-width="6.5" stroke-linejoin="round">${g.ch}</text>`;
-      gim += `<text ${font} y="4" fill="url(#pkc-fireText)">${g.ch}</text>`;
-      gim += `<text ${font} y="4" fill="none" stroke="#fff6d6" stroke-opacity=".55" stroke-width="1">${g.ch}</text>`;
+      const ch = (S.gimmick && S.gimmick[i]) || g.ch;
+      gim += `<text ${font} y="4" fill="none" stroke="#2a0000" stroke-opacity=".85" stroke-width="13" stroke-linejoin="round">${ch}</text>`;
+      gim += `<text ${font} y="4" fill="none" stroke="#ff4a00" stroke-width="6.5" stroke-linejoin="round">${ch}</text>`;
+      gim += `<text ${font} y="4" fill="url(#pkc-fireText)">${ch}</text>`;
+      gim += `<text ${font} y="4" fill="none" stroke="#fff6d6" stroke-opacity=".55" stroke-width="1">${ch}</text>`;
       gim += `<path d="M${-g.w / 2 + 10},${-g.h / 2 + 8} L${g.w / 2 - 30},${-g.h / 2 + 8} L${-g.w / 2 + 10},${g.h / 2 - 40} Z" fill="#fff" opacity=".08"/>`;
       gim += `</g>`;
       ART.sprites.push({ x: cx, y: cy, r: 66, g: 0.55, fire: 1 });
@@ -770,7 +857,7 @@
     s += deco;
     s += sub;
     s += gim;
-    svg.innerHTML = s;
+    svg.innerHTML = neonSvg(s);
     S.subText = svg.querySelector("#pkc-subText");
   }
 
@@ -1002,8 +1089,60 @@
     wisps: [], reduced: false, saver: false, odd: false,
   };
 
+  // ---------------------------------------------------------------- 霓虹天使 (theme "neon")
+  // The frame, board and console are 炎舞神龍's, recoloured as they are built: reds and oranges turn
+  // magenta, golds and bronzes turn chrome, blues stay. The lights get their own colours (neonAt).
+  function neonHex(hex) {
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (d < 0.04) return hex;   // greys stay
+    const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    let hue = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hue = (hue * 60 + 360) % 360;
+    let nh = hue, ns = sat;
+    if (hue < 28 || hue >= 330) nh = 318;                 // red, orange -> magenta
+    else if (hue < 75) { nh = 222; ns = sat * 0.16; }     // gold, bronze -> chrome
+    else return hex;
+    const c = (1 - Math.abs(2 * l - 1)) * ns, x = c * (1 - Math.abs(((nh / 60) % 2) - 1)), m = l - c / 2;
+    const [rr, gg, bb] = nh < 60 ? [c, x, 0] : nh < 120 ? [x, c, 0] : nh < 180 ? [0, c, x] : nh < 240 ? [0, x, c] : nh < 300 ? [x, 0, c] : [c, 0, x];
+    const to = (v) => Math.round(Math.max(0, Math.min(1, v + m)) * 255).toString(16).padStart(2, "0");
+    return "#" + to(rr) + to(gg) + to(bb);
+  }
+  const neonSvg = (str) => (S.neon ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, neonHex) : str);
+  function neonAt(name, u, t, o) {
+    let r, g, b, i;
+    switch (name) {
+      case "normal": {   // cyan and violet drifting round the frame
+        const w = 0.5 + 0.5 * Math.sin(TAU * (t * 0.3 - u * 2));
+        r = 30 + 150 * (1 - w); g = 200 * w + 60; b = 255; i = 0.62 + 0.3 * w; break;
+      }
+      case "reach": {    // magenta, pulsing
+        const p = Math.pow(0.5 + 0.5 * Math.sin(TAU * t * 1.6), 2);
+        r = 255; g = 40 + 80 * p; b = 200 + 40 * p; i = 0.45 + 0.75 * p; break;
+      }
+      case "hot": {      // pink and cyan stripes running
+        const band = Math.floor(u * 20 + t * 11) & 1;
+        if (band) { r = 255; g = 70; b = 220; } else { r = 40; g = 230; b = 255; }
+        i = 0.85 + 0.3 * (0.5 + 0.5 * Math.sin(t * 19)); break;
+      }
+      case "bonus": {    // gold chase over pink
+        const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 8 - t * 1.6))), 6);
+        r = 255; g = 90 + 130 * ch; b = 200 - 140 * ch; i = 0.45 + 0.9 * ch; break;
+      }
+      case "rush": {     // violet with cyan chases
+        const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 6 + t * 1.7))), 6);
+        r = lerp(150, 60, ch); g = lerp(70, 240, ch); b = 255; i = 0.6 + 0.8 * ch; break;
+      }
+      default: return themeAt(name, u, t, o, true);
+    }
+    o[0] = r; o[1] = g; o[2] = b; o[3] = i;
+  }
+
   // ---------------------------------------------------------------- themes
-  function themeAt(name, u, t, o) {
+  function themeAt(name, u, t, o, base) {
+    if (S.neon && !base) return neonAt(name, u, t, o);
     let r, g, b, i;
     switch (name) {
       case "normal": {
@@ -1045,6 +1184,13 @@
     bonus: { c: [255, 240, 190], spd: 0.24, mode: "cw", n: 1.2 },
     rush: { c: [255, 215, 110], spd: 0.3, mode: "cw", n: 1.3 },
     off: { c: [80, 100, 140], spd: 0.03, mode: "rise", n: 0.2 },
+  };
+  const NEON_WISP = {
+    normal: { c: [170, 235, 255], spd: 0.07, mode: "rise", n: 1 },
+    reach: { c: [255, 150, 235], spd: 0.13, mode: "rise", n: 1 },
+    hot: { c: [255, 200, 250], spd: 0.22, mode: "rise", n: 1.4 },
+    bonus: { c: [255, 230, 200], spd: 0.24, mode: "cw", n: 1.2 },
+    rush: { c: [190, 220, 255], spd: 0.3, mode: "cw", n: 1.3 },
   };
   const _a = [0, 0, 0, 0], _b = [0, 0, 0, 0];
   // Current light colour at u (with theme crossfade and flash). Writes into o.
@@ -1118,7 +1264,8 @@
     // Pins.
     const [pc, px] = mkLayer();
     const pinG = px.createRadialGradient(-0.8, -0.9, 0.2, 0, 0, PR);
-    pinG.addColorStop(0, "#fffbe0"); pinG.addColorStop(0.35, "#ffd860"); pinG.addColorStop(0.75, "#c08a1c"); pinG.addColorStop(1, "#6a4206");
+    if (S.neon) { pinG.addColorStop(0, "#ffffff"); pinG.addColorStop(0.35, "#bff4ff"); pinG.addColorStop(0.75, "#3aa8d0"); pinG.addColorStop(1, "#0c2a44"); }
+    else { pinG.addColorStop(0, "#fffbe0"); pinG.addColorStop(0.35, "#ffd860"); pinG.addColorStop(0.75, "#c08a1c"); pinG.addColorStop(1, "#6a4206"); }
     PINS.all.forEach((p) => {
       px.save();
       px.translate(p.x, p.y);
@@ -1653,7 +1800,7 @@
     S.wmW *= Math.exp(-dt / 0.9);
     for (const k in S.glow) S.glow[k] *= Math.exp(-dt / 0.18);
     // Wisps.
-    const wc = WISP[S.theme] || WISP.normal;
+    const wc = (S.neon && NEON_WISP[S.theme]) || WISP[S.theme] || WISP.normal;
     const want = Math.round((S.reduced ? 8 : 22) * wc.n);
     while (S.wisps.length < want) S.wisps.push({ p: rnd(), side: rnd() < 0.5 ? -1 : 1, v: rr(0.7, 1.4), size: rr(0.7, 1.3) });
     if (S.wisps.length > want) S.wisps.length = want;
@@ -1848,7 +1995,7 @@
     const st = ART.strokes[0];
     if (!st) return;
     const pts = st.pts, n = pts.length;
-    const wc = WISP[S.theme] || WISP.normal;
+    const wc = (S.neon && NEON_WISP[S.theme]) || WISP[S.theme] || WISP.normal;
     const rise = wc.mode === "rise";
     S.wisps.forEach((w) => {
       let u = rise ? 0.5 + w.side * 0.5 * w.p : w.p;
@@ -1880,7 +2027,7 @@
         // Warm flicker behind the kanji blocks (always fiery, hotter in reach/hot).
         const hot = S.theme === "hot" || S.theme === "reach" || S.theme === "bonus" ? 1.35 : 1;
         const fl = 0.7 + 0.3 * Math.sin(t * (9 + s.fire * 3.7) + idx) * Math.sin(t * (13 + s.fire) + idx * 2);
-        const col = s.fire === 1 ? [255, 120, 30] : [255, 70, 10];
+        const col = S.neon ? (s.fire === 1 ? [255, 90, 230] : [80, 220, 255]) : s.fire === 1 ? [255, 120, 30] : [255, 70, 10];
         x.globalAlpha = clamp(s.g * fl * hot, 0, 1);
         const r = s.r * (0.94 + 0.08 * fl);
         x.drawImage(sprite(col[0], col[1], col[2]), s.x - r, s.y - r, r * 2, r * 2);
@@ -2060,6 +2207,8 @@
     });
     try { S.reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { S.reduced = false; }
     const mc = els.machine || {}, art = mc.art || {};
+    S.neon = els.theme === "neon";
+    S.gimmick = mc.gimmick || null;
     pinLayout = mc.pins || "enbu";
     DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {};
     buildPins();
@@ -2151,7 +2300,7 @@
     const n = Math.max(1, lines.length);
     const maxLen = Math.max(1, ...lines.map((l) => l.replace(/[ -~]/g, "x").length - (l.match(/[ -~]/g) || []).length * 0.42));
     const size = Math.min((Sd.h - 8) / n / 1.08, (Sd.w - 10) / maxLen, 30);
-    const col = color || "#ffd84a";
+    const col = color || (S.neon ? "#5ff0ff" : "#ffd84a");
     const lh = size * 1.08;
     const y0 = Sd.y + Sd.h / 2 - (lh * (n - 1)) / 2;
     let s = "";

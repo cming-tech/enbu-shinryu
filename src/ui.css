@@ -293,3 +293,21 @@
   .tutBtns .big { text-align: center; }
   .colors { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 12px; font-weight: 700; }
   @media (prefers-reduced-motion: reduce) { #knob.on #kFill, #kBurst.go, #handle.on .grip, #push.prompt, #app[data-theme="rainbow"] #stageWrap::before { animation: none; } #caption { transition: none; } }
+
+  /* ---- 霓虹天使 (data-machine="angel" on #app, set by the shell): the same shell in neon */
+  #app[data-machine="angel"] { --gold: #ff6fe0; --ice: #21e6ff; --led: #21e6ff; --fire: #ff3fd0; --metal: #10142a; --metal-2: #171d38; --line: #2b3458; --amb: rgba(33, 160, 255, 0.3); }
+  #app[data-machine="angel"][data-theme="reach"] { --amb: rgba(255, 63, 208, 0.42); }
+  #app[data-machine="angel"][data-theme="hot"] { --amb: rgba(255, 120, 230, 0.46); }
+  #app[data-machine="angel"][data-theme="bonus"] { --amb: rgba(255, 200, 60, 0.42); }
+  #app[data-machine="angel"][data-theme="rush"] { --amb: rgba(120, 90, 255, 0.44); }
+  #app[data-machine="angel"] .crest { background: radial-gradient(circle at 35% 30%, #ffffff, #ffb3ee 40%, #ff3fd0 75%, #5a0a48); box-shadow: 0 0 0 2px #4a0a3a, 0 0 14px rgba(255, 63, 208, 0.6); color: #3a0030; }
+  #app[data-machine="angel"] #brand b { background: linear-gradient(180deg, #ffffff 0%, #ffb3ee 45%, #ff3fd0 100%); -webkit-background-clip: text; background-clip: text; }
+  #app[data-machine="angel"] #push { background: linear-gradient(#ff7ae6, #a00a84); text-shadow: 0 2px 0 #4a0038; font-family: "Orbitron", var(--f-num); font-size: 26px; }
+  #app[data-machine="angel"] #push.prompt { animation-name: hackPulse; }
+  @keyframes hackPulse { from { filter: brightness(1); } to { filter: brightness(1.45) drop-shadow(0 0 14px #ff3fd0); } }
+  #app[data-machine="angel"] #panel .oval { background: radial-gradient(ellipse at 50% 30%, #6af0ff 0%, #1288b0 45%, #06324a 100%);
+    box-shadow: inset 0 0 0 3px #f0f4ff, inset 0 0 0 5px #3a4458, inset 0 6px 10px rgba(255, 255, 255, 0.35), 0 4px 10px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="angel"] #autoBtn { border-color: #ff6fe0; background: linear-gradient(#2a1036, #0e0614); color: #ffc6f2; }
+  #app[data-machine="angel"] #autoBtn[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); color: #fff; }
+  #app[data-machine="angel"] .big.primary, #app[data-machine="angel"] .tog[aria-pressed="true"], #app[data-machine="angel"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); border-color: #ff9ff0; color: #fff; }
+  #app[data-machine="angel"] #coins b, #app[data-machine="angel"] #dataBar b, #app[data-machine="angel"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(33, 230, 255, 0.55); }

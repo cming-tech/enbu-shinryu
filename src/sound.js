@@ -564,6 +564,9 @@
     return input;
   }
 
+  // 霓虹天使's songs: the user found them harsh (their highs ~50% brighter than 炎舞神龍's) and picked
+  // 「柔和」 by ear, so the music bus can run through a softening filter.
+  let softMusic = false;
   function makeRig(ac, live) {
     const master = ac.createGain();
     const comp = ac.createDynamicsCompressor();
@@ -571,7 +574,13 @@
     comp.attack.value = 0.003; comp.release.value = 0.25;
     master.connect(comp); comp.connect(ac.destination);
     const sfx = ac.createGain(); sfx.gain.value = 0.9; sfx.connect(master);
-    const bgm = ac.createGain(); bgm.gain.value = BGM_LEVEL; bgm.connect(master);
+    const bgm = ac.createGain(); bgm.gain.value = BGM_LEVEL;
+    if (softMusic && live) {   // useFiles(base, { soft: true }): highs down 7 dB above 3 kHz, low-pass 9 kHz
+      const sh = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
+      sh.type = "highshelf"; sh.frequency.value = 3000; sh.gain.value = -7;
+      lp.type = "lowpass"; lp.frequency.value = 9000; lp.Q.value = 0.5;
+      bgm.connect(sh); sh.connect(lp); lp.connect(master);
+    } else bgm.connect(master);
     const rig = { ac, live: !!live, master, comp, sfx, bgm, fx: makeEcho(ac, sfx), voices: [], last: {}, count: {}, lastEnd: 0, made: 0, finished: 0 };
     rig.play = (name, t) => playOn(rig, name, t);
     return rig;
@@ -1601,8 +1610,10 @@
       } catch (e) { /* never throw */ }
     },
     // Use generated tracks <base>bgm_<name>.mp3 where they exist; missing files are fine.
-    useFiles(base) {
+    // opts.soft: the softening filter on the music (before the first sound).
+    useFiles(base, opts) {
       try {
+        if (opts && opts.soft) softMusic = true;
         if (fileBase != null || typeof fetch !== "function") return;
         fileBase = String(base == null ? "assets/" : base);
         fileQueue = BGM_NAMES.concat(...ALT.map(altKeys));

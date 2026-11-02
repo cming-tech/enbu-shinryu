@@ -173,7 +173,7 @@
       if (click) { li.tabIndex = 0; li.setAttribute("role", "button"); li.addEventListener("click", click); }
       return ul.appendChild(li);
     };
-    Object.keys(PK.MACHINES).forEach((id) => {
+    Object.keys(PK.MACHINES).filter((id) => !PK.MACHINES[id].hidden || PK.MACHINES[id] === M).forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
       card(m.card ? m.assetsBase + m.card : null, m.name, m.tagline || "", on ? "遊玩中" : "切換", on,
         on ? null : () => { save(); store(KEY_MACHINE, id); location.href = m.page || "index.html"; });

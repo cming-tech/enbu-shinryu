@@ -10,8 +10,8 @@
   // The machine being played: the one picked in the lobby (選擇機台), else the first one.
   const KEY_MACHINE = "pk.machine";
   const picked = PK.MACHINES[(function () { try { return localStorage.getItem(KEY_MACHINE); } catch (e) { return null; } })()];
-  if (picked && picked.page) { location.replace(picked.page); return; }   // a machine with a page of its own (霓虹天使)
-  const M = picked || PK.MACHINES.enbu;
+  if (picked && picked.page && !picked.hidden) { location.replace(picked.page); return; }   // a machine with a page of its own
+  const M = picked && !picked.page ? picked : PK.MACHINES.enbu;
   Object.assign(PK.TEXT, M.text);
 
   const VERSION = PK.VERSION;   // in src/machines.js
@@ -402,7 +402,7 @@
       if (click) { li.tabIndex = 0; li.setAttribute("role", "button"); li.addEventListener("click", click); }
       return ul.appendChild(li);
     };
-    Object.keys(PK.MACHINES).forEach((id) => {
+    Object.keys(PK.MACHINES).filter((id) => !PK.MACHINES[id].hidden).forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
       card(m.card ? m.assetsBase + m.card : null, m.name, m.tagline || "", on ? t("lobby.playing") : t("lobby.play"), on,
         on ? null : () => { store(KEY_MACHINE, id); if (m.page) location.href = m.page; else location.reload(); });
@@ -1137,12 +1137,13 @@
     $("tutColors").innerHTML = t("tut.colors").split("|").map((name, i) => '<span style="color:' + HOLD_COLS[i] + '">● ' + name + "</span>").join("");
 
     // ---- boot the modules
-    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet });
+    $("app").dataset.machine = M.id;   // per-machine colours in src/ui.css
+    PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet, theme: M.theme });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
-    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase });
+    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme });
     $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n.startsWith("rushStage:")) { snd("rushIn"); lights("rainbow"); vo("rushStage" + n.slice(10)); } });   // a 龍兵 claws; RUSH climbs a stage
-    PK.Sound.useFiles(M.assetsBase);   // AI-made music in assets/ replaces the synthesized beds
+    PK.Sound.useFiles(M.assetsBase, { soft: M.softMusic });   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);
     applySaver(); showSaver();

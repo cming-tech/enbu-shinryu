@@ -9,11 +9,14 @@
   const LL = (PK.L && PK.L.lcd) || { x: 104, y: 150, w: 392, h: 320, r: 44 };
   const W = LL.w, H = LL.h, CX = W / 2;
 
-  const FONT_DIGIT = '"Dela Gothic One","Noto Sans TC","Arial Black",Impact,sans-serif';
+  let FONT_DIGIT = '"Dela Gothic One","Noto Sans TC","Arial Black",Impact,sans-serif';
   const FONT_POP = '"Reggae One","Dela Gothic One","Noto Serif TC","Noto Sans TC","Arial Black",Impact,sans-serif';   // Noto Serif TC: 咚
   // Visible text lives in PK.TEXT (src/text.js); a missing key shows as "?key".
   const T = (k, v) => (PK.t ? PK.t(k, v) : "?" + k);
-  const FONT_BRUSH = '"Yuji Syuku","Noto Sans TC","Arial Black",Impact,serif';
+  let FONT_BRUSH = '"Yuji Syuku","Noto Sans TC","Arial Black",Impact,serif';
+  // The machine's look: "fire" (炎舞神龍) or "neon" (霓虹天使, set by mount's o.theme: Orbitron digits in
+  // neon pink and cyan, a chrome NEON ANGEL logo with a halo, a pink HACK button). See applyTheme.
+  let THEME = "fire";
   const FONT_TC = '"Noto Sans TC","Arial Black",Impact,sans-serif';
 
   // ------------------------------------------------------------------ utils
@@ -119,11 +122,16 @@
     if (cache.fire) return cache.fire;
     const s = mkCanvas(64, 64), g = s.getContext("2d");
     const gr = g.createRadialGradient(32, 34, 0, 32, 32, 32);
+    if (THEME === "neon") {   // 霓虹天使: plasma instead of flame
+      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.22, "rgba(255,170,240,0.9)");
+      gr.addColorStop(0.5, "rgba(255,63,208,0.5)"); gr.addColorStop(0.78, "rgba(90,40,255,0.16)"); gr.addColorStop(1, "rgba(40,0,120,0)");
+    } else {
     gr.addColorStop(0, "rgba(255,250,215,1)");
     gr.addColorStop(0.22, "rgba(255,206,80,0.92)");
     gr.addColorStop(0.5, "rgba(255,96,12,0.5)");
     gr.addColorStop(0.78, "rgba(190,24,0,0.16)");
     gr.addColorStop(1, "rgba(120,0,0,0)");
+    }
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
     return (cache.fire = s);
   }
@@ -410,6 +418,7 @@
     const K = SPR_K, w = 300, h = 86;
     const c = mkCanvas(w * K, h * K), g = c.getContext("2d");
     g.scale(K, K);
+    if (THEME === "neon") return buildNeonLogo(c, g, K, w, h, variant, stage);
     // flame wings behind the title
     g.save(); g.globalCompositeOperation = "lighter";
     for (let i = 0; i < 22; i++) {
@@ -431,13 +440,49 @@
     }
     return { c, w, h, ax: w / 2, ay: h / 2 };
   }
+  // 霓虹天使's logo: a glowing halo over chrome letters, pink (the RUSH stage's colour for RUSH)
+  function buildNeonLogo(c, g, K, w, h, variant, stage) {
+    const st = variant === "rush" ? RUSH_STAGES[stage || 0] : null, rp = st ? PAL[st.pal] : PAL.red;
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (const [lw, a] of [[7, 0.18], [3.5, 0.4], [1.6, 1]]) {
+      g.strokeStyle = "rgba(255,120,230," + a + ")"; g.lineWidth = lw;
+      g.beginPath(); g.ellipse(150, 14, 40, 7, 0, 0, TAU); g.stroke();
+    }
+    g.restore();
+    const chrome = { face: [[0, "#ffffff"], [0.4, "#e4eaf8"], [0.55, "#7a86a4"], [0.72, "#f6f8ff"], [1, "#9aa6c2"]], rim: rp.rim, inner: "#101828", ext: ["#2a3450", "#06080e"] };
+    if (st) {
+      fancyText(g, T(st.name), 150, 52, Object.assign({ K, size: 34, font: FONT_DIGIT, align: "center", glow: st.glow, outline: 0.12 }, chrome));
+      fancyText(g, "RUSH", 150, 80, { K, size: 26, font: FONT_DIGIT, align: "center", face: rp.face, rim: rp.rim, inner: rp.inner, ext: rp.ext, glow: st.glow, outline: 0.12 });
+    } else {
+      fancyText(g, T("lcd.logoL"), 147, 60, Object.assign({ K, size: 31, font: FONT_DIGIT, align: "right", glow: "rgba(255,63,208,0.85)", outline: 0.12 }, chrome));
+      fancyText(g, T("lcd.logoR"), 155, 60, { K, size: 31, font: FONT_DIGIT, align: "left", face: rp.face, rim: rp.rim, inner: rp.inner, ext: rp.ext, glow: "rgba(255,63,208,0.85)", outline: 0.12 });
+    }
+    star4(g, 262, 26, 8, 1); star4(g, 40, 40, 6, 0.9);
+    return { c, w, h, ax: w / 2, ay: h / 2 };
+  }
+  // Switch to a machine's look before the sprites are built (mount).
+  function applyTheme(theme) {
+    THEME = theme === "neon" ? "neon" : "fire";
+    if (THEME !== "neon") return;
+    FONT_DIGIT = '"Orbitron","Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
+    FONT_BRUSH = '"Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
+    const CHROME = [[0, "#ffffff"], [0.3, "#d8e2f4"], [0.55, "#5a6680"], [0.78, "#f2f6ff"], [1, "#3a4458"]];
+    // odd digits neon pink, even neon cyan (7 stays gold): the 炎舞神龍 red and blue, in this machine's colours
+    PAL.red = { face: [[0, "#ffffff"], [0.18, "#ffd0f4"], [0.38, "#ff5fe0"], [0.55, "#b0108e"], [0.62, "#ff40d0"], [0.85, "#ffb0f0"], [1, "#5a0048"]],
+      rim: CHROME, inner: "#3a0030", ext: ["#5a0a4a", "#12000e"], glow: "rgba(255,63,208,0.95)", rgb: C.pink };
+    RUSH_STAGES[0].pal = "blue"; RUSH_STAGES[0].glow = "rgba(33,230,255,0.9)"; RUSH_STAGES[0].c1 = C.cyan; RUSH_STAGES[0].c2 = C.pink;
+    RUSH_STAGES[1].pal = "red"; RUSH_STAGES[1].glow = "rgba(255,63,208,0.9)"; RUSH_STAGES[1].c1 = C.pink; RUSH_STAGES[1].c2 = C.purple;
+    PAL.blue = { face: [[0, "#ffffff"], [0.18, "#d0fbff"], [0.38, "#40e6ff"], [0.55, "#0a6a9a"], [0.62, "#20d0ff"], [0.85, "#a0f4ff"], [1, "#00283a"]],
+      rim: CHROME, inner: "#00202e", ext: ["#063a5a", "#000a14"], glow: "rgba(33,230,255,0.95)", rgb: C.cyan };
+  }
   function buildPush() {
     const K = SPR_K, S = 120;
     const c = mkCanvas(S * K, S * K), g = c.getContext("2d");
     g.scale(K, K);
     const x = S / 2, y = S / 2, r = 48;
-    g.shadowColor = "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
-    g.fillStyle = "#200"; g.beginPath(); g.arc(x, y, r + 4, 0, TAU); g.fill();
+    const neon = THEME === "neon";
+    g.shadowColor = neon ? "rgba(255,63,208,0.9)" : "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
+    g.fillStyle = neon ? "#20001a" : "#200"; g.beginPath(); g.arc(x, y, r + 4, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
     ring.addColorStop(0, "#ffffff"); ring.addColorStop(0.3, "#b8c4d0"); ring.addColorStop(0.55, "#4a5868");
@@ -445,13 +490,15 @@
     g.fillStyle = ring; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
     g.fillStyle = "#1a0000"; g.beginPath(); g.arc(x, y, r * 0.82, 0, TAU); g.fill();
     const dome = g.createRadialGradient(x - r * 0.25, y - r * 0.35, r * 0.05, x, y, r * 0.8);
-    dome.addColorStop(0, "#ffd0c0"); dome.addColorStop(0.25, "#ff4a2a"); dome.addColorStop(0.7, "#b00800"); dome.addColorStop(1, "#4a0000");
+    if (neon) { dome.addColorStop(0, "#ffd6f6"); dome.addColorStop(0.25, "#ff4fd8"); dome.addColorStop(0.7, "#a00a84"); dome.addColorStop(1, "#40002e"); }
+    else { dome.addColorStop(0, "#ffd0c0"); dome.addColorStop(0.25, "#ff4a2a"); dome.addColorStop(0.7, "#b00800"); dome.addColorStop(1, "#4a0000"); }
     g.fillStyle = dome; g.beginPath(); g.arc(x, y, r * 0.77, 0, TAU); g.fill();
-    g.font = "26px " + FONT_DIGIT; g.textAlign = "center"; g.lineJoin = "round";
-    g.lineWidth = 6; g.strokeStyle = "#3a0000"; g.strokeText("PUSH", x, y + 9);
+    const word = T("lcd.push");
+    g.font = (word.length > 4 ? 22 : 26) + "px " + FONT_DIGIT; g.textAlign = "center"; g.lineJoin = "round";
+    g.lineWidth = 6; g.strokeStyle = neon ? "#3a0030" : "#3a0000"; g.strokeText(word, x, y + 9);
     const tf = g.createLinearGradient(0, y - 12, 0, y + 10);
     tf.addColorStop(0, "#ffffff"); tf.addColorStop(0.6, "#fff0b0"); tf.addColorStop(1, "#ffb020");
-    g.fillStyle = tf; g.fillText("PUSH", x, y + 9);
+    g.fillStyle = tf; g.fillText(word, x, y + 9);
     const gl = g.createLinearGradient(0, y - r * 0.8, 0, y);
     gl.addColorStop(0, "rgba(255,255,255,0.7)"); gl.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = gl; g.beginPath(); g.ellipse(x, y - r * 0.36, r * 0.55, r * 0.3, 0, 0, TAU); g.fill();
@@ -504,6 +551,7 @@
   const goldDragon = () => IMG.shinryu || IMG.cab_dragon;
   let imgPending = 0;
   function loadImages(base) {
+    if (THEME === "neon") FACES.forEach((m) => { IMG_FILES["face_" + m] = "face_" + m + ".jpg"; });
     for (const k in IMG_FILES) {
       imgPending++;
       const im = new Image();
@@ -1570,7 +1618,7 @@
     normal: {
       draw(ctx, age) {
         if (IMG.bg_normal) drawCover(ctx, IMG.bg_normal, -12, -12, W + 24, H + 24); else drawBg(ctx, "normal");
-        drawRays(ctx, CX, 150, C.orange, age * 0.05, 0.16, 430, 18, true);
+        drawRays(ctx, CX, 150, THEME === "neon" ? C.cyan : C.orange, age * 0.05, 0.16, 430, 18, true);
         // a shadow dragon drifting through the clouds of the drawn sky (the AI background has its
         // own scenery, and the drawn dragon looked out of place on it)
         if (!IMG.bg_normal) {
@@ -1578,11 +1626,11 @@
           drawDragon(ctx, { x: lerp(W + 140, -160, u), y: 112 + Math.sin(age * 0.5) * 10, sc: 0.62, dir: -1, t: age * 0.9, len: 360, amp: 0.4, wave: 1.2, spd: 2, pal: "shadow", alpha: 0.55, simple: false });
         }
         ctx.save(); ctx.globalCompositeOperation = "lighter";
-        drawGlow(ctx, C.orange, CX, H + 30, 230, 0.22 + 0.08 * Math.sin(age * 2.2));
+        drawGlow(ctx, THEME === "neon" ? C.pink : C.orange, CX, H + 30, 230, 0.22 + 0.08 * Math.sin(age * 2.2));
         ctx.restore();
       },
       emit(dt) {
-        if (rng() < dt * 11) emit("back", { x: rand(0, W), y: H + 4, vx: rand(-8, 8), vy: rand(-28, -66), life: rand(2.6, 4.6), s0: rand(1.2, 2.8), s1: 0.4, a0: 0.95, a1: 0, col: pick([C.ember, C.gold, C.orange]), wob: 18, ph: rand(0, TAU), fadeIn: 0.3 });
+        if (rng() < dt * 11) emit("back", { x: rand(0, W), y: H + 4, vx: rand(-8, 8), vy: rand(-28, -66), life: rand(2.6, 4.6), s0: rand(1.2, 2.8), s1: 0.4, a0: 0.95, a1: 0, col: THEME === "neon" ? pick([C.cyan, C.pink, C.white]) : pick([C.ember, C.gold, C.orange]), wob: 18, ph: rand(0, TAU), fadeIn: 0.3 });
       },
     },
     rush: {
@@ -1665,11 +1713,11 @@
       draw(ctx, age) {
         sceneBg(ctx, "battle");
         ctx.save(); ctx.globalCompositeOperation = "lighter";
-        drawGlow(ctx, C.orange, CX, 236, 260, 0.25 + 0.08 * Math.sin(age * 3));
+        drawGlow(ctx, THEME === "neon" ? C.red : C.orange, CX, 236, 260, 0.25 + 0.08 * Math.sin(age * 3));
         ctx.restore();
       },
       emit(dt) {
-        if (rng() < dt * 22) emit("back", { x: rand(0, W), y: H + 6, vx: rand(-14, 30), vy: rand(-40, -90), life: rand(1.6, 3), s0: rand(1, 2.4), s1: 0.3, col: pick([C.ember, C.gold]), wob: 24, ph: rand(0, TAU) });
+        if (rng() < dt * 22) emit("back", { x: rand(0, W), y: H + 6, vx: rand(-14, 30), vy: rand(-40, -90), life: rand(1.6, 3), s0: rand(1, 2.4), s1: 0.3, col: THEME === "neon" ? pick([C.red, C.pink]) : pick([C.ember, C.gold]), wob: 24, ph: rand(0, TAU) });
         if (rng() < dt * 16) emit("back", { x: rand(0, W), y: 238 + rand(-6, 6), vx: rand(-5, 5), vy: rand(-20, -40), ay: -6, life: rand(0.8, 1.4), s0: rand(8, 14), s1: rand(16, 24), a0: 0.55, a1: 0, type: "fire" });
       },
     },
@@ -1776,9 +1824,14 @@
   let root = null, cv = null, ctx = null, ov = null, telLayer = null;
   const hud = {};
   let telops = [];
+  // 霓虹天使's captions: "fire" is neon pink, "red" magenta (the class names stay, the scenes are shared)
+  const CSS_NEON = `
+.g-fire{--gr:linear-gradient(180deg,#ffffff 0%,#ffd6f6 22%,#ff6fe0 44%,#c0149e 64%,#6a0a8a 82%,#ff9ff0 100%);--bk:#2a0024;--bk2:#10000e;--gl:rgba(255,63,208,.9);--hl:#fff0fb;}
+.g-red{--gr:linear-gradient(180deg,#ffffff 0%,#ffc0f0 22%,#ff3fd0 46%,#8a0070 62%,#ff5fe0 82%,#ffd0f6 100%);--bk:#24001e;--bk2:#0e000c;--gl:rgba(255,40,200,.9);--hl:#ffe8fa;}
+.g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#c8f8ff 22%,#21e6ff 46%,#005a7a 62%,#3af0ff 82%,#d0fbff 100%);--bk:#001a24;--bk2:#000a10;--gl:rgba(33,230,255,.9);--hl:#e8fdff;}`;
   function injectCss() {
     if (document.getElementById("pkl-css")) return;
-    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS;
+    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : "");
     document.head.appendChild(st);
   }
   function mkText(text, cls, size, font, stat) {
@@ -1996,8 +2049,10 @@
     ctx.save();
     ctx.translate(fx.sx, fx.sy);
     drawScenes(ctx);
+    if (THEME === "neon") drawNeonScene(ctx);
     drawZone(ctx);
     drawActors(ctx, "back");
+    if (THEME === "neon") drawFirewall(ctx);   // in front of the guardian AI
     drawParticles(ctx, P.back);
     drawLogo(ctx);
     drawActors(ctx, "under");
@@ -2007,11 +2062,119 @@
     drawParticles(ctx, P.front);
     drawActors(ctx, "front");
     drawHolds(ctx);
+    if (THEME === "neon") drawFace(ctx);
     ctx.restore();
     drawActors(ctx, "top");
+    if (THEME === "neon" && mode === "bonus") drawDownload(ctx);
     drawOverlays(ctx);
     const tr = fx.sx || fx.sy ? "translate(" + fx.sx.toFixed(1) + "px," + fx.sy.toFixed(1) + "px)" : "";
     if (ov._tr !== tr) { ov.style.transform = tr; ov._tr = tr; }
+  }
+  // 霓虹天使: the heroine watches from a small window in the lower right, her face (face_<mood>.jpg, the
+  // 羽根物's seven moods) following the scene: cool in normal play, watching a reach, surprised at a
+  // development, serious in the battle, glowing in OVERDRIVE (RUSH, 激アツ). Hidden while a jackpot,
+  // the bonus or a result fills the screen with its own pictures.
+  const FACES = ["calm", "smile", "wow", "watch", "sad", "hot", "od"];
+  const FACE_BOX = { x: W - 74, y: H - 88, w: 66, h: 80 };
+  const face = { a: 0, mood: "calm", prev: null, mixT0: -9 };
+  function faceMoodNow() {
+    const id = scene.id;
+    if (id === "jackpot" || id === "result" || id === "bonus") return null;
+    if (id === "spsp" || id === "rush") return "od";
+    if (id === "sp") return "wow";
+    if (id === "battle") return "watch";
+    if (reels[0].glow > 0.2 || reels[2].glow > 0.2) return "watch";   // a reach
+    return id === "jitan" ? "smile" : "calm";
+  }
+  function drawFace(ctx) {
+    const want = faceMoodNow();
+    face.a += ((want ? 1 : 0) - face.a) * 0.12;
+    if (want && want !== face.mood) { face.prev = face.mood; face.mood = want; face.mixT0 = clk.t; }
+    if (face.a < 0.02) return;
+    const B = FACE_BOX, bob = Math.sin(clk.t * 1.5) * 1.2;
+    ctx.save();
+    ctx.globalAlpha = face.a;
+    // the window: dark glass with a neon rim that pulses in her colour
+    const rim = face.mood === "od" ? C.gold : face.mood === "watch" || face.mood === "wow" ? C.pink : C.cyan;
+    ctx.fillStyle = "rgba(4,6,16,0.82)";
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(B.x, B.y, B.w, B.h, 10) : ctx.rect(B.x, B.y, B.w, B.h); ctx.fill();
+    ctx.save(); ctx.clip();
+    const draw = (m, al) => {
+      const im = IMG["face_" + m];
+      if (!im || al <= 0) return;
+      const sw = im.naturalWidth * 0.62, sh = sw * B.h / B.w;
+      ctx.globalAlpha = face.a * al;
+      ctx.drawImage(im, im.naturalWidth * 0.5 - sw / 2, im.naturalHeight * 0.42 - sh / 2, sw, sh, B.x, B.y + bob, B.w, B.h);
+    };
+    const k = clamp((clk.t - face.mixT0) / 0.25, 0, 1);
+    if (k < 1 && face.prev) draw(face.prev, 1 - k);
+    draw(face.mood, k);
+    ctx.restore();
+    ctx.globalAlpha = face.a * (0.75 + 0.25 * Math.sin(clk.t * 3));
+    ctx.strokeStyle = rgba(rim, 0.95); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(B.x, B.y, B.w, B.h, 10) : ctx.rect(B.x, B.y, B.w, B.h); ctx.stroke();
+    ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = face.a * 0.35;
+    ctx.lineWidth = 6; ctx.strokeStyle = rgba(rim, 0.5); ctx.stroke();
+    ctx.restore();
+  }
+  // 霓虹天使's own layers:
+  //  ファイアウォール突破 (battle): a red hex-grid firewall in front of the guardian AI, pulsing; when
+  //    she wins it shatters into cyan shards (fw.broken, set by battleWinFx);
+  //  OVERDRIVE RUSH: light streaks racing past, like a highway at speed;
+  //  the bonus: DATA DOWNLOAD, a progress bar filling toward this round's share of the bonus.
+  const fw = { a: 0, broken: 0, t0: 0 };
+  const dl = { v: 0, target: 0, round: 0, rounds: 1 };
+  function drawFirewall(ctx) {
+    const id = scene.id, t = clk.t;
+    fw.a = id === "battle" && !fw.broken ? Math.min(1, (t - scene.t0) / 0.6) : fw.a * 0.9;
+    if (fw.a > 0.02 || (fw.broken && t - fw.t0 < 1.2)) {
+      const brk = fw.broken ? clamp((t - fw.t0) / 1.2, 0, 1) : 0, a = fw.broken ? 1 - brk : fw.a;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const x0 = 218, pulse = 0.55 + 0.25 * Math.sin(t * 5);
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 6; c++) {
+        const hx = x0 + c * 30 + (r % 2) * 15, hy = 20 + r * 34;
+        const off = brk * (60 + ((r * 7 + c * 13) % 9) * 14), ang = ((r * 5 + c * 3) % 7 - 3) * 0.5;
+        const px = hx + Math.cos(ang) * off, py = hy + Math.sin(ang) * off + brk * brk * 120;
+        ctx.strokeStyle = rgba(fw.broken ? C.cyan : C.red, a * pulse * (0.75 + 0.25 * ((r + c) % 2)));
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (let k = 0; k <= 6; k++) { const q = (k / 6) * TAU + Math.PI / 6, X = px + 15 * Math.cos(q), Y = py + 15 * Math.sin(q); if (k) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }
+        ctx.stroke();
+      }
+      ctx.fillStyle = rgba(C.red, a * 0.08); ctx.fillRect(x0 - 16, 0, W - x0 + 16, H);
+      ctx.restore();
+    }
+  }
+  function drawNeonScene(ctx) {
+    const id = scene.id, t = clk.t;
+    if (id === "rush") {   // OVERDRIVE: streaks racing outward from the centre
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let k = 0; k < 18; k++) {
+        const ang = (k / 18) * TAU + 0.3 * Math.sin(k * 7.1), u = (t * 1.6 + k * 0.137) % 1, r0 = 30 + u * u * 300, r1 = r0 + 30 + u * 80;
+        ctx.strokeStyle = rgba(k % 3 ? C.cyan : C.pink, 0.55 * u);
+        ctx.lineWidth = 1 + u * 3;
+        ctx.beginPath(); ctx.moveTo(CX + Math.cos(ang) * r0, 160 + Math.sin(ang) * r0 * 0.7); ctx.lineTo(CX + Math.cos(ang) * r1, 160 + Math.sin(ang) * r1 * 0.7); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  function drawDownload(ctx) {
+    dl.v += (dl.target - dl.v) * 0.012;   // fills slowly through the round
+    const x = 120, y = H - 16, w = W - 200, h = 8;
+    ctx.save();
+    ctx.fillStyle = "rgba(4,6,16,0.72)"; ctx.fillRect(x - 6, y - 15, w + 12, h + 19);
+    ctx.strokeStyle = rgba(C.cyan, 0.8); ctx.lineWidth = 1.2; ctx.strokeRect(x, y, w, h);
+    const g = ctx.createLinearGradient(x, 0, x + w, 0);
+    g.addColorStop(0, rgba(C.cyan, 0.95)); g.addColorStop(1, rgba(C.pink, 0.95));
+    ctx.fillStyle = g; ctx.fillRect(x + 1.5, y + 1.5, Math.max(0, (w - 3) * dl.v), h - 3);
+    ctx.globalCompositeOperation = "lighter";   // a light sweeping along the filled part
+    const sx = x + ((clk.t * 160) % Math.max(1, w * dl.v));
+    ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.fillRect(sx, y + 1.5, 14, h - 3);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.font = "700 9px " + FONT_DIGIT; ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = rgba(C.cyan, 0.95); ctx.textAlign = "left"; ctx.fillText("DATA DOWNLOAD", x, y - 4);
+    ctx.textAlign = "right"; ctx.fillStyle = "#fff"; ctx.fillText(Math.floor(dl.v * 100) + "%", x + w, y - 4);
+    ctx.restore();
   }
   const hitPulse = { on: false, t0: 0 };
   function update(dt) {
@@ -2336,7 +2499,8 @@
     ctxs.emit("gun");
   }
   function cutinFx(col, ctxs) {
-    const c = col === "gold" ? C.gold : col === "red" ? C.red : C.blue;
+    const neon = THEME === "neon";   // 霓虹天使: the red band is magenta, the blue one cyan
+    const c = col === "gold" ? C.gold : col === "red" ? (neon ? C.pink : C.red) : neon ? C.cyan : C.blue;
     addActor("front", 1.3, (ctx, age) => {
       const ui = clamp(age / 0.16, 0, 1), uo = clamp((age - 1.1) / 0.2, 0, 1);
       const off = lerp(W + 40, 0, E.out(ui)) - lerp(0, W + 80, E.in(uo));
@@ -2347,7 +2511,7 @@
       ctx.fillStyle = "#000"; ctx.fill();
       ctx.save(); ctx.clip();
       const gr = ctx.createLinearGradient(0, y0, 0, y1);
-      gr.addColorStop(0, rgba(c, 1)); gr.addColorStop(0.5, col === "gold" ? "#5a2a00" : col === "red" ? "#3a0000" : "#000a3a"); gr.addColorStop(1, rgba(c, 1));
+      gr.addColorStop(0, rgba(c, 1)); gr.addColorStop(0.5, col === "gold" ? "#5a2a00" : col === "red" ? (neon ? "#300028" : "#3a0000") : neon ? "#001a28" : "#000a3a"); gr.addColorStop(1, rgba(c, 1));
       ctx.fillStyle = gr; ctx.fillRect(-40, y0 - 10, W + 80, y1 - y0 + 20);
       hLines(ctx, y0, y1, 34, C.white, 0.5, age, 1600);
       if (col === "gold") drawRays(ctx, 90, 170, C.gold, age * 2, 0.5, 260, 18, true);
@@ -2447,7 +2611,7 @@
     }, { seq: true });
     // 長押し: sometimes (more often on a hit) the button has to be held until the gauge fills
     const S = ctxs.S || {}, long = S.longPush != null ? !!S.longPush : rng() < (S.hit ? LONG_PUSH.hit : LONG_PUSH.miss);
-    const tp = telop(long ? T("lcd.pushLong") : "PUSH!!", { x: CX, y: 118, size: 40, cls: long ? "gold" : "red", font: FONT_POP, anim: "pop", stay: true, pulse: 0.06 });
+    const tp = telop(long ? T("lcd.pushLong") : T("lcd.pushCall"), { x: CX, y: 118, size: 40, cls: long ? "gold" : "red", font: FONT_POP, anim: "pop", stay: true, pulse: 0.06 });
     ctxs.emit(long ? "pushLong" : "pushPrompt");
     const auto = !!(ctxs.opts && ctxs.opts.autoPush);
     let res;
@@ -2614,12 +2778,14 @@
     // The 神龍 flies across, right to left, its body moving (the fly sprite). Without it, the clip
     // of the 神龍 in the storm fills the LCD instead.
     const fly = IMG.fly_head && IMG.fly_body && IMG.fly_tail;
-    const clip = fly ? null : playClip("sp");
+    const clip = fly || THEME === "neon" ? null : playClip("sp");
     const pal = r.color === "gold" || r.color === "rainbow" ? "gold" : r.color === "blue" ? "azure" : "fire";
+    if (THEME === "neon") diveFx(r);
     const glowCol = pal === "azure" ? C.cyan : pal === "gold" ? C.gold : C.orange;
     addActor("back", 4.4, (ctx, age, a) => {
       const u = clamp(age / 4.1, 0, 1), ue = 0.35 * u + 0.65 * E.io(u);
       let d;
+      if (THEME === "neon") { a.mx = null; return; }   // diveFx draws this reach
       const sd = IMG.shinryu || IMG.rival;
       // Once the clip shows, it is the 神龍; the drawn one only stands in while it loads (or without it).
       if (clip && !clip.paused && clip.readyState >= 2) a.clipSeen = true;
@@ -2664,6 +2830,37 @@
     await wait(1.0);
     telopOut(sub, 0.2);
   }
+  // ダイブリーチ (霓虹天使): squares of light rush out of the centre like a tunnel into cyberspace,
+  // code streams past, and she dives in, growing from the vanishing point, lit in the reach colour.
+  function diveFx(r) {
+    const col = r.color === "gold" || r.color === "rainbow" ? C.gold : r.color === "blue" ? C.cyan : C.pink;
+    addActor("back", 4.4, (ctx, age) => {
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let k = 0; k < 12; k++) {
+        const u = (age * 0.9 + k / 12) % 1, sz = 8 + u * u * 520;
+        ctx.strokeStyle = rgba(k % 2 ? C.cyan : col, 0.15 + 0.6 * u * (1 - u) * 4 * 0.25);
+        ctx.lineWidth = 1 + u * 3;
+        ctx.strokeRect(CX - sz / 2, 160 - sz * 0.4, sz, sz * 0.8);
+      }
+      ctx.font = "10px monospace"; ctx.textAlign = "center";
+      for (let k = 0; k < 24; k++) {   // code streaming past toward the edges
+        const ang = (k / 24) * TAU, u = (age * 1.3 + k * 0.29) % 1, d = 20 + u * u * 260;
+        ctx.fillStyle = rgba(k % 3 ? C.cyan : C.green, 0.8 * u);
+        ctx.fillText((k * 7 + Math.floor(age * 12)) % 2 ? "1" : "0", CX + Math.cos(ang) * d, 160 + Math.sin(ang) * d * 0.7);
+      }
+      ctx.restore();
+      const im = IMG.pose_slash || IMG.hero;
+      if (im && age > 0.4) {   // she dives out of the vanishing point toward the viewer, then away
+        const u = clamp((age - 0.4) / 2.6, 0, 1), sc = 0.12 + E.io(u) * 0.95, al = clamp((age - 0.4) / 0.3, 0, 1) * (1 - clamp((age - 3.4) / 0.6, 0, 1));
+        const h = 300 * sc, w = (h * im.naturalWidth) / im.naturalHeight;
+        ctx.save(); ctx.globalAlpha = al;
+        ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, col, CX, 160, 160 * sc + 40, 0.5);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(im, CX - w / 2, 170 - h / 2, w, h);
+        ctx.restore();
+      }
+    }, { seq: true });
+  }
   async function spspSeq(S, r, ctxs) {
     setScene("spsp", 0.1);
     const clip = playClip("spsp");   // the 神龍 bursting into flames fills the LCD under the big 激アツ
@@ -2688,6 +2885,7 @@
   }
   async function battleSeq(S, r, ctxs) {
     setScene("battle", 0.15);
+    fw.broken = 0;
     const B = { hx: -140, hy: H + 26, hsc: 1.0, hs: -1.05, hRot: 0, hDim: 0, hAura: 0.4, hRim: "fire", hA: 1,
       dx: W + 200, dy: 128, dsc: 1.1, dJaw: 0.2, dA: 1, dDim: 0, hp1: 1, hp2: 1, hpA: 0, breath: 0,
       dLean: 0, dSq: 0, dLitT: -9,   // the 炎龍王 picture's pose (drawLive): its attacks lean it in
@@ -2943,6 +3141,7 @@
       await wait(1.5);
       return;
     }
+    if (THEME === "neon") { fw.broken = 1; fw.t0 = clk.t; burst("front", 300, 170, 50, { cols: [C.cyan, C.white, C.pink], v0: 180, v1: 520, s0: 1.5, s1: 3.5, len: 30 }); }
     // no clip: the dragon explodes on the canvas
     const ex = B.dx - 40, ey = B.dy + 20;
     fireBurst(ex, ey, 60, 320, "front");
@@ -3451,6 +3650,7 @@
       layout("hidden", 0.25);
     }
     hudState.bonusOn = true; hudState.rushOn = false;
+    if (changed) { if (round <= 1) dl.v = 0; dl.target = Math.min(1, round / Math.max(1, rounds)); }
     hud._round = round;
     setText(hud.bRound, "ROUND " + round);
     setText(hud.bOf, "/" + rounds + "R");
@@ -3602,6 +3802,7 @@
       if (mounted) return;
       mounted = true;
       o = o || {};
+      applyTheme(o.theme);
       injectCss();
       lcdEl.style.overflow = "hidden";
       if (!lcdEl.style.borderRadius) lcdEl.style.borderRadius = LL.r + "px";
@@ -3635,6 +3836,7 @@
           document.fonts.load("80px \"Yuji Syuku\"", txt),
           document.fonts.load("80px \"Reggae One\"", txt),
           document.fonts.load("20px \"Noto Sans TC\"", txt),
+          THEME === "neon" ? document.fonts.load("80px \"Orbitron\"", txt) : null,
         ]).then(() => { LCD._fontsReady = true; buildSprites(); }, () => { LCD._fontsReady = true; });
       } catch (e) { LCD._fontsReady = true; }
       reels.forEach((r, i) => { reelSet(r, [2, 5, 8][i]); });

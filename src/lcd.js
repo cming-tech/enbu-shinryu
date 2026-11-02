@@ -2022,9 +2022,12 @@
     update(dt);
   }
   let raf = 0, lastTs = 0, manual = false;
-  // 省電模式 (set by the shell): every other frame is drawn (the clock still runs every frame), the
-  // canvas is at most 1.25x instead of 2x, and half the particles are emitted.
-  let saver = false, saverOdd = false, saverEmit = false;
+  // 省電模式 (set by the shell): the canvas is at most 1.25x instead of 2x and half the particles are
+  // emitted. It used to draw every other frame too; the player puts smoothness first, so it does not.
+  let saver = false, saverEmit = false;
+  // 閒置 (set by the shell while nothing plays): one frame in IDLE_SKIP is drawn, to keep the phone cool.
+  let idle = false, idleN = 0;
+  const IDLE_SKIP = 3;
   function frame(ts) {
     raf = requestAnimationFrame(frame);
     if (manual) return;
@@ -2032,7 +2035,7 @@
     lastTs = ts;
     if (++frameN % 60 === 0) resize();
     step(dt);
-    if (saver && (saverOdd = !saverOdd)) return;
+    if (idle && ++idleN % IDLE_SKIP) return;
     if (!clipCovers()) render();
   }
   // An opaque clip that fills the LCD hides the canvas, so it is not drawn meanwhile (a phone then
@@ -2438,9 +2441,10 @@
         let last = clk.t;
         const step = () => {
           const dt = clk.t - last; last = clk.t;
-          if (auto && clk.t - t0 > 0.75) hold.down = true;
+          const autoNow = !!(ctxs.opts && ctxs.opts.autoPush);   // 自動PUSH may be switched on while it waits
+          if (autoNow && clk.t - t0 > 0.75) hold.down = true;
           hold.g = clamp(hold.g + (hold.down ? dt / LONG_PUSH.secs : -dt / 0.6), 0, 1);
-          if (hold.g >= 1) return fin(auto ? "auto" : "push");
+          if (hold.g >= 1) return fin(autoNow ? "auto" : "push");
           if (clk.t - t0 > 8 || !hold.on) return fin("timeout");
           wait(0.03).then(step);
         };
@@ -3652,6 +3656,14 @@
     },
     // the finger left PUSH (ends a 長押し)
     release() { hold.down = false; },
+    // 自動PUSH switched during a spin: it applies at once (a waiting PUSH is taken, a 長押し fills,
+    // 連打 taps by itself), not only from the next spin.
+    setAutoPush(on) {
+      on = !!on;
+      if (curOpts) curOpts.autoPush = on;
+      if (renda.on) renda.auto = on;
+      if (on && pushWaiter) { const w = pushWaiter; pushWaiter = null; w.fin("auto"); }
+    },
     // true while PUSH has a bonus target (the 龍兵, or the 神龍覚醒 gauge): AUTO PUSH taps it
     bossActive() { return mode === "bonus" && ((boss.on && !boss.down && !boss.flee) || (awaken.on && awaken.res == null)); },
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
@@ -3673,6 +3685,7 @@
     // 演出スキップ (see skipNow); true when something was playing
     skip() { return skipNow(); },
     setSaver(on) { saver = !!on; lastW = 0; resize(); },
+    setIdle(on) { idle = !!on; },
     setRush(o) {
       o = o || {};
       if (o.st != null && o.st !== rushInfo.st) { rushInfo.st = o.st; hudState.stPopT = clk.t; }

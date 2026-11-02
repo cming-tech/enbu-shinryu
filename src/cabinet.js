@@ -667,11 +667,11 @@
     }
     cons += `<path d="${ticks}" stroke="#c9d2de" stroke-opacity=".5" stroke-width="1.4"/>`;
     ART.strokes.push({ pts: circlePts(H.cx, H.cy, H.r + 15.5, 14), closed: true, w: [10, 6, 1.6], gain: 0.9 });
-    // PUSH socket (shield shape).
-    const P = L.push, pcx = P.x + P.w / 2, pcy = P.y + P.h / 2;
+    // PUSH socket (shield shape), a little narrower (SHIELD_KX) so it clears the panel on its left.
+    const P = L.push, pcx = P.x + P.w / 2, pcy = P.y + P.h / 2, SHIELD_KX = 0.9;
     const shield = (k) => {
       const pts = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
-      return ptsPath(spline(pts.concat([pts[0]]), 6).map((p) => [pcx + p[0] * k, pcy + 2 + p[1] * k]), true);
+      return ptsPath(spline(pts.concat([pts[0]]), 6).map((p) => [pcx + p[0] * k * SHIELD_KX, pcy + 2 + p[1] * k]), true);
     };
     const sBand = shield(1.12) + " " + shield(1.05);
     holes.push(`<path d="${sBand}" fill-rule="evenodd"/>`);
@@ -681,7 +681,7 @@
     cons += `<path d="${shield(1.12)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.4"/>`;
     {
       const pts = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
-      const sp = spline(pts.concat([pts[0]]), 3).map((p) => [pcx + p[0] * 1.085, pcy + 2 + p[1] * 1.085]);
+      const sp = spline(pts.concat([pts[0]]), 3).map((p) => [pcx + p[0] * 1.085 * SHIELD_KX, pcy + 2 + p[1] * 1.085]);
       ART.strokes.push({ pts: sp.map((p) => [p[0], p[1], angU(p[0], p[1])]), closed: true, w: [10, 6, 1.6], gain: 0.95 });
     }
     // Panel socket.
@@ -696,7 +696,7 @@
     ART.strokes.push({ pts: rrectPts(Q.x - 6.5, Q.y - 6.5, Q.w + 13, Q.h + 13, 18, 14), closed: true, w: [10, 6, 1.6], gain: 0.85 });
     // Bolts.
     const bolt = (x, y) => `<g transform="translate(${x},${y})"><circle r="4.4" fill="url(#pkc-chromeV)" stroke="#000" stroke-width=".8"/><path d="M-2.6,0 H2.6 M0,-2.6 V2.6" stroke="#2a2e35" stroke-width="1.2"/></g>`;
-    cons += bolt(215, 712) + bolt(384, 712) + bolt(215, 838) + bolt(384, 846) + bolt(20, 690);
+    cons += bolt(210, 712) + bolt(395, 712) + bolt(210, 838) + bolt(395, 846) + bolt(20, 690);   // in the gaps between the sockets
     deco += cons;
 
     // --- dragon
@@ -2032,7 +2032,7 @@
     S.measureT += dt;
     if (S.measureT > 1) { S.measureT = 0; measure(); }
     update(dt);
-    if (!S.saver || (S.odd = !S.odd)) render();   // 省電模式: every other frame
+    if (!S.idle || ++S.idleN % 3 === 0) render();   // 閒置: one frame in 3 (省電模式 draws every frame, at a lower resolution)
     S.raf = requestAnimationFrame(tick);
   }
   function startLoop() {
@@ -2169,6 +2169,7 @@
 
   PK.Cabinet = {
     setSaver(on) { S.saver = !!on; S.cw = 0; if (S.mounted) measure(); },
+    setIdle(on) { S.idle = !!on; S.idleN = 0; },
     mount, launch, setLights, flash, setAttacker, setDenchu, setSub, pause,
     // fn() is called each time a ball bounces off a pin (the shell plays a soft metallic tick).
     onPin(fn) { S.onPin = typeof fn === "function" ? fn : null; },

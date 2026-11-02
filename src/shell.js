@@ -14,7 +14,7 @@
 
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; the public site is built from the same files.
-  const VERSION = 47;
+  const VERSION = 48;
 
   // ---------------------------------------------------------------- storage
   // localStorage can be missing or throw (private windows, previews): the game still runs.
@@ -23,7 +23,8 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not saved */ } };
   const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
 
-  const set = Object.assign({ dataOpen: false, saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false }, parse(load(KEY_SET)));
+  const set = Object.assign({ dataOpen: false, saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false,
+    wakeMin: 5, showFps: false, remind: true }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
 
   // ---------------------------------------------------------------- 機率調整
@@ -176,6 +177,25 @@
     const x = (w - L.stage.w * s) / 2, y = Math.max(0, (h - L.stage.h * s) * 0.5);
     $("stage").style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) scale(" + s.toFixed(4) + ")";
   }
+
+  // ---------------------------------------------------------------- 螢幕保持開啟
+  // While the player is playing the screen stays on (Screen Wake Lock), for set.wakeMin minutes after
+  // the last touch (0 = the phone's own setting); then the phone may turn it off, so a game left on
+  // auto never runs all night. A hidden page loses the lock, so it is asked for again on return.
+  let wakeLock = null, wakeAsking = false, lastTouch = Date.now();
+  function wake() {
+    const want = set.wakeMin > 0 && !document.hidden && Date.now() - lastTouch < set.wakeMin * 60000;
+    if (want && !wakeLock && !wakeAsking && navigator.wakeLock) {
+      wakeAsking = true;
+      navigator.wakeLock.request("screen").then((l) => {
+        wakeAsking = false; wakeLock = l;
+        l.addEventListener("release", () => { if (wakeLock === l) wakeLock = null; });
+      }, () => { wakeAsking = false; });
+    } else if (!want && wakeLock) { const l = wakeLock; wakeLock = null; l.release().catch(() => {}); }
+  }
+  document.addEventListener("pointerdown", () => { lastTouch = Date.now(); wake(); }, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", wake);
+  setInterval(wake, 15000);
 
   // ---------------------------------------------------------------- 提示字幕
   const capLast = {};
@@ -625,6 +645,7 @@
       const dt = lastTs ? Math.min(0.25, (ts - lastTs) / 1000) : 0;
       lastTs = ts;
       if (document.hidden) return;
+      care(dt);
       if (Math.abs(shown - power) > 0.001) { shown += (power - shown) * Math.min(1, dt * 10); drawKnob(shown); }
       if (set.autoPush && PK.LCD.bossActive()) {
         tapAcc += dt;
@@ -634,6 +655,30 @@
       const gap = mode === "bonus" ? BONUS_GAP : FIRE_GAP;
       fireAcc += dt;
       while (fireAcc >= gap && firing) { fireAcc -= gap; fireOne(); }
+    }
+    // ---- keeping the phone cool (the player asked: no overheating, the screen on while playing)
+    // 閒置: nothing fired, spun or played for IDLE_AFTER s -> the LCD and the cabinet draw one frame
+    // in 3. The frame rate is measured every second (shown with set.showFps); a phone that stays
+    // under SLOW_FPS while playing for SLOW_SECS (it got hot and slowed down) gets 省電模式, once.
+    const IDLE_AFTER = 3, SLOW_FPS = 40, SLOW_SECS = 8, REMIND_EVERY = 3600;
+    let busyT = 0, idleOn = false, fpsN = 0, fpsT = 0, slowS = 0, autoSaved = false, playS = 0, remindAt = REMIND_EVERY;
+    function care(dt) {
+      const busy = firing || spinning || bonusFlow;
+      busyT = busy ? 0 : busyT + dt;
+      const idleNow = busyT > IDLE_AFTER;
+      if (idleNow !== idleOn) { idleOn = idleNow; PK.LCD.setIdle(idleOn); PK.Cabinet.setIdle(idleOn); }
+      if (busy) playS += dt;
+      if (set.remind && playS >= remindAt) { remindAt += REMIND_EVERY; toast(t("ui.remind", { h: Math.round(playS / 3600) }), 6000); }
+      fpsN++; fpsT += dt;
+      if (fpsT < 1) return;
+      const fps = Math.round(fpsN / fpsT);
+      fpsN = 0; fpsT = 0;
+      if (set.showFps) $("fps").textContent = t("ui.fps", { n: fps }) + (idleOn ? " 閒置" : "") + (set.saver ? " 省電" : "");
+      slowS = busy && !idleOn && fps < SLOW_FPS ? slowS + 1 : 0;
+      if (slowS >= SLOW_SECS && !set.saver && !autoSaved) {
+        autoSaved = true; set.saver = true; applySaver(); saveSettings(); showSaver();
+        toast(t("ui.autoSaver"), 6000);
+      }
     }
     function fireOne() {
       // 自動: aimed perfectly. 手動: the knob decides, and a tip says what to fix.
@@ -901,6 +946,7 @@
     }
     function toggleAuto() {
       set.autoPush = !set.autoPush; saveSettings(); showAuto();
+      PK.LCD.setAutoPush(set.autoPush);   // also for the PUSH already waiting
       toast(t(set.autoPush ? "ui.autoOnHint" : "ui.autoOffHint"));
     }
     $("autoBtn").addEventListener("click", () => { snd("button"); toggleAuto(); });
@@ -982,6 +1028,19 @@
       PK.Sound.setLowMemory(set.saver || (navigator.deviceMemory || 8) <= 4);
     };
     $("sSaver").addEventListener("click", () => { set.saver = !set.saver; applySaver(); saveSettings(); showSaver(); snd("button"); });
+    function showCare() {
+      document.querySelectorAll("#sWake button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.min === set.wakeMin)));
+      $("sFps").setAttribute("aria-pressed", String(set.showFps)); $("sFps").textContent = t(set.showFps ? "set.on" : "set.off");
+      $("sRemind").setAttribute("aria-pressed", String(set.remind)); $("sRemind").textContent = t(set.remind ? "set.on" : "set.off");
+      $("fps").hidden = !set.showFps;
+    }
+    document.querySelectorAll("#sWake button").forEach((b) => {
+      b.textContent = +b.dataset.min ? t("set.wakeMin", { n: b.dataset.min }) : t("set.wakeOff");
+      b.addEventListener("click", () => { set.wakeMin = +b.dataset.min; saveSettings(); showCare(); wake(); snd("button"); });
+    });
+    $("sFps").addEventListener("click", () => { set.showFps = !set.showFps; saveSettings(); showCare(); snd("button"); });
+    $("sRemind").addEventListener("click", () => { set.remind = !set.remind; saveSettings(); showCare(); snd("button"); });
+    showCare();
     function showSettings() {
       $("sSound").setAttribute("aria-pressed", String(set.sound));
       $("mSound").setAttribute("aria-pressed", String(set.sound));

@@ -48,8 +48,10 @@
     // Control zone (DOM controls placed by the shell over the cabinet's lower body).
     // Console: 總玉數 panel left, PUSH centre, the round PLAY/STOP button ("handle") right.
     handle: { cx: 490, cy: 770, r: 66 },
-    push: { x: 226, y: 690, w: 136, h: 130 },
-    panel: { x: 12, y: 700, w: 192, h: 140 },
+    // The panel and the PUSH shield used to overlap by ~19 units (their outer rings and a bolt
+    // collided); the panel is narrower and PUSH sits further right, with a gap of ~8 between them.
+    push: { x: 232, y: 690, w: 136, h: 130 },
+    panel: { x: 12, y: 700, w: 180, h: 140 },
     serial: { x: 20, y: 836 },
 
     // Overlay buttons on the cabinet.

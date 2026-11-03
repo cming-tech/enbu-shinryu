@@ -31,6 +31,16 @@
   // lane all the way down to the door's right end; the right wing hangs under it (drawAngelWings).
   const SLOPE_ANGEL = { ax: 536, ay: 500, bx: 356, by: 588 };
   let SLOPE = SLOPE_ENBU, ATT_X = 432; // attacker door centre (its y stays 612); set per layout in mount
+  // 霓虹天使's left side (the user picked "B 圓窗・旋轉盤"): no windmill, warp, road or stage. A ball that
+  // drops into the halo's mouth (upper left of the round screen) runs inside the glowing halo tube round
+  // the screen's lower left and falls into the turntable (クルーン) under it. The dish turns; of its three
+  // holes one is the start pocket (heso), the other two are outs.
+  const HALO = { cx: 300, cy: 310, rx: 225, ry: 188, a0: 205, a1: 92 };   // tube centreline, degrees a0 -> a1
+  const haloPt = (a) => [HALO.cx + HALO.rx * Math.cos(a * DEG), HALO.cy + HALO.ry * Math.sin(a * DEG)];
+  const HALO_PTS = [];
+  for (let a = HALO.a0 + 6; a >= HALO.a1 - 6; a -= 2) HALO_PTS.push(haloPt(a));
+  const haloDist = (x, y) => HALO_PTS.reduce((m, q) => Math.min(m, Math.hypot(x - q[0], y - q[1])), 99);
+  const DISH = { x: 294, y: 542, r: 33, hr: 14, w: 1.3 };   // centre, rim radius, hole ring radius, turn rate (rad/s)
   const STAGE = { x0: 120, x1: 468, yc: 490, rise: 12 }; // ledge under the LCD
   const BEZEL = { x: 96, y: 142, w: 408, h: 336, r: 50 };
   // Energy swirl: a wide band of flowing light between frame offsets s0..s1 (the reference's
@@ -307,7 +317,7 @@
   const ANGEL_NODES = [[70, 560, 12], [470, 545, 12], [250, 618, 11]];
   function pinsAngel() {
     pinsEnbu();   // the functional groups and the exclusions, then the decorative parts are replaced
-    const keep = PINS.all.filter((p) => p.g !== "L" && p.g !== "T" && p.g !== "D");
+    const keep = PINS.all.filter((p) => p.g === "R");   // the right lane and the 電チュー gate
     const all = keep.slice();
     const add = (x, y, g) => { const p = { x, y, g }; all.push(p); return p; };
     PINS.L = [];
@@ -316,8 +326,7 @@
       for (let x = 92 - off; x >= 20; x -= 20) {
         const y = y0 + (92 - x) * 0.3;
         if (y > 466 || x < railLeftX(y) + 11.5) continue;
-        if (Math.hypot(x - WM.x, y - WM.y) < WM.r + 9) continue;
-        if (Math.hypot(x - WARP.x, y - WARP.y) < 11) continue;
+        if (haloDist(x, y) < 14) continue;   // clear of the halo tube
         PINS.L.push(add(x, y, "L"));
       }
     }
@@ -337,7 +346,10 @@
       const vx = SLOPE.bx - SLOPE.ax, vy = SLOPE.by - SLOPE.ay, u = clamp(((x - SLOPE.ax) * vx + (y - SLOPE.ay) * vy) / (vx * vx + vy * vy), 0, 1);
       return Math.hypot(x - SLOPE.ax - u * vx, y - SLOPE.ay - u * vy) >= 13;
     };
-    const okAt = (x, y) => offSlope(x, y) && free.some((p) => Math.abs(p.x - x) <= 10 && Math.abs(p.y - y) <= 9) && inWin(x, y, -12) && !all.some((p) => Math.hypot(x - p.x, y - p.y) < 11);
+    // and clear of the halo tube, the turntable and the lane balls' drop to the left out
+    const offAngel = (x, y) => haloDist(x, y) >= 13 && Math.hypot(x - DISH.x, y - DISH.y) >= DISH.r + 12 &&
+      !(x < 150 && y > 440 && y < 625);
+    const okAt = (x, y) => offSlope(x, y) && offAngel(x, y) && free.some((p) => Math.abs(p.x - x) <= 10 && Math.abs(p.y - y) <= 9) && inWin(x, y, -12) && !all.some((p) => Math.hypot(x - p.x, y - p.y) < 11);
     const run = (pts) => {
       for (let i = 1; i < pts.length; i++) {
         const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 14));
@@ -353,6 +365,7 @@
     for (let k = 0; k < 64; k++) {
       const a = (k / 64) * TAU, x = hx + (B.w / 2 + 14) * Math.cos(a), y = hy + (B.h / 2 + 14) * Math.sin(a);
       if (x < 104 || x > 496 || y > 466 || y < 126) continue;
+      if (haloDist(x, y) < 12) continue;   // the tube is the halo on the lower left
       if (all.some((p) => Math.hypot(x - p.x, y - p.y) < 11)) continue;
       add(x, y, "H");
     }
@@ -521,6 +534,19 @@
     const scroll = (x, y, sx, sy) => `<path transform="translate(${x},${y}) scale(${sx},${sy})" d="M0,0 C14,-4 22,-16 18,-28 C15,-36 6,-36 4,-30 C2,-24 8,-20 12,-24 M0,0 C-4,14 -16,22 -28,18 C-36,15 -36,6 -30,4 C-24,2 -20,8 -24,12" fill="none" stroke="url(#pkc-bGold)" stroke-width="2.6" stroke-linecap="round"/>`;
     s += scroll(106, 468, 1, 1) + scroll(482, 468, -1, 1);
     }
+    if (pinLayout === "angel") {   // the halo tube round the screen's lower left, its mouth and its exit
+      const hp = [];
+      for (let a = HALO.a0; a >= HALO.a1 - 4; a -= 3) hp.push(haloPt(a));
+      const hd = ptsPath(hp, false), m = haloPt(HALO.a0), e = haloPt(HALO.a1 - 4);
+      s += `<path d="${hd}" fill="none" stroke="#000" stroke-opacity=".7" stroke-width="16" stroke-linecap="round"/>`;
+      s += `<path d="${hd}" fill="none" stroke="#21e6ff" stroke-opacity=".3" stroke-width="13" stroke-linecap="round"/>`;
+      s += `<path d="${hd}" fill="none" stroke="#bff8ff" stroke-opacity=".35" stroke-width="2" stroke-dasharray="2 7"/>`;
+      s += `<path d="${hd}" fill="none" stroke="#dff6ff" stroke-opacity=".75" stroke-width="1.2" transform="translate(0,-4.5)"/>`;
+      s += `<path d="${hd}" fill="none" stroke="#ff4fd8" stroke-opacity=".7" stroke-width="1.2" transform="translate(0,4.5)"/>`;
+      s += `<ellipse cx="${f1(m[0])}" cy="${f1(m[1])}" rx="9" ry="5.5" fill="url(#pkc-hole)" stroke="#dff6ff" stroke-width="2.2"/>`;
+      s += `<path d="M${f1(m[0] - 13)},${f1(m[1] - 5)} L${f1(m[0] - 8)},${f1(m[1] - 1)} M${f1(m[0] + 13)},${f1(m[1] - 5)} L${f1(m[0] + 8)},${f1(m[1] - 1)}" stroke="#ff4fd8" stroke-width="1.8" stroke-linecap="round"/>`;
+      s += `<ellipse cx="${f1(e[0])}" cy="${f1(e[1] + 2)}" rx="7" ry="3" fill="#000" stroke="#21e6ff" stroke-width="1.2"/>`;
+    } else {
     // Warp tube + entrance.
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="12"/>`;
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="url(#pkc-tube)" stroke-width="10" stroke-linecap="round"/>`;
@@ -537,6 +563,7 @@
     s += `<g opacity=".9"><path d="M294,546 C276,540 262,534 246,536 C256,546 270,556 294,562 C318,556 332,546 342,536 C326,534 312,540 294,546 Z" fill="#3a1408" stroke="url(#pkc-bGold)" stroke-width="1.6"/>
 <path d="M252,538 C262,532 274,530 284,534 M336,538 C326,532 314,530 304,534" stroke="#ffcf6a" stroke-opacity=".6" fill="none"/></g>`;
     s += `<ellipse cx="294" cy="541" rx="14" ry="3.8" fill="#000"/>`;
+    }
     // 電チュー mouth.
     s += `<ellipse cx="528" cy="463" rx="10" ry="3.2" fill="#000"/>`;
     // Attacker recess.
@@ -1090,7 +1117,7 @@
     flashAmt: 0, flashCol: [255, 255, 255],
     attOpen: false, attK: 0, denOpen: false, denK: 0,
     wmA: 0, wmW: 0,
-    glow: { heso: 0, denchu: 0, attacker: 0, out: 0 },
+    glow: { heso: 0, denchu: 0, attacker: 0, out: 0, halo: 0 }, dishA: 0,
     wisps: [], reduced: false, saver: false, odd: false,
   };
 
@@ -1285,7 +1312,7 @@
     S.pins = pc;
     // Static parts drawn in front of the balls (heso plate, attacker frame, denchu body).
     const [oc, ox] = mkLayer();
-    drawHesoFront(ox);
+    if (pinLayout !== "angel") drawHesoFront(ox);
     drawAttackerFrame(ox);
     drawDenchuBody(ox);
     S.over = oc;
@@ -1646,6 +1673,7 @@
   }
 
   function pathLeft(pb, target) {
+    if (pinLayout === "angel") return pathLeftAngel(pb, target);
     const isHeso = target === "heso";
     if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
     const warp = rnd() < (isHeso ? 0.32 : 0.14);
@@ -1688,6 +1716,60 @@
       return;
     }
     hesoApproach(pb, isHeso);
+  }
+
+  // 霓虹天使: into the halo's mouth and round the screen to the turntable, or down the lane to the left out.
+  function pathLeftAngel(pb, target) {
+    const isHeso = target === "heso";
+    if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
+    const halo = isHeso || rnd() < 0.5;
+    pb.route = halo ? "halo" : "lane";
+    if (halo) {
+      pb.rail(L.rail.start, L.rail.releaseLeft + rr(-5, -2), rr(0.25, 0.3), easeRail);
+      pb.vy = 120;
+      const m = haloPt(HALO.a0);
+      pb.hop(m[0] - 1, m[1] - 4, -70);
+      pb.line(m[0], m[1] + 1, 0.06, { alpha: (t) => 1 - 0.5 * t, cb: () => { S.glow.halo = 1; } });
+      const pts = [];
+      for (let a = HALO.a0 - 3; a >= HALO.a1; a -= 3) pts.push(haloPt(a));
+      pb.roll(pts, 330, 560, 0, 1).alpha = () => 0.5;
+      pb.hop(DISH.x + rr(-5, 5), DISH.y - DISH.r + 7, 30);
+      dishSpin(pb, isHeso ? 0 : rnd() < 0.5 ? 1 : 2);
+      return;
+    }
+    pb.rail(L.rail.start, L.rail.releaseLeft + rr(-4, 1), rr(0.25, 0.3), easeRail);
+    pb.vy = 120;
+    // the lane is narrow beside the tube: a walk that stops early picks up again on the pins below
+    for (let i = 0; i < 4 && pb.y < 440; i++) if (!walk(pb, PINS.L, { yEnd: 470, biasX: 30, bias: 0.25 }) && i) break;
+    // out of the lane's foot, down past the end of the inner rail into the left out
+    // (the lane's right column stands right below where a walk can stop: drop through a gap beside it)
+    const x0 = railLeftX(522) + 14;
+    let bx = Math.max(pb.x, x0), bc = -1;
+    for (const dx of [0, -10, 10, -20, 20]) {
+      const tx = Math.max(pb.x + dx, x0), c = hopClearance(pb.x, pb.y, tx, 522, -40);
+      if (c > bc + 0.5) { bc = c; bx = tx; }
+    }
+    hopSafe(pb, bx, 522, -40);
+    const o = L.outs[1];
+    pb.hop(o.x - 1, o.y - 7, pb.vy * 0.2);
+    pb.enter(o.x, o.y, "out");
+  }
+  // The turntable: the ball runs round the rim and spirals in to hole k as the dish turns under it (k 0 is
+  // the start pocket). The dish's angle is only known when the ball gets there, so its spin is worked out
+  // then (dishInit, called by ballPos): it ends exactly in the hole wherever the dish has turned to.
+  function dishSpin(pb, k) {
+    const ent = Math.atan2(pb.y - DISH.y, pb.x - DISH.x), r0 = Math.hypot(pb.x - DISH.x, pb.y - DISH.y);
+    const rel = (k * TAU) / 3, turns = rnd() < 0.4 ? 2 : 1, st = { D: null };
+    const span = () => ((((S.dishA + rel - ent) % TAU) + TAU) % TAU) + TAU * turns;
+    pb.push(rr(0.6, 0.8), (t) => {
+      const D = st.D != null ? st.D : span(), e = 1 - (1 - t) * (1 - t);
+      const a = S.dishA + rel - (1 - e) * D, r = lerp(r0, DISH.hr, t * t);
+      return [DISH.x + r * Math.cos(a), DISH.y + r * Math.sin(a)];
+    }, { dishInit: () => { if (st.D == null) st.D = span(); } });
+    pb.push(0.16, (t) => {
+      const a = S.dishA + rel;
+      return [DISH.x + DISH.hr * Math.cos(a), DISH.y + DISH.hr * Math.sin(a) + 2 * t];
+    }, { arrive: k ? "out" : "heso", alpha: (t) => 1 - t, scale: (t) => 1 - 0.4 * t });
   }
 
   // From the end of the road: 寄り釘 -> 命釘 -> heso or miss.
@@ -1808,6 +1890,7 @@
     S.attK = clamp(S.attK + (S.attOpen ? ka : -ka), 0, 1);
     S.denK = clamp(S.denK + (S.denOpen ? kd : -kd), 0, 1);
     S.wmA += S.wmW * dt;
+    S.dishA = (S.dishA + DISH.w * dt) % TAU;
     S.wmW *= Math.exp(-dt / 0.9);
     for (const k in S.glow) S.glow[k] *= Math.exp(-dt / 0.18);
     // Wisps.
@@ -1850,6 +1933,7 @@
   }
   function ballPos(b) {
     let s = b.segs[Math.min(b.idx, b.segs.length - 1)];
+    if (s.dishInit) s.dishInit();
     const t = clamp((b.t - s.t0) / s.d, 0, 1);
     const p = s.f(t);
     return { x: p[0], y: p[1], a: s.alpha ? s.alpha(t) : 1, sc: s.scale ? s.scale(t) : 1, ghost: s.ghost };
@@ -1888,10 +1972,10 @@
     }
     x.restore();
 
-    if (pinLayout === "angel") drawAngelWings(x, t);
+    if (pinLayout === "angel") { drawAngelWings(x, t); drawHaloLight(x, t); drawDish(x); }
     // Pins.
     x.drawImage(S.pins, 0, 0, S.cw, S.ch, 0, 0, L.stage.w, L.stage.h);
-    drawWindmill(x);
+    if (pinLayout !== "angel") drawWindmill(x);
 
     // Balls: shadows, ghosts, bodies.
     const bp = S.ballPx;
@@ -2187,6 +2271,50 @@
     x.restore();
   }
 
+  // Pulses of light running down the halo tube (brighter for a moment after a ball goes in).
+  function drawHaloLight(x, t) {
+    const n = HALO_PTS.length, a = 0.45 + 0.55 * S.glow.halo;
+    x.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 6; i++) {
+      const f = (t * 0.45 + i / 6) % 1, q = HALO_PTS[Math.min(n - 1, Math.floor(f * n))];
+      x.globalAlpha = a * Math.sin(Math.PI * f);
+      x.drawImage(i % 2 ? sprite(255, 90, 230) : sprite(90, 230, 255), q[0] - 10, q[1] - 10, 20, 20);
+    }
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+  }
+
+  // The turntable: a dark glass dish with a neon rim, turning; the start hole glows pink.
+  function drawDish(x) {
+    const R = DISH.r;
+    x.save();
+    x.translate(DISH.x, DISH.y);
+    x.fillStyle = "rgba(0,0,0,.55)"; x.beginPath(); x.arc(1.5, 2.5, R + 4, 0, TAU); x.fill();
+    const g = x.createRadialGradient(-6, -8, 2, 0, 0, R);
+    g.addColorStop(0, "#2a3a7a"); g.addColorStop(0.6, "#0e1438"); g.addColorStop(1, "#05060f");
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, R, 0, TAU); x.fill();
+    x.lineWidth = 3.2; x.strokeStyle = "#dff6ff"; x.stroke();
+    x.lineWidth = 1.4; x.strokeStyle = "#21e6ff"; x.beginPath(); x.arc(0, 0, R + 3, 0, TAU); x.stroke();
+    x.rotate(S.dishA);
+    x.strokeStyle = "rgba(255,79,216,.45)"; x.lineWidth = 1;
+    x.beginPath();
+    for (let i = 0; i < 6; i++) { const a = (i * TAU) / 6 + TAU / 6; x.moveTo(Math.cos(a) * 7, Math.sin(a) * 7); x.lineTo(Math.cos(a) * (R - 3), Math.sin(a) * (R - 3)); }
+    x.stroke();
+    for (let k = 0; k < 3; k++) {
+      const a = (k * TAU) / 3, hx = Math.cos(a) * DISH.hr, hy = Math.sin(a) * DISH.hr;
+      if (!k) {
+        x.globalCompositeOperation = "lighter";
+        x.globalAlpha = 0.7 + 0.3 * Math.sin(S.time * 6);
+        x.drawImage(sprite(255, 80, 220), hx - 13, hy - 13, 26, 26);
+        x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
+      }
+      x.fillStyle = "#000"; x.beginPath(); x.arc(hx, hy, 6, 0, TAU); x.fill();
+      x.lineWidth = k ? 1.4 : 2; x.strokeStyle = k ? "#5a7aa8" : "#ff7ae6"; x.stroke();
+    }
+    x.fillStyle = "#dff6ff"; x.beginPath(); x.arc(0, 0, 3, 0, TAU); x.fill();
+    x.restore();
+  }
+
   function drawAttackerDoor(x) {
     const k = smooth(S.attK);
     x.save();
@@ -2235,7 +2363,8 @@
   function drawPocketGlows(x) {
     x.globalCompositeOperation = "lighter";
     const gl = S.glow;
-    if (gl.heso > 0.02) { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, 551 - 26, 52, 52); }
+    if (gl.heso > 0.02) { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, (pinLayout === "angel" ? DISH.y : 551) - 26, 52, 52); }
+    if (gl.halo > 0.02) { const m = haloPt(HALO.a0); x.globalAlpha = gl.halo * 0.9; x.drawImage(sprite(255, 110, 230), m[0] - 18, m[1] - 18, 36, 36); }
     if (gl.attacker > 0.02) { x.globalAlpha = gl.attacker; x.drawImage(sprite(255, 210, 90), ATT_X - 50, 612 - 30, 100, 60); }
     if (gl.out > 0.02) { x.globalAlpha = gl.out * 0.35; x.drawImage(sprite(160, 180, 255), 294 - 12, 641 - 12, 24, 24); }
     if (gl.stage > 0.02) { x.globalAlpha = gl.stage * 0.45; x.drawImage(sprite(255, 190, 90), 294 - 120, 486 - 20, 240, 40); }
@@ -2427,6 +2556,21 @@
       }
       return { arrive: tArr / rate, total: pb.T / rate, kind, route: pb.route, samples };
     },
-    _geom: { inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice(), attX: () => ATT_X },
+    _geom: {
+      inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice(), attX: () => ATT_X,
+      goals: () => {
+        const angel = pinLayout === "angel";
+        return { heso: [angel ? [DISH.x, DISH.y] : [294, 548]], denchu: [[528, 468]], attacker: [[ATT_X, 612]],
+          out: L.outs.map((o) => [o.x, o.y]).concat(angel ? [[DISH.x, DISH.y]] : []) };
+      },
+      // the screen: an ellipse on 霓虹天使 (src/ui.css), a rounded rect otherwise
+      inLcd: (x, y) => {
+        const Lc = L.lcd;
+        if (S.neon) return Math.pow((x - Lc.x - Lc.w / 2) / (Lc.w / 2 - 2), 2) + Math.pow((y - Lc.y - Lc.h / 2) / (Lc.h / 2 - 2), 2) < 1;
+        if (x < Lc.x || x > Lc.x + Lc.w || y < Lc.y || y > Lc.y + Lc.h) return false;
+        const cx = Math.min(Math.max(x, Lc.x + Lc.r), Lc.x + Lc.w - Lc.r), cy = Math.min(Math.max(y, Lc.y + Lc.r), Lc.y + Lc.h - Lc.r);
+        return Math.hypot(x - cx, y - cy) < Lc.r - 2;
+      },
+    },
   };
 })();

@@ -416,7 +416,7 @@
   // dragon replaces the vector dragon, fitted into its box against the right and top edges (only
   // the part outside the window shows); crest replaces the drawn medallion ring and flame (the
   // wings stay); board is the painting behind the pins. A machine without one keeps the drawing.
-  let DRAGON_ART = {}, CREST_ART = {}, BOARD_ART = {};
+  let DRAGON_ART = {}, CREST_ART = {}, BOARD_ART = {}, WING_ART = {};
 
   // Dragon body pieces: neck, coils over the right ring, tail. Built at mount.
   function dragonBody() {
@@ -793,33 +793,52 @@
     }
     cons += `<path d="${ticks}" stroke="#c9d2de" stroke-opacity=".5" stroke-width="1.4"/>`;
     ART.strokes.push({ pts: circlePts(H.cx, H.cy, H.r + 15.5, 14), closed: true, w: [10, 6, 1.6], gain: 0.9 });
+    if (WINGS) for (let k = 0; k < 7; k++) {
+      const a = (205 + k * 21.7) * DEG, x = H.cx + (H.r + 31) * Math.cos(a), y = H.cy + (H.r + 31) * Math.sin(a);
+      const g = `M${f1(x)},${f1(y - 6)} L${f1(x + 4.5)},${f1(y)} L${f1(x)},${f1(y + 6)} L${f1(x - 4.5)},${f1(y)} Z`;
+      holes.push(`<path d="${g}"/>`);
+      acr.push(`<path d="${g}" fill="url(#pkc-ledGlass)"/>`);
+      cons += `<path d="${g}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.4"/>`;
+      ART.leds.push({ x, y, u: angU(x, y), k });
+    }
     // PUSH socket (shield shape), a little narrower (SHIELD_KX) so it clears the panel on its left.
     const P = L.push, pcx = P.x + P.w / 2, pcy = P.y + P.h / 2, SHIELD_KX = 0.9;
-    const shield = (k) => {
-      const pts = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
-      return ptsPath(spline(pts.concat([pts[0]]), 6).map((p) => [pcx + p[0] * k * SHIELD_KX, pcy + 2 + p[1] * k]), true);
-    };
+    const SHIELD = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
+    const GEM = [[0, -76], [58, -58], [80, -18], [80, 22], [58, 56], [0, 78], [-58, 56], [-80, 22], [-80, -18], [-58, -58]];
+    const socketPts = (n) => (WINGS ? densify(GEM, 8) : spline(SHIELD.concat([SHIELD[0]]), n));
+    const shield = (k) => ptsPath(socketPts(6).map((p) => [pcx + p[0] * k * SHIELD_KX, pcy + 2 + p[1] * k]), true);
     const sBand = shield(1.12) + " " + shield(1.05);
     holes.push(`<path d="${sBand}" fill-rule="evenodd"/>`);
     acr.push(`<path d="${sBand}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
     cons += `<path d="${shield(1.16)}" fill="none" stroke="#050607" stroke-width="4"/>`;
     cons += `<path d="${shield(1.0)}" fill="url(#pkc-well)" stroke="url(#pkc-chrome)" stroke-width="4.5"/>`;
+    if (WINGS) {   // facet lines from the gem's corners towards its table
+      let fac = "";
+      GEM.forEach((p) => { fac += `M${f1(pcx + p[0] * SHIELD_KX)},${f1(pcy + 2 + p[1])}L${f1(pcx + p[0] * 0.86 * SHIELD_KX)},${f1(pcy + 2 + p[1] * 0.86)}`; });
+      cons += `<path d="${fac}" stroke="#fff" stroke-opacity=".55" stroke-width="1.2"/>`;
+    }
     cons += `<path d="${shield(1.12)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.4"/>`;
     {
-      const pts = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
-      const sp = spline(pts.concat([pts[0]]), 3).map((p) => [pcx + p[0] * 1.085 * SHIELD_KX, pcy + 2 + p[1] * 1.085]);
+      const sp = socketPts(3).map((p) => [pcx + p[0] * 1.085 * SHIELD_KX, pcy + 2 + p[1] * 1.085]);
       ART.strokes.push({ pts: sp.map((p) => [p[0], p[1], angU(p[0], p[1])]), closed: true, w: [10, 6, 1.6], gain: 0.95 });
     }
     // Panel socket.
     const Q = L.panel;
-    const rrect = (x, y, w, h, r) => `M${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + r} V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r} 0 0 1 ${x},${y + h - r} V${y + r} A${r},${r} 0 0 1 ${x + r},${y} Z`;
+    const rrect = WINGS
+      ? (x, y, w, h, r) => `M${x + r},${y} H${x + w - r} L${x + w},${y + r} V${y + h - r} L${x + w - r},${y + h} H${x + r} L${x},${y + h - r} V${y + r} Z`
+      : (x, y, w, h, r) => `M${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + r} V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r} 0 0 1 ${x},${y + h - r} V${y + r} A${r},${r} 0 0 1 ${x + r},${y} Z`;
     const qBand = rrect(Q.x - 9, Q.y - 9, Q.w + 18, Q.h + 18, 20) + " " + rrect(Q.x - 4, Q.y - 4, Q.w + 8, Q.h + 8, 16);
     holes.push(`<path d="${qBand}" fill-rule="evenodd"/>`);
     acr.push(`<path d="${qBand}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
     cons += `<path d="${rrect(Q.x - 12, Q.y - 12, Q.w + 24, Q.h + 24, 22)}" fill="none" stroke="#050607" stroke-width="4"/>`;
     cons += `<path d="${rrect(Q.x, Q.y, Q.w, Q.h, 14)}" fill="url(#pkc-wellR)" stroke="url(#pkc-chrome)" stroke-width="4"/>`;
     cons += `<path d="${rrect(Q.x - 9, Q.y - 9, Q.w + 18, Q.h + 18, 20)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.4"/>`;
-    ART.strokes.push({ pts: rrectPts(Q.x - 6.5, Q.y - 6.5, Q.w + 13, Q.h + 13, 18, 14), closed: true, w: [10, 6, 1.6], gain: 0.85 });
+    {
+      const x0 = Q.x - 6.5, y0 = Q.y - 6.5, w = Q.w + 13, h = Q.h + 13, r = 18;
+      const pts = WINGS ? densify([[x0 + r, y0], [x0 + w - r, y0], [x0 + w, y0 + r], [x0 + w, y0 + h - r], [x0 + w - r, y0 + h], [x0 + r, y0 + h], [x0, y0 + h - r], [x0, y0 + r]], 14).map((p) => [p[0], p[1], angU(p[0], p[1])])
+        : rrectPts(x0, y0, w, h, r, 14);
+      ART.strokes.push({ pts, closed: true, w: [10, 6, 1.6], gain: 0.85 });
+    }
     // Bolts.
     const bolt = (x, y) => `<g transform="translate(${x},${y})"><circle r="4.4" fill="url(#pkc-chromeV)" stroke="#000" stroke-width=".8"/><path d="M-2.6,0 H2.6 M0,-2.6 V2.6" stroke="#2a2e35" stroke-width="1.2"/></g>`;
     cons += bolt(210, 712) + bolt(395, 712) + bolt(210, 838) + bolt(395, 846) + bolt(20, 690);   // in the gaps between the sockets
@@ -931,6 +950,7 @@
       // short drooping feathers in the lower corner, under the window's side
       for (let k = 0; k < 3; k++) set.push(feather(sd > 0 ? 566 : 22, 520 + k * 34, 100 - k * 14, 120 - k * 18, 20, sd > 0 ? -1 : 1));
     }
+    if (S.wingImg && S.wingCv) set.length = 0;   // the AI wings are drawn, and move, on their own canvas (drawWingLayer)
     // pearl blades with chrome rims, clipped outside the window; a lit slit down each one's vein
     set.forEach((f, i) => {
       out += `<g clip-path="url(#pkc-outWin)"><path d="${f.d}" fill="#2a3450" opacity=".35" transform="translate(3,5)"/>`;
@@ -957,13 +977,22 @@
     acr.push(`<path d="${band}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
     const ring = [];
     for (let k = 0; k < 48; k++) { const a = (k / 48) * TAU, x = hx + hrx * Math.cos(a), y = hy + hry * Math.sin(a); ring.push([x, y, angU(x, y)]); }
-    ART.strokes.push({ pts: ring, closed: true, w: [14, 8, 2.4], gain: 1.1 });
+    ART.strokes.push({ pts: ring, closed: true, w: [14, 8, 2.4], gain: 1.1, colFn: haloAt });
     out += `<ellipse cx="${hx}" cy="${hy}" rx="${hrx + 6}" ry="${hry + 6}" fill="none" stroke="url(#pkc-chrome)" stroke-width="2"/>`;
     out += `<ellipse cx="${hx}" cy="${hy}" rx="${hrx - 6}" ry="${hry - 6}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.6"/>`;
-    ART.sprites.push({ x: hx, y: hy, r: 70, g: 0.6 });
+    ART.sprites.push({ x: hx, y: hy, r: 70, g: 0.6, colFn: haloAt });
     return out;
   }
 
+  // Points every ~step along a closed polygon.
+  function densify(poly, step) {
+    const out = [];
+    poly.forEach((a, i) => {
+      const b = poly[(i + 1) % poly.length], n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+      for (let j = 0; j < n; j++) out.push([lerp(a[0], b[0], j / n), lerp(a[1], b[1], j / n)]);
+    });
+    return out;
+  }
   function circlePts(cx, cy, r, step) {
     const n = Math.max(12, Math.round((TAU * r) / step)), out = [];
     for (let i = 0; i < n; i++) {
@@ -1194,7 +1223,7 @@
     flashAmt: 0, flashCol: [255, 255, 255],
     attOpen: false, attK: 0, denOpen: false, denK: 0,
     wmA: 0, wmW: 0,
-    glow: { heso: 0, denchu: 0, attacker: 0, out: 0, halo: 0 }, dishA: 0,
+    glow: { heso: 0, denchu: 0, attacker: 0, out: 0, halo: 0 }, dishA: 0, wingOpen: 0, wingCv: null, wingX: null,
     wisps: [], reduced: false, saver: false, odd: false,
   };
 
@@ -1359,6 +1388,7 @@
       S.ch = Math.round(L.stage.h * k);
       f.width = S.cw;
       f.height = S.ch;
+      wingLayerSize();
       buildLayers();
     }
   }
@@ -1968,6 +1998,8 @@
     S.denK = clamp(S.denK + (S.denOpen ? kd : -kd), 0, 1);
     S.wmA += S.wmW * dt;
     S.dishA = (S.dishA + DISH.w * dt) % TAU;
+    const wingWant = WING_OPEN[S.theme] || 0;
+    S.wingOpen += (wingWant - S.wingOpen) * (1 - Math.exp(-dt / (wingWant > S.wingOpen ? 0.25 : 0.8)));
     S.wmW *= Math.exp(-dt / 0.9);
     for (const k in S.glow) S.glow[k] *= Math.exp(-dt / 0.18);
     // Wisps.
@@ -2096,6 +2128,7 @@
     drawStrokes(x);
     drawWisps(x);
     drawSprites(x);
+    drawWingLayer();
     x.globalCompositeOperation = "source-over";
   }
 
@@ -2137,7 +2170,7 @@
     ART.strokes.forEach((st) => {
       const pts = st.pts, n = pts.length, segs = st.closed ? n : n - 1;
       if (!st.cols) { st.cols = new Array(n); for (let i = 0; i < n; i++) st.cols[i] = [0, 0, 0, 0]; }
-      for (let i = 0; i < n; i++) lightAt(pts[i][2], st.cols[i]);
+      for (let i = 0; i < n; i++) (st.colFn || lightAt)(pts[i][2], st.cols[i]);
       for (let pass = 0; pass < 3; pass++) {
         x.lineWidth = st.w[pass];
         let lastKey = "", open = false;
@@ -2192,6 +2225,106 @@
   }
   function lerp3(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
 
+  // 霓虹天使's halo has a colour of its own per mode: cyan normally, magenta in reach, gold in a jackpot,
+  // pink in RUSH (crossfaded like the frame lights).
+  function haloTheme(name, u, t, o) {
+    let r, g, b, i;
+    switch (name) {
+      case "reach": { const p = Math.pow(0.5 + 0.5 * Math.sin(TAU * t * 1.6), 2); r = 255; g = 50 + 60 * p; b = 220; i = 0.55 + 0.7 * p; break; }
+      case "hot": { const band = Math.floor(u * 24 + t * 9) & 1; if (band) { r = 255; g = 70; b = 220; } else { r = 255; g = 210; b = 90; } i = 1.05; break; }
+      case "bonus": case "rainbow": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 4 - t * 1.4))), 4); r = 255; g = 190 + 50 * ch; b = 60 + 120 * ch; i = 0.75 + 0.6 * ch; break; }
+      case "rush": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 4 + t * 1.6))), 4); r = 255; g = 70 + 120 * ch; b = 200 + 40 * ch; i = 0.7 + 0.6 * ch; break; }
+      case "off": r = 60; g = 80; b = 120; i = 0.15; break;
+      default: { const w = 0.5 + 0.5 * Math.sin(TAU * t * 0.35); r = 70; g = 215; b = 255; i = 0.65 + 0.3 * w; }
+    }
+    o[0] = r; o[1] = g; o[2] = b; o[3] = i;
+  }
+  function haloAt(u, o) {
+    const t = S.time;
+    let k = (t - S.themeT0) / THEME_FADE;
+    haloTheme(S.theme, u, t, o);
+    if (k < 1) {
+      k = smooth(clamp(k, 0, 1));
+      haloTheme(S.prevTheme, u, t, _h2);
+      for (let j = 0; j < 4; j++) o[j] = lerp(_h2[j], o[j], k);
+    }
+    if (S.flashAmt > 0.002) for (let j = 0; j < 3; j++) o[j] = lerp(o[j], S.flashCol[j], S.flashAmt * 0.6);
+    return o;
+  }
+  const _h = [0, 0, 0, 0], _h2 = [0, 0, 0, 0];
+
+  // 霓虹天使's AI wings, on a canvas over the front: they breathe, rise and spread in a reach, and glow in the
+  // halo's colour (white in a flash). Clipped outside the window and round the gem clasp.
+  const WING_OPEN = { reach: 1, hot: 1, bonus: 0.7, rainbow: 0.7, rush: 0.45 };
+  function wingTint(im, col) {
+    const c = document.createElement("canvas");
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const x = c.getContext("2d");
+    x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = "source-in";
+    x.fillStyle = col;
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  function drawWingLayer() {
+    const cv = S.wingCv, im = S.wingImg;
+    if (!cv || !S.wingX || !im || !im.naturalWidth) return;
+    const x = S.wingX, A = WING_ART, t = S.time, op = S.wingOpen;
+    if (!S.wingBase) {   // the wing with its drop shadow baked in: one draw per wing a frame
+      const sh = wingTint(im, "rgba(20,28,60,.55)"), c = document.createElement("canvas");
+      c.width = im.naturalWidth + 8; c.height = im.naturalHeight + 10;
+      const g = c.getContext("2d");
+      g.drawImage(sh, 6, 9); g.drawImage(im, 0, 0);
+      S.wingBase = c;
+    }
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalCompositeOperation = "source-over";
+    x.globalAlpha = 1;
+    x.clearRect(0, 0, cv.width, cv.height);
+    x.setTransform(S.k, 0, 0, S.k, 0, 0);
+    x.save();
+    x.clip(S.wingClip, "evenodd");
+    const breath = S.reduced ? 0 : Math.sin(TAU * t * 0.3);
+    const flap = S.reduced ? 0 : op * Math.sin(TAU * t * 1.3) * 2.5;
+    haloAt(0.5, _h);
+    const glow = clamp(0.06 + 0.05 * breath + 0.3 * op * (0.6 + 0.4 * Math.sin(TAU * t * 1.6)) + 0.8 * S.flashAmt, 0, 0.9);
+    if (!S.wingTints) S.wingTints = new Map();
+    const key = ((_h[0] >> 4) << 8) | ((_h[1] >> 4) << 4) | (_h[2] >> 4);
+    let tc = S.wingTints.get(key);
+    if (!tc && glow > 0.01) { tc = wingTint(im, `rgb(${_h[0] | 0},${_h[1] | 0},${_h[2] | 0})`); if (S.wingTints.size > 40) S.wingTints.clear(); S.wingTints.set(key, tc); }
+    const parts = [[A.dx, A.ry, A.rot, A.s, 1]];
+    if (A.low) parts.push([A.low.dx, A.low.ry, A.low.rot, A.low.s, 0.5]);
+    for (const [dx, ry, rot, sc, mv] of parts) {
+      for (const sd of [1, -1]) {
+        const k = sc * (1 + mv * 0.05 * op);
+        const draw = (img, ox, oy) => {
+          x.save();
+          x.translate(294 + sd * dx + ox, ry + oy);
+          x.scale(sd, 1);
+          x.rotate((rot - mv * (op * 14 + breath * 1.5 + flap)) * DEG);
+          x.scale(k, k);
+          x.drawImage(img, -A.ox, -A.oy);
+          x.restore();
+        };
+        x.globalCompositeOperation = "source-over";
+        x.globalAlpha = 1;
+        draw(S.wingBase, 0, 0);
+        if (tc && glow > 0.01) {
+          x.globalCompositeOperation = "lighter";
+          x.globalAlpha = glow;
+          draw(tc, 0, 0);
+        }
+      }
+    }
+    x.restore();
+    x.globalCompositeOperation = "source-over";
+    x.globalAlpha = 1;
+  }
+  function wingLayerSize() {
+    const cv = S.wingCv;
+    if (cv && (cv.width !== S.cw || cv.height !== S.ch)) { cv.width = S.cw; cv.height = S.ch; }
+  }
+
   function drawSprites(x) {
     const t = S.time;
     const pulse = 0.72 + 0.28 * Math.sin(TAU * t * (S.theme === "normal" || S.theme === "off" ? 0.7 : 1.8));
@@ -2207,7 +2340,7 @@
         return;
       }
       if (s.u == null) s.u = angU(s.x, s.y);
-      lightAt(s.u, _c);
+      (s.colFn || lightAt)(s.u, _c);
       let it = _c[3] * s.g;
       if (s.pulse) it *= pulse;
       let col = _c;
@@ -2493,8 +2626,17 @@
     pinLayout = mc.pins || "enbu";
     ATT_X = pinLayout === "angel" ? 294 : 432;
     SLOPE = pinLayout === "angel" ? SLOPE_ANGEL : SLOPE_ENBU;
-    DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {};
+    DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {}; WING_ART = art.wing || {};
     buildPins();
+    if (S.frame === "wings" && WING_ART.file && S.front && S.field && S.front.parentNode) {
+      if (!S.wingCv) {
+        const c = document.createElement("canvas");
+        c.id = "cabWings";
+        c.style.cssText = "position:absolute;left:0;top:0;width:588px;height:860px;pointer-events:none";
+        S.front.parentNode.insertBefore(c, S.front.nextSibling);
+        S.wingCv = c; S.wingX = c.getContext("2d");
+      }
+    } else if (S.wingCv) { S.wingCv.remove(); S.wingCv = S.wingX = null; }
     if (S.back) buildBack(S.back);
     if (S.front) buildFront(S.front);
     else buildFront(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
@@ -2508,6 +2650,7 @@
       S.winPath = new Path2D(loopPath(0, 3));
       S.swirlBand = new Path2D(loopPath(SWIRL.s1, 3) + loopPath(SWIRL.inner, 3));
       S.aboveConsole = new Path2D(CONSOLE_TOP + " L588,0 L0,0 Z");
+      S.wingClip = new Path2D("M0,0H588V860H0Z " + loopPath(0, 3) + " M294,78 L316,98 L294,124 L272,98 Z M188,40 a106,24 0 1 0 212,0 a106,24 0 1 0 -212,0 Z");
       const Lc = L.lcd;
       S.lcdPath = new Path2D();
       if (S.lcdPath.roundRect) S.lcdPath.roundRect(Lc.x - 4, Lc.y - 4, Lc.w + 8, Lc.h + 8, Lc.r + 4);
@@ -2517,7 +2660,7 @@
     S.mounted = true;
     // AI art, if there is any: the layer that shows it is rebuilt when it has loaded.
     if (typeof els.assetsBase === "string") {
-      [["dragonImg", DRAGON_ART.file, "front"], ["crestImg", CREST_ART.file, "front"], ["boardImg", BOARD_ART.file, "back"]].forEach(([key, file, layer]) => {
+      [["dragonImg", DRAGON_ART.file, "front"], ["crestImg", CREST_ART.file, "front"], ["wingImg", WING_ART.file, "front"], ["boardImg", BOARD_ART.file, "back"]].forEach(([key, file, layer]) => {
         if (S[key] || !file) return;
         const im = new Image();
         im.onload = () => {

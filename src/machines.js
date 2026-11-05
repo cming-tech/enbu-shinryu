@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 56;
+  PK.VERSION = 57;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -81,6 +81,8 @@
       frame: "wings",   // its own cabinet: pearl body, feather wings, a halo (src/cabinet.js buildWingFrame)
       art: {
         board: { file: "board.jpg" },
+        // AI wing (assets/_raw/angel_frame_wing.png, cut out): root (ox,oy) at the gem, turned rot, scaled s
+        wing: { file: "frame_wing.png", ox: 70, oy: 650, dx: 24, ry: 112, rot: 38, s: 0.56, low: { dx: 290, ry: 690, rot: -58, s: 0.3 } },
       },
     },
     text: Object.assign({}, E.text, {

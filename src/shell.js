@@ -679,8 +679,10 @@
     // 閒置: nothing fired, spun or played for IDLE_AFTER s -> the LCD and the cabinet draw one frame
     // in 3. The frame rate is measured every second (shown with set.showFps); a phone that stays
     // under SLOW_FPS while playing for SLOW_SECS (it got hot and slowed down) gets 省電模式, once.
-    const IDLE_AFTER = 3, SLOW_FPS = 40, SLOW_SECS = 8, REMIND_EVERY = 3600;
-    let busyT = 0, idleOn = false, fpsN = 0, fpsT = 0, slowS = 0, autoSaved = false, playS = 0, remindAt = REMIND_EVERY;
+    // Before that, a gentler step: under LITE_FPS for LITE_SECS (RUSH and jackpots ran at ~40 on the
+    // user's phone) halves the particles and wisps for the rest of the visit, silently, at full resolution.
+    const IDLE_AFTER = 3, SLOW_FPS = 40, SLOW_SECS = 8, LITE_FPS = 52, LITE_SECS = 4, REMIND_EVERY = 3600;
+    let busyT = 0, idleOn = false, fpsN = 0, fpsT = 0, slowS = 0, liteS = 0, liteOn = false, autoSaved = false, playS = 0, remindAt = REMIND_EVERY;
     function care(dt) {
       const busy = firing || spinning || bonusFlow;
       busyT = busy ? 0 : busyT + dt;
@@ -692,7 +694,9 @@
       if (fpsT < 1) return;
       const fps = Math.round(fpsN / fpsT);
       fpsN = 0; fpsT = 0;
-      if (set.showFps) $("fps").textContent = t("ui.fps", { n: fps }) + (idleOn ? " 閒置" : "") + (set.saver ? " 省電" : "");
+      if (set.showFps) $("fps").textContent = t("ui.fps", { n: fps }) + (idleOn ? " 閒置" : "") + (set.saver ? " 省電" : liteOn ? " 輕量" : "");
+      liteS = busy && !idleOn && fps < LITE_FPS ? liteS + 1 : 0;
+      if (liteS >= LITE_SECS && !liteOn) { liteOn = true; PK.LCD.setLite(true); PK.Cabinet.setLite(true); }
       slowS = busy && !idleOn && fps < SLOW_FPS ? slowS + 1 : 0;
       if (slowS >= SLOW_SECS && !set.saver && !autoSaved) {
         autoSaved = true; set.saver = true; applySaver(); saveSettings(); showSaver();

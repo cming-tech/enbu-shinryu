@@ -1403,6 +1403,22 @@
     x.setTransform(S.k, 0, 0, S.k, 0, 0);
     return [c, x];
   }
+  // A static layer is drawn every frame: keep only the box its pixels fill, so the copy paints
+  // that box instead of the whole stage (the 'over' parts fill under a fifth of it).
+  function cropLayer(c) {
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    try {
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data, w = c.width;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y; }
+      }
+    } catch (e) { return { c, sx: 0, sy: 0, sw: c.width, sh: c.height }; }   // unreadable: the whole layer
+    if (x1 < 0) return null;
+    return { c, sx: x0, sy: y0, sw: x1 - x0 + 1, sh: y1 - y0 + 1 };
+  }
+  function drawLayer(x, l) {
+    if (l) x.drawImage(l.c, l.sx, l.sy, l.sw, l.sh, l.sx / S.k, l.sy / S.k, l.sw / S.k, l.sh / S.k);
+  }
   function buildLayers() {
     // Pins.
     const [pc, px] = mkLayer();
@@ -1420,13 +1436,13 @@
       px.beginPath(); px.arc(-0.75, -0.85, 0.6, 0, TAU); px.fill();
       px.restore();
     });
-    S.pins = pc;
+    S.pins = cropLayer(pc);
     // Static parts drawn in front of the balls (heso plate, attacker frame, denchu body).
     const [oc, ox] = mkLayer();
     if (pinLayout !== "angel") drawHesoFront(ox);
     drawAttackerFrame(ox);
     drawDenchuBody(ox);
-    S.over = oc;
+    S.over = cropLayer(oc);
     // Ball sprites.
     const bs = Math.ceil((BR * 2 + 4) * S.k);
     const ball = document.createElement("canvas");
@@ -1451,7 +1467,7 @@
     S.ballPx = bs / S.k;
     // Energy swirl: two streak textures (cross-faded each frame) and a layer to tint them in.
     S.swirl = [swirlTex(11), swirlTex(23)];
-    S.swirlLayer = swirlCanvas();
+    S.swirlLayer = swirlCanvas(); S.swirlOk = false;
   }
 
   function swirlCanvas() {
@@ -1523,8 +1539,12 @@
   // Tint the swirl with the theme light around the frame (conic gradient over u) and add it.
   const SWIRL_STOPS = 24;
   function drawSwirl(x) {
-    if (!S.swirl) return;
-    const c = S.swirlLayer, l = c.getContext("2d"), t = S.time;
+    if (!S.swirl || S.frame === "wings") return;   // 翼之枠 has no swirl band: nothing would show
+    const c = S.swirlLayer;
+    // The light flows slowly: rebuild its layer every other frame and reuse it in between.
+    if ((S.swirlN = (S.swirlN || 0) + 1) % 2 && S.swirlOk) { x.drawImage(c, 0, 0, c.width, c.height, 0, 0, L.stage.w, L.stage.h); return; }
+    S.swirlOk = true;
+    const l = c.getContext("2d"), t = S.time;
     l.setTransform(1, 0, 0, 1, 0, 0);
     l.globalCompositeOperation = "source-over";
     l.clearRect(0, 0, c.width, c.height);
@@ -2008,7 +2028,7 @@
     for (const k in S.glow) S.glow[k] *= Math.exp(-dt / 0.18);
     // Wisps.
     const wc = (S.neon && NEON_WISP[S.theme]) || WISP[S.theme] || WISP.normal;
-    const want = Math.round((S.reduced ? 8 : 22) * wc.n);
+    const want = Math.round((S.reduced ? 8 : S.lite ? 11 : 22) * wc.n);
     while (S.wisps.length < want) S.wisps.push({ p: rnd(), side: rnd() < 0.5 ? -1 : 1, v: rr(0.7, 1.4), size: rr(0.7, 1.3) });
     if (S.wisps.length > want) S.wisps.length = want;
     const sp = wc.spd * (S.reduced ? 0.5 : 1);
@@ -2087,7 +2107,7 @@
 
     if (pinLayout === "angel") { drawAngelWings(x, t); drawHaloLight(x, t); drawDish(x); }
     // Pins.
-    x.drawImage(S.pins, 0, 0, S.cw, S.ch, 0, 0, L.stage.w, L.stage.h);
+    drawLayer(x, S.pins);
     if (pinLayout !== "angel") drawWindmill(x);
 
     // Balls: shadows, ghosts, bodies.
@@ -2120,7 +2140,7 @@
     x.globalAlpha = 1;
 
     // Pocket fronts.
-    x.drawImage(S.over, 0, 0, S.cw, S.ch, 0, 0, L.stage.w, L.stage.h);
+    drawLayer(x, S.over);
     drawDenchuWings(x);
     drawAttackerDoor(x);
     drawPocketGlows(x);
@@ -2318,7 +2338,7 @@
         x.globalCompositeOperation = "source-over";
         x.globalAlpha = 1;
         draw(S.wingBase, 0, 0);
-        if (tc && glow > 0.01) {
+        if (tc && glow > 0.01 && mv === 1) {   // the small lower pair goes without the glow copy
           x.globalCompositeOperation = "lighter";
           x.globalAlpha = glow;
           draw(tc, 0, 0);
@@ -2757,6 +2777,7 @@
   PK.Cabinet = {
     setSaver(on) { S.saver = !!on; S.cw = 0; if (S.mounted) measure(); },
     setIdle(on) { S.idle = !!on; S.idleN = 0; },
+    setLite(on) { S.lite = !!on; },   // half the drifting wisps
     mount, launch, setLights, flash, setAttacker, setDenchu, setSub, pause,
     // fn() is called each time a ball bounces off a pin (the shell plays a soft metallic tick).
     onPin(fn) { S.onPin = typeof fn === "function" ? fn : null; },

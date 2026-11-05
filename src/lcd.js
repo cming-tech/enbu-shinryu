@@ -1149,7 +1149,7 @@
   // ------------------------------------------------------------------ particles
   const P = { back: [], front: [] };
   function emit(layer, o) {
-    if (saver && (saverEmit = !saverEmit)) return null;
+    if ((saver || lite) && (saverEmit = !saverEmit)) return null;   // 省電模式 or 輕量: half the particles
     const arr = P[layer] || P.front;
     if (arr.length > 650) return null;
     const p = { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, drag: 0, life: 1, age: 0, s0: 4, s1: 4, a0: 1, a1: 0, rot: 0, vr: 0, type: "glow", col: C.gold, add: true, len: 10, wob: 0, ph: 0, fadeIn: 0 };
@@ -1794,6 +1794,7 @@
 .pkl-ov{position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;}
 .pkl-vid{position:absolute;left:0;top:0;width:${W}px;height:${H}px;object-fit:cover;opacity:0;transition:opacity .25s;pointer-events:none;}
 .pkl-vid.on{opacity:1;}
+.pkl-vign{position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;background:radial-gradient(circle 289px at 50% 50%,rgba(0,0,0,0) 69px,rgba(0,0,0,.1375) 190px,rgba(0,0,0,.55) 289px);}
 .pkl-white{position:absolute;left:0;top:0;width:${W}px;height:${H}px;background:#fff;opacity:0;pointer-events:none;}
 .pkl-vid.pip{left:${Math.round(W * 0.03)}px;top:${Math.round(H * 0.19)}px;width:${Math.round(W * 0.6)}px;height:${Math.round(H * 0.56)}px;border:2px solid #ffd27a;border-radius:10px;box-shadow:0 0 18px rgba(255,170,50,.75);}
 .pkl-t{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.08;pointer-events:none;font-family:${FONT_DIGIT};
@@ -2039,8 +2040,7 @@
       const p = fx.vignP ? 0.7 + 0.3 * Math.sin(clk.t * fx.vignP) : 1;
       ctx.globalAlpha = fx.vign * p; ctx.drawImage(vignSpr(fx.vignC), 0, 0, W, H);
     }
-    // screen inset shading (always)
-    ctx.globalAlpha = 0.55; ctx.drawImage(vignSpr("0,0,0"), -30, -26, W + 60, H + 52);
+    // screen inset shading (always): a static CSS layer (.pkl-vign), not a full-screen draw every frame
     if (fx.flashA > 0.005) {
       ctx.globalAlpha = Math.min(1, fx.flashA); ctx.fillStyle = rgba(fx.flashC, 1); ctx.fillRect(0, 0, W, H);
     }
@@ -2218,7 +2218,7 @@
   let raf = 0, lastTs = 0, manual = false;
   // 省電模式 (set by the shell): the canvas is at most 1.25x instead of 2x and half the particles are
   // emitted. It used to draw every other frame too; the player puts smoothness first, so it does not.
-  let saver = false, saverEmit = false;
+  let saver = false, saverEmit = false, lite = false;
   // 閒置 (set by the shell while nothing plays): one frame in IDLE_SKIP is drawn, to keep the phone cool.
   let idle = false, idleN = 0;
   const IDLE_SKIP = 3;
@@ -3830,7 +3830,8 @@
       telLayer = document.createElement("div"); telLayer.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;";
       vidLayer = document.createElement("div");
       whiteEl = document.createElement("div"); whiteEl.className = "pkl-white";
-      root.appendChild(cv); root.appendChild(vidLayer); root.appendChild(whiteEl); root.appendChild(ov);
+      const vign = document.createElement("div"); vign.className = "pkl-vign";
+      root.appendChild(cv); root.appendChild(vign); root.appendChild(vidLayer); root.appendChild(whiteEl); root.appendChild(ov);
       lcdEl.appendChild(root);
       buildHud();
       ov.appendChild(telLayer);
@@ -3927,6 +3928,8 @@
     skip() { return skipNow(); },
     setSaver(on) { saver = !!on; lastW = 0; resize(); },
     setIdle(on) { idle = !!on; },
+    // 輕量: half the particles at full resolution (the shell turns it on by itself when a phone slows)
+    setLite(on) { lite = !!on; },
     setRush(o) {
       o = o || {};
       if (o.st != null && o.st !== rushInfo.st) { rushInfo.st = o.st; hudState.stPopT = clk.t; }

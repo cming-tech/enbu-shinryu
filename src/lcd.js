@@ -470,6 +470,9 @@
     HOLD_SLOT_X = (i) => 170 - i * 24; HOLD_Y = 286;
     ped.y = 286;
     FACE_BOX.x = 262; FACE_BOX.y = 228; FACE_BOX.w = 50; FACE_BOX.h = 58;   // lower right, inside the ellipse
+    // the big result rows stay clear of the ellipse's sides (they touched them)
+    LAY.jackpot = [[92, 170, 0.92, 1], [196, 170, 0.92, 1], [300, 170, 0.92, 1]];
+    LAY.hit = [[94, 170, 0.84, 1], [196, 170, 0.84, 1], [298, 170, 0.84, 1]];
     FONT_BRUSH = '"Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
     const CHROME = [[0, "#ffffff"], [0.3, "#d8e2f4"], [0.55, "#5a6680"], [0.78, "#f2f6ff"], [1, "#3a4458"]];
     // odd digits neon pink, even neon cyan (7 stays gold): the 炎舞神龍 red and blue, in this machine's colours
@@ -1835,7 +1838,7 @@
 .g-fire{--gr:linear-gradient(180deg,#ffffff 0%,#ffd6f6 22%,#ff6fe0 44%,#c0149e 64%,#6a0a8a 82%,#ff9ff0 100%);--bk:#2a0024;--bk2:#10000e;--gl:rgba(255,63,208,.9);--hl:#fff0fb;}
 .g-red{--gr:linear-gradient(180deg,#ffffff 0%,#ffc0f0 22%,#ff3fd0 46%,#8a0070 62%,#ff5fe0 82%,#ffd0f6 100%);--bk:#24001e;--bk2:#0e000c;--gl:rgba(255,40,200,.9);--hl:#ffe8fa;}
 .g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#c8f8ff 22%,#21e6ff 46%,#005a7a 62%,#3af0ff 82%,#d0fbff 100%);--bk:#001a24;--bk2:#000a10;--gl:rgba(33,230,255,.9);--hl:#e8fdff;}
-.pkl-aim{left:262px;top:226px;background:linear-gradient(180deg,#ff5fe0,#8a0a70);border-color:#ffd0f6;box-shadow:0 0 12px rgba(255,63,208,.9);}`;
+.pkl-aim{left:252px;top:242px;background:linear-gradient(180deg,#ff5fe0,#8a0a70);border-color:#ffd0f6;box-shadow:0 0 12px rgba(255,63,208,.9);}`;
   function injectCss() {
     if (document.getElementById("pkl-css")) return;
     const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : "");
@@ -1945,7 +1948,8 @@
     const k = Math.min(1, dt * 10);
     hud.rushA += ((hudState.rushOn && !hudHide ? 1 : 0) - hud.rushA) * k;
     hud.bonusA += ((hudState.bonusOn && !hudHide ? 1 : 0) - hud.bonusA) * k;
-    hud.aimA += ((hudState.aimOn && !aimHide ? 1 : 0) - hud.aimA) * k;
+    // on 霓虹天使 the bonus hides it: its corner holds the 獲得 count there (the sub display says 右打ち)
+    hud.aimA += ((hudState.aimOn && !aimHide && !(THEME === "neon" && mode === "bonus") ? 1 : 0) - hud.aimA) * k;
     setOp(hud.rush, "r", hud.rushA); setOp(hud.bonus, "b", hud.bonusA);
     setOp(hud.aim, "a", hud.aimA * (0.75 + 0.25 * Math.sin(clk.t * 8)));
     if (hud.aimA > 0.01) {
@@ -1985,7 +1989,7 @@
     const st = RUSH_STAGES[rushStage()];
     flash(C.white, 1, 2); shake(10);
     burst("front", CX, 140, 50, { cols: [st.c1, st.c2, C.white], v0: 160, v1: 520, s0: 1.5, s1: 3.5, len: 30 });
-    telop(T("lcd.rushStageUp", { name: T(st.name) }), { x: CX, y: 140, size: 40, cls: rushStage() === 2 ? "gold" : "fire", anim: "slam", dur: 1.6, font: FONT_POP, jitter: 2 });
+    telop(T("lcd.rushStageUp", { name: T(st.name) }), { x: CX, y: 140, size: THEME === "neon" ? 28 : 40, cls: rushStage() === 2 ? "gold" : "fire", anim: "slam", dur: 1.6, font: FONT_POP, jitter: 2 });
     if (bonusEv) try { bonusEv("rushStage:" + rushStage()); } catch (e) { console.error(e); }
   }
   let curOpts = null;
@@ -2001,7 +2005,7 @@
   function drawLogo(ctx) {
     if (fx.logoA <= 0.01 || !SPR.logo.main || mode === "bonus") return;
     const sp = SPR.logo[logoVariant()];
-    const x = CX, y = 39 + fx.logoY, s = 0.96 * fx.logoS;
+    const x = CX, y = 39 + (THEME === "neon" && mode === "rush" ? 9 : 0) + fx.logoY, s = 0.96 * fx.logoS;   // the two-line RUSH logo sits lower on the ellipse
     ctx.save();
     ctx.globalAlpha = fx.logoA;
     ctx.drawImage(sp.c, x - sp.ax * s, y - sp.ay * s, sp.w * s, sp.h * s);
@@ -2460,8 +2464,11 @@
         sp: lerp(0.8, 1.25, z) * rand(0.95, 1.05), amp: rand(8, 22), gold: i % 4 === 0 });
     }
     ds.sort((a, b) => a.z - b.z);
+    // 霓虹天使 (機群預告): the guardian robots in its own neon (dark navy far, cyan/pink near), no fire
+    const NE = THEME === "neon";
     const art = (d) => {
       if (d.gold) return goldDragon() ? tinted(goldDragon(), "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
+      if (NE) return d.z < 0.35 ? tinted(IMG.rival, "#06103a", 0.55) : d.z < 0.7 ? tinted(IMG.rival, d.y % 2 < 1 ? "#21e6ff" : "#ff3fd0", 0.22) : tinted(IMG.rival, "#000", 0);
       return d.z < 0.35 ? tinted(IMG.rival, "#2a0604", 0.55) : d.z < 0.7 ? tinted(IMG.rival, "#ff7a1a", 0.18) : tinted(IMG.rival, "#000", 0);
     };
     // gold ones are the long 神龍 when its parts exist: it flies on until its tail has left too
@@ -2473,8 +2480,8 @@
     };
     addActor("front", 2.0, (ctx, age) => {
       const k = Math.sin(clamp(age / 2, 0, 1) * Math.PI);
-      ctx.globalAlpha = 0.6 * k; ctx.fillStyle = "#1a0200"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
-      hLines(ctx, 60, 280, 18, C.orange, 0.35 * k, age, 900);
+      ctx.globalAlpha = 0.6 * k; ctx.fillStyle = NE ? "#020414" : "#1a0200"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+      hLines(ctx, 60, 280, 18, NE ? C.cyan : C.orange, 0.35 * k, age, 900);
       for (const d of ds) {
         const p = pos(d, age);
         if (p.u < 0 || p.u > 1) continue;
@@ -2497,12 +2504,13 @@
         for (const d of ds) {
           const p = pos(d, age);
           if (p.u < 0 || p.u > 1 || rng() > dt * 30) continue;
-          emit("front", { x: p.x - 6, y: p.y, vx: rand(-60, -20), vy: rand(-20, 20), life: rand(0.3, 0.6), s0: 6 + d.sc * 20, s1: 2, a0: 0.8, a1: 0, type: "fire" });
+          if (NE) emit("front", { x: p.x - 10, y: p.y + rand(-8, 8), vx: rand(-260, -160), vy: rand(-10, 10), life: rand(0.25, 0.45), s0: 1.4 + d.sc * 2, s1: 0.6, a0: 0.9, a1: 0, type: "spark", len: 18 + d.sc * 30, col: d.gold ? C.gold : rng() < 0.5 ? C.cyan : C.pink });   // neon light trails
+          else emit("front", { x: p.x - 6, y: p.y, vx: rand(-60, -20), vy: rand(-20, 20), life: rand(0.3, 0.6), s0: 6 + d.sc * 20, s1: 2, a0: 0.8, a1: 0, type: "fire" });
         }
       },
     });
     shake(3);
-    telop(T("lcd.gun"), { x: 330, y: 92, size: 46, cls: "fire", font: FONT_BRUSH, anim: "stamp", rot: 8, dur: 1.6 });
+    telop(T("lcd.gun"), { x: THEME === "neon" ? 300 : 330, y: THEME === "neon" ? 112 : 92, size: 46, cls: "fire", font: FONT_BRUSH, anim: "stamp", rot: 8, dur: 1.6 });
     ctxs.emit("gun");
   }
   function cutinFx(col, ctxs) {
@@ -3722,7 +3730,7 @@
       burst("front", CX, 160, 60, { cols: [C.cyan, C.gold, C.white], v0: 200, v1: 600, s0: 1.6, s1: 3.6, len: 34 });
       addActor("mid", Infinity, (ctx, age) => {
         speedLines(ctx, CX, 160, 46, C.white, 0.5, 40, Math.floor(age * 30));
-        drawSpr(ctx, SPR.logo[rushStage() ? "rush" + rushStage() : "rush"], CX, 112 - 30 * (1 - E.back(clamp(age / 0.4, 0, 1))), 1.25);
+        drawSpr(ctx, SPR.logo[rushStage() ? "rush" + rushStage() : "rush"], CX, (THEME === "neon" ? 120 : 112) - 30 * (1 - E.back(clamp(age / 0.4, 0, 1))), THEME === "neon" ? 1.05 : 1.25);
       }, { seq: true });
       await wait(0.45);
       telop(T("lcd.rushIn"), { x: CX, y: 178, size: 64, cls: "gold", anim: "slam", stay: true, jitter: 2 });
@@ -3767,7 +3775,7 @@
     layout("hidden", 0.2);
     setScene("result", 0.3);
     tween(fx, { logoA: 0 }, 0.2);
-    telop(T("lcd.rushOver"), { x: CX, y: 64, size: 30, cls: "silver", anim: "drop", stay: true, inD: 0.4 });
+    telop(T("lcd.rushOver"), { x: CX, y: THEME === "neon" ? 84 : 64, size: THEME === "neon" ? 24 : 30, cls: "silver", anim: "drop", stay: true, inD: 0.4 });
     await wait(0.5);
     addActor("mid", Infinity, (ctx, age) => {
       const u = E.back(clamp(age / 0.35, 0, 1));

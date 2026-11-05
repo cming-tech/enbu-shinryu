@@ -350,3 +350,7 @@
     border-radius: 50%; border: 1px solid var(--line); background: var(--metal-2); color: var(--ink); font: 700 20px/1 var(--f-body);
     display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
   .sheet.hasX button.big[data-close][data-t="ui.close"] { display: none; }
+  /* the cabinet itself on each hall card, standing in front of the machine's art */
+  #homeList .pic { aspect-ratio: 16 / 9.5; background-position: 22% 30%; }   /* the art leans left, clear of the cabinet */
+  #homeList .pic .mach { position: absolute; right: 12px; top: 8px; height: calc(100% - 16px); aspect-ratio: 588 / 860; object-fit: cover;
+    border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.55); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7); background: #0a0b0f; }

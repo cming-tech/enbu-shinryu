@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 59;
+  PK.VERSION = 60;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -20,6 +20,7 @@
     assetsBase: "assets/",   // optional image slots (see dev/CONTRACT.md "Image slots")
     refill: 10000,           // free refill amount, in balls
     card: "jackpot_art.jpg", // the lobby card picture (in assetsBase)
+    preview: "preview.jpg",   // the cabinet itself on the card (dev/make_previews.js)
     tagline: "劍士與神龍的冒險：聽牌、炎舞對決、炎舞RUSH",
     // The RUSH continuation shown to the player: the shell fills {p} (percent) and {n} (out of 10)
     // from the odds in use, which the player can change in 設定 → 機率調整.
@@ -73,6 +74,8 @@
     softMusic: true,   // the user picked 「柔和」 for these songs (src/sound.js useFiles)
     refill: 10000,
     card: "jackpot_art.jpg",
+    preview: "preview.jpg",
+    tutPrefix: "angel_",   // img/tutorial/angel_tut1..4.jpg (dev/make_tutorial_art.js --machine=angel)
     tagline: "機器人少女駭進霓虹城市：ダイブリーチ、ファイアウォール突破、OVERDRIVE RUSH",
     odds: E.odds,
     engine: E.engine,
@@ -111,12 +114,12 @@
       "ach.rush": "突入 RUSH|第一次進入 OVERDRIVE RUSH", "ach.boss": "打倒保全機器人|大當中連打 HACK 打倒保全機器人",
       "ach.boss10": "機器人剋星|打倒 10 台保全機器人", "ach.awaken": "天使覺醒|在決定戰讓天使覺醒", "ach.premium": "天使降臨|看到很少見的天使降臨",
       "ex.sp": "ダイブリーチ|衝進網路世界的聽牌", "ex.battleWin": "ファイアウォール突破・成功|她打倒保全 AI",
-      "ex.battleLose": "ファイアウォール突破・失敗|她被保全 AI 擋下", "ex.gun": "群|一大群光飛過畫面", "ex.zone": "ハックゾーン|邊框越來越亮，最後勝負!!",
+      "ex.battleLose": "ファイアウォール突破・失敗|她被保全 AI 擋下", "ex.gun": "機群|一大群保全機器人帶著霓虹光飛過畫面", "ex.zone": "ハックゾーン|邊框越來越亮，最後勝負!!",
       "ex.premium": "天使降臨|很少見，出現就確定大當", "ex.pushLong": "長押し HACK|按住 HACK 把量表集滿",
       "cap.premium": "天使降臨：光之鳳凰飛過整個畫面＝確定大當！很少見", "cap.pushLong": "長押し：按住 HACK 不放，把下面的量表集滿",
       "cap.zone": "ハックゾーン（先讀預告）：後面排隊的保留裡可能藏著大當，最後一轉出現「勝負!!」",
       "cap.battle": "ファイアウォール突破（對決）：連打 HACK 幫她，打贏就是大當", "cap.push": "HACK：按中間大按鈕揭曉",
-      "cap.gun": "群預告：大約一半機會", "cap.rush": "OVERDRIVE RUSH：很容易連續中獎",
+      "cap.gun": "機群預告：大約一半機會", "lcd.gun": "機群", "cap.rush": "OVERDRIVE RUSH：很容易連續中獎",
       "cap.minion": "大當中：連打 HACK 打倒保全機器人，打倒多拿 100 顆",
       "cap.awaken": "最後決戰：連打 HACK 讓天使覺醒，成功就進 RUSH！", "cap.awakenNg": "這次天使沒醒，接下來是時短 20 轉",
       "tut.p5": "珠子會 **大量增加**。\n看到 **HACK** 就按中間的大按鈕。",
@@ -127,7 +130,7 @@
       "gl.boss": "保全機器人|大當前幾回合出現的保全 AI 手下，每次大當換一台。連打 HACK 把它的血條打光，就多拿 100 顆。",
       "gl.awaken": "天使覚醒チャレンジ（天使覺醒挑戰）|大當最後一回合的決定戰。連打 HACK 讓天使覺醒：成功就進 OVERDRIVE RUSH，沒醒就是時短 20 轉。結果在中大當時就決定了。",
       "gl.rush": "OVERDRIVE RUSH|大當之後的特別模式。中獎機率很高，很容易一直連續中。連中會升級：OVERDRIVE → HYPER（連 2）→ ANGEL（連 3），畫面和顏色跟著變。",
-      "gl.gun": "群預告|一大群光飛過畫面，大約一半機會。",
+      "gl.gun": "機群預告|一大群保全機器人帶著霓虹光飛過畫面，混著金色鳳凰；大約一半機會。",
       "gl.battle": "ファイアウォール突破（對決）|リーチ後她和保全 AI 對戰。連打 HACK 幫她，打贏就是大當。",
       "gl.kokuchi": "HACK!!（確定告知）|金色鳳凰帶著光衝出來，一出現就確定中了大當。",
     }),

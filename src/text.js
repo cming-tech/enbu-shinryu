@@ -135,6 +135,7 @@
     "ui.shooting": "再按停止",
     "ui.push": "PUSH",
     "ui.close": "關閉",
+    "ui.backExit": "再按一次返回就會離開遊戲",
     "ui.version": "目前版本：第 {v} 版",
     "ui.updated": "遊戲已更新到第 {v} 版",
 

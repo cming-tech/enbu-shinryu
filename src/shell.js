@@ -393,7 +393,11 @@
   // played is loaded behind it, so picking it just closes the hall; picking another saves the choice
   // and reloads straight into it (KEY_ENTER, once). Each machine keeps its own balls, save and records.
   const KEY_ENTER = "pk.enter";
+  // The machine rests while the hall is up (the user: it kept playing behind the hall): the shell
+  // sets hallRest at boot to stop shooting and the sound; it is called with false on the way back in.
+  let hallRest = null;
   function showHome(onEnter) {
+    if (hallRest) hallRest(true);
     const ul = $("homeList");
     ul.innerHTML = "";
     const card = (m, on, click) => {
@@ -401,6 +405,12 @@
       li.className = on ? "on" : "";
       li.innerHTML = '<span class="pic"><em></em></span><div class="info"><b></b><small></small><span class="row"><i></i><u></u></span></div>';
       if (m && m.card) li.querySelector(".pic").style.backgroundImage = "url(" + m.assetsBase + m.card + ")";
+      if (m && m.preview) {   // the machine itself, in front of its art
+        const im = document.createElement("img");
+        im.className = "mach"; im.alt = ""; im.src = m.assetsBase + m.preview;
+        im.onerror = () => im.remove();
+        li.querySelector(".pic").appendChild(im);
+      }
       li.querySelector("em").textContent = on ? t("hall.last") : "";
       li.querySelector("b").textContent = m ? m.name : t("lobby.soon");
       li.querySelector("small").textContent = m ? m.tagline || "" : t("lobby.soonBody");
@@ -417,7 +427,7 @@
     ids.sort((a, b) => (PK.MACHINES[b] === M) - (PK.MACHINES[a] === M));
     ids.forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
-      card(m, on, on ? () => { snd("button"); $("home").hidden = true; PK.Cabinet.pause(false); onEnter(); }
+      card(m, on, on ? () => { $("home").hidden = true; PK.Cabinet.pause(false); if (hallRest) hallRest(false); snd("button"); onEnter(); }
         : () => { store(KEY_MACHINE, id); try { sessionStorage.setItem(KEY_ENTER, "1"); } catch (e) { /* the hall shows again */ } if (m.page) location.href = m.page; else location.reload(); });
     });
     card(null, false, null);
@@ -1203,7 +1213,28 @@
     };
     let entered = false;
     try { entered = sessionStorage.getItem(KEY_ENTER) === "1"; sessionStorage.removeItem(KEY_ENTER); } catch (e) { /* no session storage: show the hall */ }
+    hallRest = (on) => {
+      if (on) { if (firing) setFiring(false); PK.Sound.setEnabled(false); }
+      else PK.Sound.setEnabled(set.sound);
+    };
     if (entered) welcome(); else showHome(welcome);
+    // The phone's back button / gesture (the user: it closed the whole game every time). An extra
+    // history entry catches it: back closes an open sheet, else goes from the machine to the 遊戲大廳,
+    // and in the hall it asks once (a second back within BACK_EXIT seconds really leaves).
+    const BACK_EXIT = 2;
+    let backArmT = -99;
+    const guard = () => { try { history.pushState({ pk: 1 }, ""); } catch (e) { /* no history API: back leaves */ } };
+    guard();
+    window.addEventListener("popstate", () => {
+      const open = [...document.querySelectorAll(".sheet")].some((x) => !x.hidden);
+      if (open) { closeSheets(); guard(); return; }
+      if ($("home").hidden) { snd("button"); showHome(() => {}); guard(); return; }
+      const now = performance.now() / 1000;
+      if (now - backArmT < BACK_EXIT) { try { history.back(); } catch (e) { /* stay */ } return; }
+      backArmT = now;
+      toast(t("ui.backExit"), BACK_EXIT * 1000);
+      guard();
+    });
     $("menuVer").textContent = t("ui.version", { v: VERSION });
     const lastVer = +load(KEY_VER) || 0;
     store(KEY_VER, String(VERSION));
@@ -1217,7 +1248,7 @@
   // Real game frames (img/tutorial/, made by dev/make_tutorial_art.js) with labelled call-outs.
   // Coordinates are in the 320x170 art box (the frames are 640x340).
   const SVG = (body) => '<svg class="tutArt" viewBox="0 0 320 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">' + body + "</svg>";
-  const pic = (n) => '<image href="img/tutorial/tut' + n + '.jpg" x="0" y="0" width="320" height="170" preserveAspectRatio="xMidYMid slice"/>';
+  const pic = (n) => '<image href="img/tutorial/' + (M.tutPrefix || "") + 'tut' + n + '.jpg" x="0" y="0" width="320" height="170" preserveAspectRatio="xMidYMid slice"/>';   // each machine's own frames
   // gold-edged label centred at x,y
   const tag = (x, y, s) => {
     const w = s.length * 12.5 + 18;
@@ -1231,7 +1262,7 @@
   };
   const TUT_ART = [   // one picture per page of tut.p1..p5
     SVG(pic(1) + arrow(267, 108, 267, 124) + tag(262, 96, t("tut.aHandle"))),
-    SVG(pic(1) + arrow(160, 64, 160, 36) + tag(160, 76, t("tut.aHeso"))),
+    SVG(pic(1) + arrow(160, 64, 160, M.tutPrefix ? 28 : 36) + tag(160, 76, t("tut.aHeso"))),   // 霓虹天使: the turntable sits higher
     SVG(pic(3) + arrow(196, 152, 136, 152) + tag(250, 152, t("tut.aHolds"))),
     SVG(pic(4) + tag(160, 156, t("tut.aReach"))),
     SVG(pic(2) + tag(160, 156, t("tut.aSame"))),

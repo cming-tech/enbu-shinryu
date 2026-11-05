@@ -64,6 +64,7 @@
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
     $("crest").textContent = M.crest;
     $("title").textContent = M.name;
+    if (M.name.length > 5) { $("title").style.fontSize = "17px"; $("title").style.letterSpacing = "1px"; }   // 轉生史萊姆與魔劍 ran into the ball count
     $("cSerial").textContent = M.serial;
     $("menuBtn").setAttribute("aria-label", t("ui.menu"));
     $("infoBtn").setAttribute("aria-label", t("ui.help"));
@@ -1061,7 +1062,9 @@
     function showSaver() {
       $("sSaver").setAttribute("aria-pressed", String(set.saver));
       $("sSaver").textContent = t(set.saver ? "set.on" : "set.off");
+      $("saverBadge").hidden = !set.saver;   // a badge on screen while it is on
     }
+    $("saverBadge").addEventListener("click", () => $("mSettings").click());
     // 省電模式, or a phone that reports 4 GB or less (Android Chrome does; iPhones report nothing),
     // also keeps the music lighter: it takes effect before the first sound, so a reload applies it.
     const applySaver = () => {
@@ -1218,22 +1221,28 @@
       else PK.Sound.setEnabled(set.sound);
     };
     if (entered) welcome(); else showHome(welcome);
-    // The phone's back button / gesture (the user: it closed the whole game every time). An extra
-    // history entry catches it: back closes an open sheet, else goes from the machine to the 遊戲大廳,
-    // and in the hall it asks once (a second back within BACK_EXIT seconds really leaves).
-    const BACK_EXIT = 2;
-    let backArmT = -99;
-    const guard = () => { try { history.pushState({ pk: 1 }, ""); } catch (e) { /* no history API: back leaves */ } };
-    guard();
+    // The phone's back button / gesture (the user: it closed the whole game every time). Extra history
+    // entries catch it: back closes an open sheet, else goes from the machine to the 遊戲大廳, and in the
+    // hall it asks once (a second back within BACK_EXIT seconds really leaves). Chrome skips history
+    // entries a page adds without a tap (it then left at once on the user's phone), so the entries are
+    // added on the player's taps, up to GUARDS ahead, and counted down as back uses them.
+    const BACK_EXIT = 2, GUARDS = 3;
+    let backArmT = -99, guards = 0;
+    const arm = () => {
+      try { while (guards < GUARDS) { history.pushState({ pk: guards + 1 }, ""); guards++; } } catch (e) { /* no history API: back leaves */ }
+    };
+    document.addEventListener("pointerup", arm, true);   // a touch grants activation on its pointerup (not its pointerdown)
+    document.addEventListener("click", arm, true);
+    document.addEventListener("keydown", arm, true);
     window.addEventListener("popstate", () => {
+      guards = Math.max(0, guards - 1);
       const open = [...document.querySelectorAll(".sheet")].some((x) => !x.hidden);
-      if (open) { closeSheets(); guard(); return; }
-      if ($("home").hidden) { snd("button"); showHome(() => {}); guard(); return; }
+      if (open) { closeSheets(); return; }
+      if ($("home").hidden) { snd("button"); showHome(() => {}); return; }
       const now = performance.now() / 1000;
-      if (now - backArmT < BACK_EXIT) { try { history.back(); } catch (e) { /* stay */ } return; }
+      if (now - backArmT < BACK_EXIT) { try { history.go(-(guards + 1)); } catch (e) { /* stay */ } return; }
       backArmT = now;
       toast(t("ui.backExit"), BACK_EXIT * 1000);
-      guard();
     });
     $("menuVer").textContent = t("ui.version", { v: VERSION });
     const lastVer = +load(KEY_VER) || 0;

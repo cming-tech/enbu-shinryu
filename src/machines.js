@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 60;
+  PK.VERSION = 61;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -134,6 +134,28 @@
       "gl.battle": "ファイアウォール突破（對決）|リーチ後她和保全 AI 對戰。連打 HACK 幫她，打贏就是大當。",
       "gl.kokuchi": "HACK!!（確定告知）|金色鳳凰帶著光衝出來，一出現就確定中了大當。",
     }),
+  };
+
+  // Machine 3, 轉生史萊姆與魔劍 (design: dev/MACHINE3.md): an original slime reborn in another world that
+  // swallowed the sealed 暴食の魔剣. A giant sword pierces the cabinet (frame: "sword"); the left half of
+  // the board feeds the 暴食の渦 whirlpool, the right half is machine 1's RUSH/bonus side (pins: "sword").
+  // Steel and emerald (theme: "steel"). Its files will be assets/sword_*; until the AI art exists the
+  // drawn fallbacks show. `hidden` keeps it out of the hall while it is being built (pk.machine=sword
+  // still opens it).
+  PK.MACHINES.sword = {
+    id: "sword",
+    name: "轉生史萊姆與魔劍",
+    crest: "劍",
+    serial: "0666",
+    assetsBase: "assets/sword_",
+    theme: "steel",
+    refill: 10000,
+    tagline: "吞下魔劍的史萊姆：暴食漩渦、覺醒、四大幹部、連戰 RUSH",
+    odds: E.odds,
+    engine: E.engine,
+    cabinet: { pins: "sword", frame: "sword", art: {} },
+    hidden: true,
+    text: Object.assign({}, E.text, {}),
   };
 
   // Machine 2, a 羽根物 with real ball physics (src/hane/hane.js) instead of 炎舞神龍's engine and

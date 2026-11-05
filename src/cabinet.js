@@ -41,6 +41,11 @@
   for (let a = HALO.a0 + 6; a >= HALO.a1 - 6; a -= 2) HALO_PTS.push(haloPt(a));
   const haloDist = (x, y) => HALO_PTS.reduce((m, q) => Math.min(m, Math.hypot(x - q[0], y - q[1])), 99);
   const DISH = { x: 294, y: 542, r: 33, hr: 14, w: 1.3 };   // centre, rim radius, hole ring radius, turn rate (rad/s)
+  // 轉生史萊姆與魔劍 (pins: "sword", dev/MACHINE3.md): the demon sword's blade runs down the middle under
+  // the LCD; the left half feeds the 暴食の渦 (a whirlpool start pocket: balls circle it and are swallowed,
+  // or flung out to the left out); the right half is 炎舞神龍's (電チュー, slope, attacker), unchanged.
+  const VORTEX = { x: 178, y: 568, r: 36, w: -2.4 };   // centre, rim radius, spin (rad/s; negative = anticlockwise)
+  const BLADE = { x: 294, y0: 476, y1: 618, w: 30 };   // centre line, top (under the LCD), tip, width
   const STAGE = { x0: 120, x1: 468, yc: 490, rise: 12 }; // ledge under the LCD
   const BEZEL = { x: 96, y: 142, w: 408, h: 336, r: 50 };
   // Energy swirl: a wide band of flowing light between frame offsets s0..s1 (the reference's
@@ -216,7 +221,7 @@
   const PINS = { all: [], L: [], R: [], road: [], yori: [], inochi: [], hakama: [] };
   // Pin layouts by name (PK.MACHINES[id].cabinet.pins). Each fills PINS; the ball paths below use
   // its lanes (L, R, road, yori, inochi, hakama), so a new layout keeps those groups.
-  const PIN_LAYOUTS = { enbu: pinsEnbu, angel: pinsAngel };
+  const PIN_LAYOUTS = { enbu: pinsEnbu, angel: pinsAngel, sword: pinsSword };
   let pinLayout = "enbu";
   function buildPins() { (PIN_LAYOUTS[pinLayout] || pinsEnbu)(); }
   function pinsEnbu() {
@@ -372,6 +377,42 @@
     PINS.all = all;
   }
 
+  // 轉生史萊姆與魔劍's board: 炎舞神龍's right lane, gate, 天釘 strip and right-side decoration, so the RUSH
+  // and bonus side plays exactly as on machine 1; the left half is new: the lane rows (no windmill or
+  // warp), a short road that drops onto the 暴食の渦, and nothing else under the LCD on the left, so the
+  // balls circling the whirlpool or flung out of it never meet a pin. The blade divides the halves.
+  function pinsSword() {
+    pinsEnbu();
+    const half = BLADE.x + BLADE.w / 2 + 12;
+    const all = PINS.all.filter((p) => p.g === "R" || p.g === "T" || (p.g === "D" && p.x > half));
+    const add = (x, y, g) => { const p = { x, y, g }; all.push(p); return p; };
+    PINS.L = [];
+    for (let r = 0, y = 244; y <= 466; r++, y += 18) {
+      const off = (r % 2) * 10;
+      for (let x = 90 - off; x >= railLeftX(y) + 11.5; x -= 20) PINS.L.push(add(x, y, "L"));
+    }
+    // the road: from under the lane down toward the whirlpool's upper left, 20 apart
+    PINS.road = [[84, 486], [103, 495], [122, 505], [140, 516]].map(([x, y]) => add(x, y, "road"));
+    PINS.yori = []; PINS.inochi = []; PINS.hakama = [];
+    // the right half's open board: where machine 1's 舞 block stood, and between the blade and the door,
+    // on the same 18 x 20 stagger, clear of the right routes (as pinsEnbu's decoration)
+    const segD = (x, y, a, b) => {
+      const vx = b[0] - a[0], vy = b[1] - a[1], u = clamp(((x - a[0]) * vx + (y - a[1]) * vy) / (vx * vx + vy * vy), 0, 1);
+      return Math.hypot(x - a[0] - u * vx, y - a[1] - u * vy);
+    };
+    const over = [[474, 597], [384, 597], [364, 630], [302, 638]];
+    for (let r = 0, y = 490; y <= 584; r++, y += 18) {
+      for (let x = 320 + (r % 2) * 10; x <= 450; x += 20) {
+        if (!inWin(x, y, -12) || y > L.attacker.y - 26) continue;
+        if (Math.abs(x - (SLOPE.ax + (SLOPE.bx - SLOPE.ax) * clamp((y - SLOPE.ay) / (SLOPE.by - SLOPE.ay), 0, 1))) < 18) continue;
+        if (over.some((a, i) => i && segD(x, y, over[i - 1], a) < 12)) continue;
+        if (all.some((p) => Math.hypot(x - p.x, y - p.y) < 13)) continue;
+        add(x, y, "D");
+      }
+    }
+    PINS.all = all;
+  }
+
   // ---------------------------------------------------------------- light registry (shared by SVG + canvas)
   // fills: backlit acrylic areas painted solid under the front SVG ({d, tr?, u, g, pulse}).
   const ART = { strokes: [], sprites: [], leds: [], fills: [] };
@@ -473,11 +514,12 @@
     let rays = "";
     for (let i = 0; i < 18; i++) {
       const a = (-180 + i * 10 + 5) * DEG, a2 = a + 3.2 * DEG;
-      rays += `M294,548L${f1(294 + 400 * Math.cos(a))},${f1(548 + 400 * Math.sin(a))}L${f1(294 + 400 * Math.cos(a2))},${f1(548 + 400 * Math.sin(a2))}Z`;
+      const rx0 = pinLayout === "sword" ? VORTEX.x : 294, ry0 = pinLayout === "sword" ? VORTEX.y : 548;
+      rays += `M${rx0},${ry0}L${f1(rx0 + 400 * Math.cos(a))},${f1(ry0 + 400 * Math.sin(a))}L${f1(rx0 + 400 * Math.cos(a2))},${f1(ry0 + 400 * Math.sin(a2))}Z`;
     }
     s += `<path d="${rays}" fill="#ffb040" opacity=".045"/>`;
-    // Faint flame decals rising from the floor.
-    s += `<g fill="#ff4a10" opacity=".09">
+    // Faint flame decals rising from the floor (魔劍: none).
+    if (!S.steel) s += `<g fill="#ff4a10" opacity=".09">
 <path d="M70,650 C60,600 90,570 84,520 C110,560 120,590 112,650 Z"/><path d="M140,650 C130,590 170,560 160,500 C196,560 200,610 186,650 Z"/>
 <path d="M400,650 C392,600 430,560 424,505 C460,560 466,610 450,650 Z"/><path d="M480,650 C474,610 500,585 496,540 C522,580 526,620 516,650 Z"/></g>`;
     // Lane plates: engraved bronze panels behind the left and right pin lanes.
@@ -505,7 +547,7 @@
         s += `<circle cx="${f1((507 + x1) / 2)}" cy="${y}" r="2.6" fill="#2a8cff" stroke="#bfe0ff" stroke-width=".8"/>`;
       });
       const vt = `font-family="'Yuji Syuku','Dela Gothic One','Noto Sans TC',serif" font-size="20" fill="#ffcf6a" fill-opacity=".22" text-anchor="middle"`;
-      if (!S.neon) s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
+      if (!S.neon && !S.steel) s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
       if (pinLayout === "angel") {   // the circuit traces under 霓虹天使's pins (the pins sit on them)
         const pl = (pts) => pts.map((q) => q[0] + "," + q[1]).join(" ");
         ANGEL_TRACES.forEach((t) => {
@@ -546,7 +588,7 @@
       s += `<ellipse cx="${f1(m[0])}" cy="${f1(m[1])}" rx="9" ry="5.5" fill="url(#pkc-hole)" stroke="#dff6ff" stroke-width="2.2"/>`;
       s += `<path d="M${f1(m[0] - 13)},${f1(m[1] - 5)} L${f1(m[0] - 8)},${f1(m[1] - 1)} M${f1(m[0] + 13)},${f1(m[1] - 5)} L${f1(m[0] + 8)},${f1(m[1] - 1)}" stroke="#ff4fd8" stroke-width="1.8" stroke-linecap="round"/>`;
       s += `<ellipse cx="${f1(e[0])}" cy="${f1(e[1] + 2)}" rx="7" ry="3" fill="#000" stroke="#21e6ff" stroke-width="1.2"/>`;
-    } else {
+    } else if (pinLayout === "enbu") {
     // Warp tube + entrance.
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="12"/>`;
     s += `<path d="M93,358 C99,400 98,440 108,462 C114,474 122,478 132,480" fill="none" stroke="url(#pkc-tube)" stroke-width="10" stroke-linecap="round"/>`;
@@ -593,7 +635,7 @@
         const [x, y, k] = p;
         fl += `M${x - 10 * k},${y + 14 * k} C${x - 14 * k},${y} ${x - 2 * k},${y - 8 * k} ${x},${y - 22 * k} C${x + 4 * k},${y - 8 * k} ${x + 14 * k},${y} ${x + 10 * k},${y + 14 * k} Z`;
       });
-      s += `<path d="${fl}" fill="#ff7a20" opacity=".22" stroke="#ffcf6a" stroke-opacity=".35" stroke-width="1"/>`;
+      if (!S.steel) s += `<path d="${fl}" fill="#ff7a20" opacity=".22" stroke="#ffcf6a" stroke-opacity=".35" stroke-width="1"/>`;
       const o = L.outs[1];
       s += `<circle cx="${o.x}" cy="${o.y + 1}" r="10.5" fill="#000" opacity=".5"/>`;
       s += `<circle cx="${o.x}" cy="${o.y + 1}" r="8" fill="url(#pkc-hole)" stroke="url(#pkc-bChrome)" stroke-width="2.2"/>`;
@@ -632,16 +674,16 @@
     ART.strokes.push({ pts: loopPts(11, 11), closed: true, w: [16, 9, 2.6], gain: 1, main: true });
     // --- energy swirl band s0..s1 (lit by drawSwirl), clipped above the console
     const swirlD = loopPath(SWIRL.s1, 3) + loopPath(SWIRL.s0, 3);
-    const WINGS = S.frame === "wings";
-    if (!WINGS) holes.push(`<path d="${swirlD}" fill-rule="evenodd" clip-path="url(#pkc-aboveConsole)"/>`);
-    if (!WINGS) acr.push(`<path d="${swirlD}" fill-rule="evenodd" fill="#06142c" fill-opacity=".22" clip-path="url(#pkc-aboveConsole)"/>`);
+    const WINGS = S.frame === "wings", SWORD = S.frame === "sword", PLAIN = WINGS || SWORD;   // PLAIN: none of 炎舞神龍's ornaments
+    if (!PLAIN) holes.push(`<path d="${swirlD}" fill-rule="evenodd" clip-path="url(#pkc-aboveConsole)"/>`);
+    if (!PLAIN) acr.push(`<path d="${swirlD}" fill-rule="evenodd" fill="#06142c" fill-opacity=".22" clip-path="url(#pkc-aboveConsole)"/>`);
 
     // --- outer secondary channel (upper half, broken by the crest)
     const outerArc = (a0, a1) => {
       const o = arcPts(a0, a1, 33, 3), i = arcPts(a0, a1, 28, 3);
       return ptsPath(o.concat(i.slice().reverse()), true);
     };
-    if (!WINGS) [[196, 246], [294, 330]].forEach((a) => {
+    if (!PLAIN) [[196, 246], [294, 330]].forEach((a) => {
       const d = outerArc(a[0], a[1]);
       holes.push(`<path d="${d}"/>`);
       acr.push(`<path d="${d}" fill="url(#pkc-acryl)"/>`);
@@ -657,7 +699,7 @@
       }
       return ptsPath(o.concat(i.reverse()), true);
     };
-    if (!WINGS) [[166, 106], [14, 74]].forEach((a) => {
+    if (!PLAIN) [[166, 106], [14, 74]].forEach((a) => {
       const d = wing(a[0], a[1]);
       holes.push(`<path d="${d}"/>`);
       addFill(d, 0.5);
@@ -669,7 +711,7 @@
     // --- top corner flame panels
     const flameTL = "M8,150 C14,120 6,96 0,80 L0,0 L120,0 C102,10 96,22 98,34 C80,26 60,30 46,44 C30,40 18,46 12,58 C22,70 20,88 14,98 C26,110 24,132 8,150 Z";
     const flameTR = "M588,236 C574,206 578,182 588,160 L588,0 L470,0 C486,12 492,26 488,40 C506,32 528,34 540,48 C556,44 570,52 576,64 C566,78 568,96 574,108 C560,122 562,146 572,164 C562,186 566,214 588,236 Z";
-    if (!WINGS) [flameTL, flameTR].forEach((d) => {
+    if (!PLAIN) [flameTL, flameTR].forEach((d) => {
       holes.push(`<path d="${d}"/>`);
       addFill(d, 0.42, { pulse: 1 });
       acr.push(`<path d="${d}" fill="url(#pkc-acrylP)"/>`);
@@ -683,6 +725,7 @@
     let crest = "";
     const mir = (d) => d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (m, x, y) => f1(588 - parseFloat(x)) + "," + y);
     if (WINGS) crest = buildWingFrame(holes, acr);
+    if (SWORD) crest = buildSwordFrame(holes, acr);
     else {
     // --- crest (top ornament): wings, medallion, LED strip
     const bladesR = [
@@ -740,7 +783,7 @@
     const spk = "M24,96 C28,70 50,56 80,56 C100,56 114,66 114,84 C114,106 96,124 66,126 C40,128 22,116 24,96 Z";
     const spkRing = "M16,96 C20,64 46,48 80,48 C106,48 122,62 122,84 C122,112 100,134 66,134 C34,136 14,120 16,96 Z " + spk;
     let speakers = "";
-    (WINGS ? [] : [false]).forEach((m) => {
+    (PLAIN ? [] : [false]).forEach((m) => {
       const d = m ? mir(spk) : spk, dr = m ? mir(spkRing) : spkRing;
       holes.push(`<path d="${dr}" fill-rule="evenodd"/>`);
       addFill(dr, 0.5, { rule: "evenodd" });
@@ -763,7 +806,7 @@
       speakers += `<circle cx="68" cy="91" r="13" fill="#050607"/><circle cx="68" cy="91" r="11.5" fill="url(#pkc-chromeV)" stroke="url(#pkc-goldU)" stroke-width="2"/>`;
       speakers += `<text x="68" y="92" font-family="'Yuji Syuku','Noto Serif TC',serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="url(#pkc-gold)" stroke="#2a1404" stroke-width=".5">${PK.t ? PK.t("lcd.crest") : "?lcd.crest"}</text>`;
     });
-    if (!WINGS) [[30, 80], [60, 52], [100, 56], [120, 90], [96, 128], [52, 130], [20, 110]].forEach((p) => {
+    if (!PLAIN) [[30, 80], [60, 52], [100, 56], [120, 90], [96, 128], [52, 130], [20, 110]].forEach((p) => {
       ART.sprites.push({ x: p[0], y: p[1], r: 14, g: 0.8 });
     });
 
@@ -771,6 +814,7 @@
     const consoleTop = CONSOLE_TOP;
     // The console plate is part of the masked body so its acrylic rings stay open.
     const consoleBase = WINGS ? `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-pearlC)"/>`
+      : SWORD ? `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-slateC)"/>` + `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-brushed)" opacity=".5"/>`
       : `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-console)"/>` +
       `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-carbon)" opacity=".35"/>`;
     let cons = `<path d="${consoleTop}" fill="none" stroke="url(#pkc-chrome)" stroke-width="3"/>`;
@@ -805,7 +849,9 @@
     const P = L.push, pcx = P.x + P.w / 2, pcy = P.y + P.h / 2, SHIELD_KX = 0.9;
     const SHIELD = [[0, -72], [52, -60], [80, -40], [80, 20], [62, 50], [0, 76], [-62, 50], [-80, 20], [-80, -40], [-52, -60]];
     const GEM = [[0, -76], [58, -58], [80, -18], [80, 22], [58, 56], [0, 78], [-58, 56], [-80, 22], [-80, -18], [-58, -58]];
-    const socketPts = (n) => (WINGS ? densify(GEM, 8) : spline(SHIELD.concat([SHIELD[0]]), n));
+    const POMMEL = [];
+    for (let k = 0; k < 24; k++) { const a = (k / 24) * TAU - Math.PI / 2; POMMEL.push([78 * Math.cos(a), 2 + 74 * Math.sin(a)]); }
+    const socketPts = (n) => (WINGS ? densify(GEM, 8) : SWORD ? densify(POMMEL, 6) : spline(SHIELD.concat([SHIELD[0]]), n));
     const shield = (k) => ptsPath(socketPts(6).map((p) => [pcx + p[0] * k * SHIELD_KX, pcy + 2 + p[1] * k]), true);
     const sBand = shield(1.12) + " " + shield(1.05);
     holes.push(`<path d="${sBand}" fill-rule="evenodd"/>`);
@@ -846,7 +892,7 @@
 
     // --- dragon
     const A = DRAGON_ART;
-    const dragon = WINGS ? "" : S.dragonImg
+    const dragon = PLAIN ? "" : S.dragonImg
       ? `<g clip-path="url(#pkc-outWin)"><image href="${S.dragonImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMaxYMin meet" filter="url(#pkc-statueShadow)"/></g>`
       : buildDragonSVG(holes, acr);
 
@@ -861,7 +907,7 @@
 
     // --- kanji gimmick
     let gim = "";
-    if (pinLayout !== "angel") L.gimmick.forEach((g, i) => {   // 霓虹天使 has wings instead (drawAngelWings)
+    if (pinLayout === "enbu") L.gimmick.forEach((g, i) => {   // 霓虹天使 has wings instead (drawAngelWings), 魔劍 its blade
       const cx = g.x + g.w / 2, cy = g.y + g.h / 2, rot = i ? 5 : -7;
       gim += `<g transform="translate(${cx},${cy}) rotate(${rot})">`;
       gim += `<rect x="${-g.w / 2}" y="${-g.h / 2}" width="${g.w}" height="${g.h}" rx="16" fill="url(#pkc-block)" stroke="url(#pkc-blockEdge)" stroke-width="2.2"/>`;
@@ -889,7 +935,7 @@
     trims += `<path d="${loopPath(0.6, 3)}" fill="none" stroke="#020203" stroke-width="2.4"/>`;
     trims += `<path d="${loopPath(36, 3)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1.4"/>`;
     trims += `<path d="${loopPath(37.2, 3)}" fill="none" stroke="#c8d0da" stroke-opacity=".14" stroke-width="1"/>`;
-    if (!WINGS) [[196, 246], [294, 330]].forEach((a) => {
+    if (!PLAIN) [[196, 246], [294, 330]].forEach((a) => {
       trims += `<path d="${outerArc(a[0], a[1])}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.5"/>`;
     });
 
@@ -903,6 +949,7 @@
 </defs>`;
     s += `<g mask="url(#pkc-bodyMask)">`;
     if (WINGS) s += `<rect width="588" height="860" fill="url(#pkc-pearl)"/>`;
+    else if (SWORD) s += `<rect width="588" height="860" fill="url(#pkc-slate)"/><rect width="588" height="860" fill="url(#pkc-brushed)" opacity=".55"/><rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
     else {
     s += `<rect width="588" height="860" fill="url(#pkc-gun)"/>`;
     s += `<rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
@@ -921,6 +968,71 @@
     s += gim;
     svg.innerHTML = neonSvg(s);
     S.subText = svg.querySelector("#pkc-subText");
+  }
+
+  // 轉生史萊姆與魔劍's cabinet (frame: "sword", dev/MACHINE3.md): a slate body, and the 暴食の魔剣 through
+  // the machine: its hilt and pommel gem stand over the top edge, its crossguard lies across the top of
+  // the window with the four commanders' gems (dark until recruited), and its blade comes out under the
+  // LCD and runs down the middle of the board to a point. The fuller is a slit for the devour gauge's
+  // light. Runes glow down both sides (original glyphs; their glow is drawn, not lit, so it costs nothing
+  // per frame).
+  const RUNES = [   // stroke sets in a 10 x 14 box: original glyphs, not any real alphabet
+    "M2,0 L2,14 M2,3 L8,0 M2,7 L8,4", "M5,0 L5,14 M1,4 L9,8", "M1,0 L1,14 L9,10 L9,0", "M2,0 L8,7 L2,14 M8,0 L8,14",
+    "M5,0 L1,7 L5,14 L9,7 Z", "M1,0 L9,0 M5,0 L5,14 M2,10 L8,10", "M1,14 L5,0 L9,14 M3,8 L7,8", "M2,0 L2,14 M2,7 L8,0 M2,7 L8,14",
+    "M1,3 L9,3 M1,11 L9,11 M5,0 L5,14", "M8,0 L2,4 L8,8 L2,12",
+  ];
+  const GEMS = [[194, "#ff5050"], [246, "#e8eef6"], [342, "#ffa040"], [394, "#b070ff"]];   // 劍鬼 狼王 龍姬 影
+  function buildSwordFrame(holes, acr) {
+    let out = "";
+    // runes round the frame, outside the lit channel, wherever the body is wide enough (the shoulders
+    // and the lower corners), clear of the crossguard and the sub display
+    let rs = "", k = 0;
+    for (let deg = 0; deg < 360; deg += 7) {
+      const p = fpt(deg, 34);
+      if (p[0] < 4 || p[0] > 574 || p[1] < 14 || p[1] > 622) continue;
+      if (p[0] > 126 && p[0] < 462 && p[1] < 112) continue;
+      if (p[0] > 488 && p[1] > 316 && p[1] < 396) continue;
+      rs += `<path transform="translate(${f1(p[0] - 5)},${f1(p[1] - 7)})" d="${RUNES[k++ % RUNES.length]}"/>`;
+    }
+    out += `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#2ad890" stroke-opacity=".22" stroke-width="5">${rs}</g><g stroke="#7af0be" stroke-width="1.6">${rs}</g></g>`;
+    // hilt: a wrapped grip and the pommel gem above it
+    out += `<rect x="283" y="16" width="22" height="58" rx="4" fill="#1a1410" stroke="#000" stroke-width="1.5"/>`;
+    let wrap = "";
+    for (let y = 20; y < 72; y += 7) wrap += `M283,${y + 5} L305,${y}`;
+    out += `<path d="${wrap}" stroke="#6a5038" stroke-width="2.4"/><path d="${wrap}" stroke="#a88a60" stroke-opacity=".6" stroke-width=".8"/>`;
+    out += `<circle cx="294" cy="12" r="12" fill="url(#pkc-guardS)" stroke="#000" stroke-width="1.2"/>`;
+    holes.push(`<circle cx="294" cy="12" r="7"/>`);
+    acr.push(`<circle cx="294" cy="12" r="7" fill="url(#pkc-gem)"/>`);
+    addFill("M287,12 a7,7 0 1 0 14,0 a7,7 0 1 0 -14,0 Z", 0.9, { u: 0 });
+    ART.sprites.push({ x: 294, y: 12, r: 26, g: 0.9, core: 1 });
+    // crossguard over the top of the window, its ends curling down
+    const guard = "M140,92 C150,78 176,74 230,76 L358,76 C412,74 438,78 448,92 C442,88 430,88 420,96 L366,100 L222,100 L168,96 C158,88 146,88 140,92 Z";
+    out += `<path d="${guard}" fill="#000" opacity=".45" transform="translate(2,4)"/>`;
+    out += `<path d="${guard}" fill="url(#pkc-guardS)" stroke="#20262c" stroke-width="1.6"/>`;
+    out += `<path d="M176,80 L412,80" stroke="#fff" stroke-opacity=".5" stroke-width="1"/>`;
+    // the centre gem (emerald, lit) and the four commanders' sockets
+    out += `<path d="M294,72 L308,88 L294,104 L280,88 Z" fill="#0a1a12" stroke="url(#pkc-guardS)" stroke-width="2"/>`;
+    holes.push(`<path d="M294,77 L304,88 L294,99 L284,88 Z"/>`);
+    acr.push(`<path d="M294,77 L304,88 L294,99 L284,88 Z" fill="url(#pkc-gem)"/>`);
+    addFill("M294,77 L304,88 L294,99 L284,88 Z", 0.9, { u: 0 });
+    ART.sprites.push({ x: 294, y: 88, r: 34, g: 1, core: 1 });
+    GEMS.forEach(([x, c]) => {
+      out += `<circle cx="${x}" cy="88" r="9.5" fill="#06080a" stroke="#c8d2dc" stroke-width="1.6"/>`;
+      out += `<circle cx="${x}" cy="88" r="6" fill="${c}" opacity=".22"/><circle cx="${x - 2}" cy="86" r="1.6" fill="#fff" opacity=".35"/>`;
+    });
+    // the blade: out from under the LCD, down the middle of the board to its point
+    const B = BLADE, xl = B.x - B.w / 2, xr = B.x + B.w / 2, yt = B.y1 - 30;
+    const blade = `M${xl},${B.y0} L${xr},${B.y0} L${xr},${yt} L${B.x},${B.y1} L${xl},${yt} Z`;
+    out += `<path d="${blade}" fill="#000" opacity=".5" transform="translate(3,5)"/>`;
+    // the fuller: a slit cut through the blade, where the devour gauge's light (on the canvas below) shows
+    const fuller = `M${B.x - 3.5},${B.y0 + 8} L${B.x + 3.5},${B.y0 + 8} L${B.x + 3.5},${yt - 4} L${B.x},${yt + 6} L${B.x - 3.5},${yt - 4} Z`;
+    out += `<path d="${blade} ${fuller}" fill-rule="evenodd" fill="url(#pkc-blade)" stroke="#1a2026" stroke-width="1.4"/>`;
+    out += `<path d="M${xl + 1.5},${B.y0} L${xl + 1.5},${yt} L${B.x},${B.y1 - 3}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width=".9"/>`;
+    out += `<path d="${fuller}" fill="#03120a" fill-opacity=".55" stroke="#0a0e12" stroke-width="1.2"/>`;
+    const fp = [];
+    for (let y = B.y0 + 10; y <= yt; y += 8) fp.push([B.x, y, angU(B.x, y)]);
+    ART.strokes.push({ pts: fp, closed: false, w: [8, 4, 1.4], gain: 0.55 });
+    return out;
   }
 
   // 霓虹天使's cabinet (frame: "wings", the user's pick of three): a pearl-white body, no speaker, crest or
@@ -1023,6 +1135,16 @@
  <stop offset="0" stop-color="#ffffff"/><stop offset=".3" stop-color="#e4e9f4"/><stop offset=".55" stop-color="#f6f8fc"/><stop offset=".8" stop-color="#c9d2e4"/><stop offset="1" stop-color="#9aa6c0"/></linearGradient>
 <linearGradient id="pkc-pearlC" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#f4f6fb"/><stop offset=".4" stop-color="#d6dcea"/><stop offset="1" stop-color="#8e9ab4"/></linearGradient>
+<linearGradient id="pkc-slate" x1="0" y1="0" x2=".3" y2="1">
+ <stop offset="0" stop-color="#4a525a"/><stop offset=".25" stop-color="#2c3338"/><stop offset=".6" stop-color="#1e2428"/><stop offset=".85" stop-color="#2a3136"/><stop offset="1" stop-color="#14181b"/></linearGradient>
+<linearGradient id="pkc-slateC" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#3a4248"/><stop offset=".45" stop-color="#22292d"/><stop offset="1" stop-color="#0e1113"/></linearGradient>
+<pattern id="pkc-brushed" width="588" height="6" patternUnits="userSpaceOnUse">
+ <rect width="588" height="1" fill="#fff" opacity=".035"/><rect y="3" width="588" height="1" fill="#000" opacity=".12"/></pattern>
+<linearGradient id="pkc-blade" x1="0" y1="0" x2="1" y2="0">
+ <stop offset="0" stop-color="#5a646e"/><stop offset=".22" stop-color="#e8eef4"/><stop offset=".48" stop-color="#9aa6b2"/><stop offset=".52" stop-color="#4a545e"/><stop offset=".78" stop-color="#c8d2dc"/><stop offset="1" stop-color="#3a424a"/></linearGradient>
+<linearGradient id="pkc-guardS" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#f2f6fa"/><stop offset=".35" stop-color="#9aa6b2"/><stop offset=".55" stop-color="#3a424a"/><stop offset=".8" stop-color="#c8d2dc"/><stop offset="1" stop-color="#5a646e"/></linearGradient>
 <linearGradient id="pkc-feather" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e2e9f8"/><stop offset="1" stop-color="#aebcdc"/></linearGradient>
 <linearGradient id="pkc-gun" x1="0" y1="0" x2="0" y2="1">
@@ -1225,7 +1347,7 @@
     flashAmt: 0, flashCol: [255, 255, 255],
     attOpen: false, attK: 0, denOpen: false, denK: 0,
     wmA: 0, wmW: 0,
-    glow: { heso: 0, denchu: 0, attacker: 0, out: 0, halo: 0 }, dishA: 0, wingOpen: 0, wingCv: null, wingX: null,
+    glow: { heso: 0, denchu: 0, attacker: 0, out: 0, halo: 0, vortex: 0 }, dishA: 0, vortA: 0, wingOpen: 0, wingCv: null, wingX: null,
     wisps: [], reduced: false, saver: false, odd: false,
   };
 
@@ -1250,7 +1372,41 @@
     const to = (v) => Math.round(Math.max(0, Math.min(1, v + m)) * 255).toString(16).padStart(2, "0");
     return "#" + to(rr) + to(gg) + to(bb);
   }
-  const neonSvg = (str) => (S.neon ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, neonHex) : str);
+  // 轉生史萊姆與魔劍 (theme "steel"): reds and oranges turn emerald, golds and bronzes silver, blues slate.
+  function steelHex(hex) {
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (d < 0.04) return hex;
+    const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    let hue = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hue = (hue * 60 + 360) % 360;
+    let nh, ns = sat;
+    if (hue < 28 || hue >= 330) nh = 152;                 // red, orange -> emerald
+    else if (hue < 75) { nh = 210; ns = sat * 0.1; }      // gold, bronze -> silver
+    else if (hue >= 190 && hue < 260) { nh = 200; ns = sat * 0.3; }   // blue -> slate
+    else return hex;
+    const c = (1 - Math.abs(2 * l - 1)) * ns, x = c * (1 - Math.abs(((nh / 60) % 2) - 1)), m = l - c / 2;
+    const [rr, gg, bb] = nh < 60 ? [c, x, 0] : nh < 120 ? [x, c, 0] : nh < 180 ? [0, c, x] : nh < 240 ? [0, x, c] : nh < 300 ? [x, 0, c] : [c, 0, x];
+    const to = (v) => Math.round(Math.max(0, Math.min(1, v + m)) * 255).toString(16).padStart(2, "0");
+    return "#" + to(rr) + to(gg) + to(bb);
+  }
+  const neonSvg = (str) => (S.neon ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, neonHex)
+    : S.steel ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, steelHex) : str);
+  // its lights: emerald, silver flashes; RUSH races white over green
+  function steelAt(name, u, t, o) {
+    let r, g, b, i;
+    switch (name) {
+      case "normal": { const w = 0.5 + 0.5 * Math.sin(TAU * (t * 0.3 - u * 2)); r = 30 + 40 * w; g = 190 + 50 * w; b = 120 + 30 * w; i = 0.6 + 0.3 * w; break; }
+      case "reach": { const p = Math.pow(0.5 + 0.5 * Math.sin(TAU * t * 1.6), 2); r = 60 + 160 * p; g = 255; b = 150 + 90 * p; i = 0.45 + 0.75 * p; break; }
+      case "hot": { const band = Math.floor(u * 20 + t * 11) & 1; if (band) { r = 230; g = 245; b = 255; } else { r = 40; g = 230; b = 140; } i = 0.85 + 0.3 * (0.5 + 0.5 * Math.sin(t * 19)); break; }
+      case "bonus": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 8 - t * 1.6))), 6); r = lerp(40, 240, ch); g = lerp(200, 250, ch); b = lerp(130, 255, ch); i = 0.45 + 0.9 * ch; break; }
+      case "rush": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 6 + t * 1.7))), 6); r = lerp(20, 230, ch); g = lerp(160, 255, ch); b = lerp(100, 240, ch); i = 0.6 + 0.8 * ch; break; }
+      default: return themeAt(name, u, t, o, true);
+    }
+    o[0] = r; o[1] = g; o[2] = b; o[3] = i;
+  }
   function neonAt(name, u, t, o) {
     let r, g, b, i;
     switch (name) {
@@ -1283,6 +1439,7 @@
   // ---------------------------------------------------------------- themes
   function themeAt(name, u, t, o, base) {
     if (S.neon && !base) return neonAt(name, u, t, o);
+    if (S.steel && !base) return steelAt(name, u, t, o);
     let r, g, b, i;
     switch (name) {
       case "normal": {
@@ -1424,6 +1581,7 @@
     const [pc, px] = mkLayer();
     const pinG = px.createRadialGradient(-0.8, -0.9, 0.2, 0, 0, PR);
     if (S.neon) { pinG.addColorStop(0, "#ffffff"); pinG.addColorStop(0.35, "#bff4ff"); pinG.addColorStop(0.75, "#3aa8d0"); pinG.addColorStop(1, "#0c2a44"); }
+    else if (S.steel) { pinG.addColorStop(0, "#ffffff"); pinG.addColorStop(0.35, "#dfe6ee"); pinG.addColorStop(0.75, "#7a8692"); pinG.addColorStop(1, "#1e2428"); }
     else { pinG.addColorStop(0, "#fffbe0"); pinG.addColorStop(0.35, "#ffd860"); pinG.addColorStop(0.75, "#c08a1c"); pinG.addColorStop(1, "#6a4206"); }
     PINS.all.forEach((p) => {
       px.save();
@@ -1439,7 +1597,7 @@
     S.pins = cropLayer(pc);
     // Static parts drawn in front of the balls (heso plate, attacker frame, denchu body).
     const [oc, ox] = mkLayer();
-    if (pinLayout !== "angel") drawHesoFront(ox);
+    if (pinLayout === "enbu") drawHesoFront(ox);
     drawAttackerFrame(ox);
     drawDenchuBody(ox);
     S.over = cropLayer(oc);
@@ -1467,7 +1625,12 @@
     S.ballPx = bs / S.k;
     // Energy swirl: two streak textures (cross-faded each frame) and a layer to tint them in.
     S.swirl = [swirlTex(11), swirlTex(23)];
-    S.swirlLayer = swirlCanvas(); S.swirlOk = false;
+    if (S.swirlCv) {   // the DOM layer under the field (炎舞神龍): sized like the offscreen one
+      const k = S.k * SWIRL.res;
+      S.swirlCv.width = Math.round(L.stage.w * k); S.swirlCv.height = Math.round(L.stage.h * k);
+      S.swirlLayer = S.swirlCv;
+    } else S.swirlLayer = swirlCanvas();
+    S.swirlOk = false;
   }
 
   function swirlCanvas() {
@@ -1539,10 +1702,12 @@
   // Tint the swirl with the theme light around the frame (conic gradient over u) and add it.
   const SWIRL_STOPS = 24;
   function drawSwirl(x) {
-    if (!S.swirl || S.frame === "wings") return;   // 翼之枠 has no swirl band: nothing would show
+    if (!S.swirl || S.frame === "wings" || S.frame === "sword") return;   // 翼之枠 and 魔劍 have no swirl band: nothing would show
     const c = S.swirlLayer;
-    // The light flows slowly: rebuild its layer every other frame and reuse it in between.
-    if ((S.swirlN = (S.swirlN || 0) + 1) % 2 && S.swirlOk) { x.drawImage(c, 0, 0, c.width, c.height, 0, 0, L.stage.w, L.stage.h); return; }
+    // The light flows slowly. On its own canvas under the field (炎舞神龍, the user: still a bit slow) it is
+    // rebuilt one frame in 3 and the browser shows it as it is: the field no longer repaints it every frame.
+    if (S.swirlCv) { if ((S.swirlN = (S.swirlN || 0) + 1) % 3 && S.swirlOk) return; }
+    else if ((S.swirlN = (S.swirlN || 0) + 1) % 2 && S.swirlOk) { x.drawImage(c, 0, 0, c.width, c.height, 0, 0, L.stage.w, L.stage.h); return; }
     S.swirlOk = true;
     const l = c.getContext("2d"), t = S.time;
     l.setTransform(1, 0, 0, 1, 0, 0);
@@ -1574,7 +1739,7 @@
       l.fillStyle = rgb(_c, clamp(_c[3] * 0.95, 0, 1));
     }
     l.fillRect(0, 0, c.width, c.height);
-    x.drawImage(c, 0, 0, c.width, c.height, 0, 0, L.stage.w, L.stage.h);
+    if (!S.swirlCv) x.drawImage(c, 0, 0, c.width, c.height, 0, 0, L.stage.w, L.stage.h);
   }
 
   function drawHesoFront(x) {
@@ -1613,7 +1778,8 @@
   function drawDenchuBody(x) {
     x.save();
     const g = x.createLinearGradient(515, 0, 541, 0);
-    g.addColorStop(0, "#5a0a06"); g.addColorStop(0.3, "#ff4a30"); g.addColorStop(0.55, "#ffb0a0"); g.addColorStop(0.8, "#c01a10"); g.addColorStop(1, "#4a0604");
+    if (S.steel) { g.addColorStop(0, "#04301c"); g.addColorStop(0.3, "#2ad890"); g.addColorStop(0.55, "#c8ffe4"); g.addColorStop(0.8, "#108a54"); g.addColorStop(1, "#032414"); }
+    else { g.addColorStop(0, "#5a0a06"); g.addColorStop(0.3, "#ff4a30"); g.addColorStop(0.55, "#ffb0a0"); g.addColorStop(0.8, "#c01a10"); g.addColorStop(1, "#4a0604"); }
     x.fillStyle = g; x.strokeStyle = "#1a0202"; x.lineWidth = 1.2;
     x.beginPath(); x.moveTo(515, 464); x.lineTo(541, 464); x.lineTo(539, 476); x.quadraticCurveTo(528, 484, 517, 476); x.closePath(); x.fill(); x.stroke();
     const c = x.createLinearGradient(0, 462, 0, 467);
@@ -1805,6 +1971,7 @@
 
   function pathLeft(pb, target) {
     if (pinLayout === "angel") return pathLeftAngel(pb, target);
+    if (pinLayout === "sword") return pathLeftSword(pb, target);
     const isHeso = target === "heso";
     if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
     const warp = rnd() < (isHeso ? 0.32 : 0.14);
@@ -1932,6 +2099,55 @@
     pb.enter(294, 641, "out");
   }
 
+  // 轉生史萊姆與魔劍: down the lane and the road, then onto the 暴食の渦: a start pocket circles in and is
+  // swallowed; a miss either rolls off the road's end or circles once and is flung out, to the left out.
+  function pathLeftSword(pb, target) {
+    const isHeso = target === "heso";
+    if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
+    pb.rail(L.rail.start, L.rail.releaseLeft + rr(-4, 1), rr(0.25, 0.3), easeRail);
+    pb.vy = 120;
+    walk(pb, PINS.L, { yEnd: 470, biasX: isHeso ? 84 : null, bias: 0.15 });
+    const road = PINS.road;
+    let i0 = 0;
+    while (i0 < road.length - 1 && road[i0].x < pb.x + 5) i0++;
+    i0 = Math.min(i0, 1);
+    pb.hop(road[i0].x + 1, road[i0].y - CD, pb.side > 0 ? -60 : -110);
+    const pts = [];
+    for (let i = i0 + 1; i < road.length; i++) pts.push([road[i].x, road[i].y - CD]);
+    if (pts.length) pb.roll(pts, rr(150, 200), rr(260, 320), 2.4, 20);
+    const spit = !isHeso && rnd() < 0.45;
+    pb.route = isHeso ? "vortex" : spit ? "falloff" : "spin";
+    const o = L.outs[1];
+    if (spit) {   // off the road's end, past the whirlpool's left side
+      pb.hop(o.x + 6, o.y - 12, -40);
+      pb.enter(o.x, o.y, "out");
+      return;
+    }
+    const a0 = 212 * DEG, rim = VORTEX.r - 4;
+    pb.hop(VORTEX.x + rim * Math.cos(a0), VORTEX.y + rim * Math.sin(a0), -60);
+    vortexSpin(pb, a0, rim, isHeso);
+  }
+  // Round the whirlpool from angle a0 (clockwise on screen): swallowed into its centre (the heso), or once
+  // round its rim and flung out of its lower left to the left out.
+  function vortexSpin(pb, a0, rim, isHeso) {
+    const V = VORTEX;
+    if (isHeso) {
+      const turn = rr(1.2, 1.6) * TAU;
+      pb.push(rr(0.62, 0.78), (t) => {
+        const a = a0 + turn * (1 - Math.pow(1 - t, 1.6)), r = rim * Math.pow(1 - t, 0.9);
+        return [V.x + r * Math.cos(a), V.y + r * Math.sin(a)];
+      }, { cb: () => { S.glow.vortex = 1; } });
+      pb.enter(V.x, V.y, "heso");
+      return;
+    }
+    const turn = rr(0.75, 0.95) * TAU;
+    pb.push(rr(0.45, 0.6), (t) => { const a = a0 + turn * t, r = rim - 5 * t; return [V.x + r * Math.cos(a), V.y + r * Math.sin(a)]; },
+      { cb: () => { S.glow.vortex = 0.6; } });
+    const o = L.outs[1];
+    pb.hop(o.x + 4, o.y - 8, -30);
+    pb.enter(o.x, o.y, "out");
+  }
+
   // Warp exit: roll on the stage ledge (damped swing), then drop.
   function pathStage(pb, isHeso) {
     const x0 = 132, A = 294 - x0, w = TAU / 0.74, gam = 1.25;
@@ -2022,6 +2238,7 @@
     S.denK = clamp(S.denK + (S.denOpen ? kd : -kd), 0, 1);
     S.wmA += S.wmW * dt;
     S.dishA = (S.dishA + DISH.w * dt) % TAU;
+    S.vortA = (S.vortA + VORTEX.w * dt) % TAU;
     const wingWant = WING_OPEN[S.theme] || 0;
     S.wingOpen += (wingWant - S.wingOpen) * (1 - Math.exp(-dt / (wingWant > S.wingOpen ? 0.25 : 0.8)));
     S.wmW *= Math.exp(-dt / 0.9);
@@ -2106,9 +2323,10 @@
     x.restore();
 
     if (pinLayout === "angel") { drawAngelWings(x, t); drawHaloLight(x, t); drawDish(x); }
+    if (pinLayout === "sword") drawVortex(x);
     // Pins.
     drawLayer(x, S.pins);
-    if (pinLayout !== "angel") drawWindmill(x);
+    if (pinLayout === "enbu") drawWindmill(x);
 
     // Balls: shadows, ghosts, bodies.
     const bp = S.ballPx;
@@ -2428,8 +2646,8 @@
       x.translate(px, py);
       x.rotate(side * k * 0.72);
       const g = x.createLinearGradient(0, -14, 0, 0);
-      g.addColorStop(0, "#ffe680"); g.addColorStop(1, "#ff9a10");
-      x.fillStyle = g; x.strokeStyle = "#5a2a00"; x.lineWidth = 1;
+      if (S.steel) { g.addColorStop(0, "#f2f6fa"); g.addColorStop(1, "#7a8692"); } else { g.addColorStop(0, "#ffe680"); g.addColorStop(1, "#ff9a10"); }
+      x.fillStyle = g; x.strokeStyle = S.steel ? "#1a2026" : "#5a2a00"; x.lineWidth = 1;
       x.beginPath();
       x.moveTo(-2.4, 0); x.lineTo(-2.2 + side * 0.5, -12); x.quadraticCurveTo(side * 0.6, -15.5, 2.4 * 1 + side * 0.4, -12); x.lineTo(2.4, 0); x.closePath();
       x.fill(); x.stroke();
@@ -2527,6 +2745,49 @@
   }
 
   // The turntable: a dark glass dish with a neon rim, turning; the start hole glows pink.
+  // The 暴食の渦: one pre-rendered sprite (basin, spiral arms, rim) turned each frame, and a green glow
+  // while a ball circles it (S.glow.vortex) or is swallowed (S.glow.heso, drawPocketGlows).
+  function vortexSprite() {
+    const V = VORTEX, R = V.r + 8, n = Math.ceil(2 * R * S.k);
+    if (S.vortSpr && S.vortSpr.width === n) return S.vortSpr;
+    const c = document.createElement("canvas");
+    c.width = c.height = n;
+    const g = c.getContext("2d");
+    g.setTransform(S.k, 0, 0, S.k, n / 2, n / 2);
+    let gr = g.createRadialGradient(0, 0, 2, 0, 0, V.r + 4);
+    gr.addColorStop(0, "#000"); gr.addColorStop(0.35, "#03100a"); gr.addColorStop(0.8, "#0a3a24"); gr.addColorStop(1, "#1a6a44");
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, V.r + 4, 0, TAU); g.fill();
+    // four spiral arms, thinning toward the centre
+    for (let k = 0; k < 4; k++) {
+      g.beginPath();
+      for (let i = 0; i <= 40; i++) {
+        const u = i / 40, a = k * (TAU / 4) + u * 1.9 * Math.PI, r = (V.r + 2) * (1 - u * 0.92);
+        const px = r * Math.cos(a), py = r * Math.sin(a);
+        if (i) g.lineTo(px, py); else g.moveTo(px, py);
+      }
+      g.strokeStyle = "rgba(60,235,150,0.55)"; g.lineWidth = 3.2; g.stroke();
+      g.strokeStyle = "rgba(220,255,236,0.5)"; g.lineWidth = 0.9; g.stroke();
+    }
+    gr = g.createRadialGradient(0, 0, 0, 0, 0, 9);
+    gr.addColorStop(0, "#000"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 9, 0, TAU); g.fill();
+    g.strokeStyle = "#c8d2dc"; g.lineWidth = 2.4; g.beginPath(); g.arc(0, 0, V.r + 4, 0, TAU); g.stroke();
+    g.strokeStyle = "rgba(42,216,144,0.8)"; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, V.r + 6.5, 0, TAU); g.stroke();
+    return (S.vortSpr = c);
+  }
+  function drawVortex(x) {
+    const V = VORTEX, R = V.r + 8, sp = vortexSprite();
+    x.save();
+    x.translate(V.x, V.y); x.rotate(S.vortA);
+    x.drawImage(sp, -R, -R, 2 * R, 2 * R);
+    x.restore();
+    const gl = Math.max(S.glow.vortex, 0.18 + 0.08 * Math.sin(S.time * 2));
+    x.globalCompositeOperation = "lighter";
+    x.globalAlpha = clamp(gl, 0, 1);
+    x.drawImage(sprite(42, 216, 144), V.x - R * 1.3, V.y - R * 1.3, R * 2.6, R * 2.6);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+  }
   function drawDish(x) {
     const R = DISH.r;
     x.save();
@@ -2563,12 +2824,12 @@
     if (k > 0.01) {
       // Opening interior glow.
       const g = x.createLinearGradient(0, 603, 0, 621);
-      g.addColorStop(0, S.neon ? "#100620" : "#1a0a00"); g.addColorStop(1, S.neon ? "#5a1a7a" : "#7a3a00");
+      g.addColorStop(0, S.neon ? "#100620" : S.steel ? "#02100a" : "#1a0a00"); g.addColorStop(1, S.neon ? "#5a1a7a" : S.steel ? "#0e5a38" : "#7a3a00");
       x.fillStyle = g;
       x.fillRect(ATT_X - 52, 603, 104, 14 * k + 1);
       x.globalCompositeOperation = "lighter";
       x.globalAlpha = 0.7 * k;
-      for (let i = 0; i < 5; i++) x.drawImage(S.neon ? sprite(255, 90, 230) : sprite(255, 170, 40), ATT_X - 46 + i * 23 - 12, 606 - 12, 24, 24);
+      for (let i = 0; i < 5; i++) x.drawImage(S.neon ? sprite(255, 90, 230) : S.steel ? sprite(60, 235, 150) : sprite(255, 170, 40), ATT_X - 46 + i * 23 - 12, 606 - 12, 24, 24);
       x.globalAlpha = 1;
       x.globalCompositeOperation = "source-over";
     }
@@ -2576,12 +2837,13 @@
     const top = 603 + 14 * k, bot = 621 + 3 * k, sp = 3 * k;
     const g2 = x.createLinearGradient(0, top, 0, bot);
     if (S.neon) { g2.addColorStop(0, k > 0.5 ? "#bff8ff" : "#ff7ae6"); g2.addColorStop(0.5, "#b0168e"); g2.addColorStop(1, "#30063e"); }
+    else if (S.steel) { g2.addColorStop(0, k > 0.5 ? "#e8fff4" : "#c8d2dc"); g2.addColorStop(0.5, "#4a6a5c"); g2.addColorStop(1, "#14201a"); }
     else { g2.addColorStop(0, k > 0.5 ? "#ffd27a" : "#ff6a2a"); g2.addColorStop(0.5, "#d0280c"); g2.addColorStop(1, "#5a0800"); }
     x.fillStyle = g2; x.strokeStyle = "#200200"; x.lineWidth = 1;
     x.beginPath(); x.moveTo(ATT_X - 52, top); x.lineTo(ATT_X + 52, top); x.lineTo(ATT_X + 52 + sp, bot); x.lineTo(ATT_X - 52 - sp, bot); x.closePath(); x.fill(); x.stroke();
     if (k < 0.6) {
       x.globalAlpha = 1 - k / 0.6;
-      x.strokeStyle = S.neon ? "#bff8ff" : "#ffe08a"; x.lineWidth = 1.6; x.lineJoin = "round";
+      x.strokeStyle = S.neon ? "#bff8ff" : S.steel ? "#7af0be" : "#ffe08a"; x.lineWidth = 1.6; x.lineJoin = "round";
       x.beginPath();
       for (let i = 0; i < 6; i++) { const cx = ATT_X - 34 + i * 14; x.moveTo(cx - 3, 607); x.lineTo(cx + 3, 612); x.lineTo(cx - 3, 617); }
       x.stroke();
@@ -2596,7 +2858,7 @@
     for (let i = 0; i < 9; i++) {
       const on = k > 0.3 ? 0.4 + 0.6 * Math.pow(0.5 + 0.5 * Math.sin(t * 14 - i * 0.9), 3) : 0.12;
       x.globalAlpha = on;
-      x.drawImage(S.neon ? sprite(120, 240, 255) : sprite(255, 200, 70), ATT_X - 48 + i * 12 - 5, 599 - 5, 10, 10);
+      x.drawImage(S.neon ? sprite(120, 240, 255) : S.steel ? sprite(90, 245, 170) : sprite(255, 200, 70), ATT_X - 48 + i * 12 - 5, 599 - 5, 10, 10);
     }
     x.globalAlpha = 1;
     x.globalCompositeOperation = "source-over";
@@ -2605,7 +2867,10 @@
   function drawPocketGlows(x) {
     x.globalCompositeOperation = "lighter";
     const gl = S.glow;
-    if (gl.heso > 0.02) { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, (pinLayout === "angel" ? DISH.y : 551) - 26, 52, 52); }
+    if (gl.heso > 0.02) {
+      if (pinLayout === "sword") { x.globalAlpha = gl.heso; x.drawImage(sprite(60, 235, 150), VORTEX.x - 44, VORTEX.y - 44, 88, 88); }
+      else { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, (pinLayout === "angel" ? DISH.y : 551) - 26, 52, 52); }
+    }
     if (gl.halo > 0.02) { const m = haloPt(HALO.a0); x.globalAlpha = gl.halo * 0.9; x.drawImage(sprite(255, 110, 230), m[0] - 18, m[1] - 18, 36, 36); }
     if (gl.attacker > 0.02) { x.globalAlpha = gl.attacker; x.drawImage(sprite(255, 210, 90), ATT_X - 50, 612 - 30, 100, 60); }
     if (gl.out > 0.02) { x.globalAlpha = gl.out * 0.35; x.drawImage(sprite(160, 180, 255), 294 - 12, 641 - 12, 24, 24); }
@@ -2653,6 +2918,7 @@
     try { S.reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { S.reduced = false; }
     const mc = els.machine || {}, art = mc.art || {};
     S.neon = els.theme === "neon";
+    S.steel = els.theme === "steel";
     S.gimmick = mc.gimmick || null;
     S.frame = mc.frame || "dragon";
     pinLayout = mc.pins || "enbu";
@@ -2660,6 +2926,15 @@
     SLOPE = pinLayout === "angel" ? SLOPE_ANGEL : SLOPE_ENBU;
     DRAGON_ART = art.dragon || {}; CREST_ART = art.crest || {}; BOARD_ART = art.board || {}; WING_ART = art.wing || {};
     buildPins();
+    if (S.frame === "dragon" && S.field && S.field.parentNode) {
+      if (!S.swirlCv) {
+        const c = document.createElement("canvas");
+        c.id = "cabSwirl";
+        c.style.cssText = "position:absolute;left:0;top:0;width:588px;height:860px;pointer-events:none";
+        S.field.parentNode.insertBefore(c, S.field);
+        S.swirlCv = c;
+      }
+    } else if (S.swirlCv) { S.swirlCv.remove(); S.swirlCv = null; }
     if (S.frame === "wings" && WING_ART.file && S.front && S.field && S.front.parentNode) {
       if (!S.wingCv) {
         const c = document.createElement("canvas");
@@ -2758,7 +3033,7 @@
     const n = Math.max(1, lines.length);
     const maxLen = Math.max(1, ...lines.map((l) => l.replace(/[ -~]/g, "x").length - (l.match(/[ -~]/g) || []).length * 0.42));
     const size = Math.min((Sd.h - 8) / n / 1.08, (Sd.w - 10) / maxLen, 30);
-    const col = color || (S.neon ? "#5ff0ff" : "#ffd84a");
+    const col = color || (S.neon ? "#5ff0ff" : S.steel ? "#6affc0" : "#ffd84a");
     const lh = size * 1.08;
     const y0 = Sd.y + Sd.h / 2 - (lh * (n - 1)) / 2;
     let s = "";
@@ -2814,7 +3089,7 @@
       inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice(), attX: () => ATT_X,
       goals: () => {
         const angel = pinLayout === "angel";
-        return { heso: [angel ? [DISH.x, DISH.y] : [294, 548]], denchu: [[528, 468]], attacker: [[ATT_X, 612]],
+        return { heso: [angel ? [DISH.x, DISH.y] : pinLayout === "sword" ? [VORTEX.x, VORTEX.y] : [294, 548]], denchu: [[528, 468]], attacker: [[ATT_X, 612]],
           out: L.outs.map((o) => [o.x, o.y]).concat(angel ? [[DISH.x, DISH.y]] : []) };
       },
       // the screen: an ellipse on 霓虹天使 (src/ui.css), a rounded rect otherwise

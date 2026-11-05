@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 55;
+  PK.VERSION = 56;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -78,10 +78,8 @@
     engine: E.engine,
     cabinet: {
       pins: "angel",   // its own board (src/cabinet.js pinsAngel)
-      gimmick: ["天", "使"],   // the two kanji blocks on the board
+      frame: "wings",   // its own cabinet: pearl body, feather wings, a halo (src/cabinet.js buildWingFrame)
       art: {
-        dragon: { file: "cab_wing.png", x: 404, y: -14, w: 196, h: 330 },
-        crest: { file: "cab_crest.png", x: 222, y: -10, w: 144, h: 120 },
         board: { file: "board.jpg" },
       },
     },

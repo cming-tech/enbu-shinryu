@@ -632,15 +632,16 @@
     ART.strokes.push({ pts: loopPts(11, 11), closed: true, w: [16, 9, 2.6], gain: 1, main: true });
     // --- energy swirl band s0..s1 (lit by drawSwirl), clipped above the console
     const swirlD = loopPath(SWIRL.s1, 3) + loopPath(SWIRL.s0, 3);
-    holes.push(`<path d="${swirlD}" fill-rule="evenodd" clip-path="url(#pkc-aboveConsole)"/>`);
-    acr.push(`<path d="${swirlD}" fill-rule="evenodd" fill="#06142c" fill-opacity=".22" clip-path="url(#pkc-aboveConsole)"/>`);
+    const WINGS = S.frame === "wings";
+    if (!WINGS) holes.push(`<path d="${swirlD}" fill-rule="evenodd" clip-path="url(#pkc-aboveConsole)"/>`);
+    if (!WINGS) acr.push(`<path d="${swirlD}" fill-rule="evenodd" fill="#06142c" fill-opacity=".22" clip-path="url(#pkc-aboveConsole)"/>`);
 
     // --- outer secondary channel (upper half, broken by the crest)
     const outerArc = (a0, a1) => {
       const o = arcPts(a0, a1, 33, 3), i = arcPts(a0, a1, 28, 3);
       return ptsPath(o.concat(i.slice().reverse()), true);
     };
-    [[196, 246], [294, 330]].forEach((a) => {
+    if (!WINGS) [[196, 246], [294, 330]].forEach((a) => {
       const d = outerArc(a[0], a[1]);
       holes.push(`<path d="${d}"/>`);
       acr.push(`<path d="${d}" fill="url(#pkc-acryl)"/>`);
@@ -656,7 +657,7 @@
       }
       return ptsPath(o.concat(i.reverse()), true);
     };
-    [[166, 106], [14, 74]].forEach((a) => {
+    if (!WINGS) [[166, 106], [14, 74]].forEach((a) => {
       const d = wing(a[0], a[1]);
       holes.push(`<path d="${d}"/>`);
       addFill(d, 0.5);
@@ -668,22 +669,27 @@
     // --- top corner flame panels
     const flameTL = "M8,150 C14,120 6,96 0,80 L0,0 L120,0 C102,10 96,22 98,34 C80,26 60,30 46,44 C30,40 18,46 12,58 C22,70 20,88 14,98 C26,110 24,132 8,150 Z";
     const flameTR = "M588,236 C574,206 578,182 588,160 L588,0 L470,0 C486,12 492,26 488,40 C506,32 528,34 540,48 C556,44 570,52 576,64 C566,78 568,96 574,108 C560,122 562,146 572,164 C562,186 566,214 588,236 Z";
-    [flameTL, flameTR].forEach((d) => {
+    if (!WINGS) [flameTL, flameTR].forEach((d) => {
       holes.push(`<path d="${d}"/>`);
       addFill(d, 0.42, { pulse: 1 });
       acr.push(`<path d="${d}" fill="url(#pkc-acrylP)"/>`);
       deco += `<path d="${d}" fill="none" stroke="url(#pkc-chrome)" stroke-width="2"/>`;
     });
+    if (!WINGS) {
     [[30, 30, 52], [70, 18, 40], [16, 110, 40], [46, 72, 30]].forEach((p) => ART.sprites.push({ x: p[0], y: p[1], r: p[2], g: 0.75 }));
     [[560, 40, 60], [520, 20, 46], [574, 120, 50], [580, 196, 40], [538, 70, 36]].forEach((p) => ART.sprites.push({ x: p[0], y: p[1], r: p[2], g: 0.85, pulse: 1 }));
+    }
 
+    let crest = "";
+    const mir = (d) => d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (m, x, y) => f1(588 - parseFloat(x)) + "," + y);
+    if (WINGS) crest = buildWingFrame(holes, acr);
+    else {
     // --- crest (top ornament): wings, medallion, LED strip
     const bladesR = [
       { d: "M312,40 C356,22 408,8 462,0 C424,22 374,48 328,64 Z", s: "M330,44 C370,30 410,18 446,10 C412,28 372,46 336,56 Z" },
       { d: "M320,58 C368,46 420,38 468,38 C428,56 378,70 332,78 Z", s: "M338,60 C376,52 418,46 452,44 C420,56 380,66 344,70 Z" },
       { d: "M324,74 C366,70 412,72 452,82 C412,90 370,94 328,92 Z", s: "M342,77 C374,75 410,76 438,81 C408,86 374,88 346,87 Z" },
     ];
-    const mir = (d) => d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (m, x, y) => f1(588 - parseFloat(x)) + "," + y);
     const blades = [];
     bladesR.forEach((b) => { blades.push(b); blades.push({ d: mir(b.d), s: mir(b.s) }); });
     blades.forEach((b) => {
@@ -691,7 +697,6 @@
       addFill(b.s, 0.55);
       acr.push(`<path d="${b.s}" fill="url(#pkc-acryl)"/>`);
     });
-    let crest = "";
     for (let k = blades.length - 1; k >= 0; k--) {
       const b = blades[k];
       crest += `<path d="${b.d} ${b.s}" fill-rule="evenodd" fill="url(#pkc-gunBlade)" stroke="url(#pkc-chrome)" stroke-width="2"/>`;
@@ -729,11 +734,13 @@
     crest += `<path d="M294,52 C299,58 301,63 299,68 C297,72 291,72 289,68 C287,63 290,58 294,52 Z" fill="#fff6d0" opacity=".8"/>`;
     }
 
+    }
+
     // --- speaker (top-left corner; the top-right corner belongs to the dragon head)
     const spk = "M24,96 C28,70 50,56 80,56 C100,56 114,66 114,84 C114,106 96,124 66,126 C40,128 22,116 24,96 Z";
     const spkRing = "M16,96 C20,64 46,48 80,48 C106,48 122,62 122,84 C122,112 100,134 66,134 C34,136 14,120 16,96 Z " + spk;
     let speakers = "";
-    [false].forEach((m) => {
+    (WINGS ? [] : [false]).forEach((m) => {
       const d = m ? mir(spk) : spk, dr = m ? mir(spkRing) : spkRing;
       holes.push(`<path d="${dr}" fill-rule="evenodd"/>`);
       addFill(dr, 0.5, { rule: "evenodd" });
@@ -756,14 +763,15 @@
       speakers += `<circle cx="68" cy="91" r="13" fill="#050607"/><circle cx="68" cy="91" r="11.5" fill="url(#pkc-chromeV)" stroke="url(#pkc-goldU)" stroke-width="2"/>`;
       speakers += `<text x="68" y="92" font-family="'Yuji Syuku','Noto Serif TC',serif" font-size="13" text-anchor="middle" dominant-baseline="central" fill="url(#pkc-gold)" stroke="#2a1404" stroke-width=".5">${PK.t ? PK.t("lcd.crest") : "?lcd.crest"}</text>`;
     });
-    [[30, 80], [60, 52], [100, 56], [120, 90], [96, 128], [52, 130], [20, 110]].forEach((p) => {
+    if (!WINGS) [[30, 80], [60, 52], [100, 56], [120, 90], [96, 128], [52, 130], [20, 110]].forEach((p) => {
       ART.sprites.push({ x: p[0], y: p[1], r: 14, g: 0.8 });
     });
 
     // --- console (lower body)
     const consoleTop = CONSOLE_TOP;
     // The console plate is part of the masked body so its acrylic rings stay open.
-    const consoleBase = `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-console)"/>` +
+    const consoleBase = WINGS ? `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-pearlC)"/>`
+      : `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-console)"/>` +
       `<path d="${consoleTop} L588,860 L0,860 Z" fill="url(#pkc-carbon)" opacity=".35"/>`;
     let cons = `<path d="${consoleTop}" fill="none" stroke="url(#pkc-chrome)" stroke-width="3"/>`;
     cons += `<path d="${consoleTop}" fill="none" stroke="#000" stroke-opacity=".6" stroke-width="1.5" transform="translate(0,3)"/>`;
@@ -819,7 +827,7 @@
 
     // --- dragon
     const A = DRAGON_ART;
-    const dragon = S.dragonImg
+    const dragon = WINGS ? "" : S.dragonImg
       ? `<g clip-path="url(#pkc-outWin)"><image href="${S.dragonImg.src}" x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}" preserveAspectRatio="xMaxYMin meet" filter="url(#pkc-statueShadow)"/></g>`
       : buildDragonSVG(holes, acr);
 
@@ -862,7 +870,7 @@
     trims += `<path d="${loopPath(0.6, 3)}" fill="none" stroke="#020203" stroke-width="2.4"/>`;
     trims += `<path d="${loopPath(36, 3)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1.4"/>`;
     trims += `<path d="${loopPath(37.2, 3)}" fill="none" stroke="#c8d0da" stroke-opacity=".14" stroke-width="1"/>`;
-    [[196, 246], [294, 330]].forEach((a) => {
+    if (!WINGS) [[196, 246], [294, 330]].forEach((a) => {
       trims += `<path d="${outerArc(a[0], a[1])}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.5"/>`;
     });
 
@@ -875,9 +883,12 @@
 <clipPath id="pkc-aboveConsole"><path d="${CONSOLE_TOP} L588,0 L0,0 Z"/></clipPath>
 </defs>`;
     s += `<g mask="url(#pkc-bodyMask)">`;
+    if (WINGS) s += `<rect width="588" height="860" fill="url(#pkc-pearl)"/>`;
+    else {
     s += `<rect width="588" height="860" fill="url(#pkc-gun)"/>`;
     s += `<rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
     s += `<rect width="588" height="860" fill="url(#pkc-carbon)" opacity=".5"/>`;
+    }
     s += `<path d="${loopPath(60, 4)}" fill="none" stroke="#fff" stroke-opacity=".05" stroke-width="30"/>`;
     s += consoleBase;
     s += `</g>`;
@@ -891,6 +902,66 @@
     s += gim;
     svg.innerHTML = neonSvg(s);
     S.subText = svg.querySelector("#pkc-subText");
+  }
+
+  // 霓虹天使's cabinet (frame: "wings", the user's pick of three): a pearl-white body, no speaker, crest or
+  // statue; two wings of long pearl feathers fan out from above the window over the top corners and down
+  // the sides, each with a lit acrylic vein, and a halo of light floats over the top.
+  function buildWingFrame(holes, acr) {
+    let out = "";
+    const feather = (rx, ry, ang, len, w, sd) => {
+      const a = ang * DEG, c = Math.cos(a), si = Math.sin(a), nx = -si, ny = c;
+      const tx = rx + len * c * sd, ty = ry + len * si;
+      const mx = rx + len * 0.55 * c * sd, my = ry + len * 0.55 * si;
+      const d = `M${f1(rx)},${f1(ry)} Q${f1(mx - nx * w * sd)},${f1(my - ny * w)} ${f1(tx)},${f1(ty)} Q${f1(mx + nx * w * 0.45 * sd)},${f1(my + ny * w * 0.45)} ${f1(rx)},${f1(ry + 5)} Z`;
+      const vein = [];
+      for (let k = 0; k <= 10; k++) {
+        const t = 0.12 + 0.8 * (k / 10), x = rx + len * t * c * sd - nx * w * 0.25 * Math.sin(Math.PI * t) * sd, y = ry + len * t * si - ny * w * 0.25 * Math.sin(Math.PI * t);
+        vein.push([x, y]);
+      }
+      return { d, vein };
+    };
+    const set = [];
+    for (const sd of [1, -1]) {
+      // upper feathers over the top corner, the long ones (drawn first, underneath) lying down the side
+      for (let k = 7; k >= 0; k--) {
+        const ang = -34 + k * 13, len = 290 + (k > 4 ? (k - 4) * 60 : 0), w = 44 - k * 2;
+        set.push(feather(294 + sd * 30, 98, ang, len, w, sd));
+      }
+      // short drooping feathers in the lower corner, under the window's side
+      for (let k = 0; k < 3; k++) set.push(feather(sd > 0 ? 566 : 22, 520 + k * 34, 100 - k * 14, 120 - k * 18, 20, sd > 0 ? -1 : 1));
+    }
+    // pearl blades with chrome rims, clipped outside the window; a lit slit down each one's vein
+    set.forEach((f, i) => {
+      out += `<g clip-path="url(#pkc-outWin)"><path d="${f.d}" fill="#2a3450" opacity=".35" transform="translate(3,5)"/>`;
+      out += `<path d="${f.d}" fill="url(#pkc-feather)" stroke="#5a6888" stroke-width="1.4"/>`;
+      out += `<path d="${f.d}" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width=".8" transform="translate(-.8,-1)"/></g>`;
+      const v = f.vein, slit = ptsPath(v.map((p) => [p[0], p[1] - 2.6]).concat(v.slice().reverse().map((p) => [p[0], p[1] + 2.6])), true);
+      holes.push(`<path d="${slit}" clip-path="url(#pkc-outWin)"/>`);
+      // the vein's light, only along the runs that lie outside the window (the canvas is not clipped)
+      let run = [];
+      const flush = () => { if (run.length > 1) ART.strokes.push({ pts: run, closed: false, w: [9, 5, 1.6], gain: 0.9 }); run = []; };
+      v.forEach((p) => { if (inWin(p[0], p[1], 8)) flush(); else run.push([p[0], p[1], angU(p[0], p[1])]); });
+      flush();
+    });
+    // a gem clasping the two wings' roots
+    out += `<path d="M294,76 L314,98 L294,122 L274,98 Z" fill="#3a0a34" stroke="url(#pkc-chrome)" stroke-width="3"/>`;
+    holes.push(`<path d="M294,82 L308,98 L294,115 L280,98 Z"/>`);
+    acr.push(`<path d="M294,82 L308,98 L294,115 L280,98 Z" fill="url(#pkc-gem)"/>`);
+    addFill("M294,82 L308,98 L294,115 L280,98 Z", 0.9, { u: 0 });
+    ART.sprites.push({ x: 294, y: 98, r: 34, g: 1, core: 1 });
+    // the halo
+    const hx = 294, hy = 40, hrx = 96, hry = 17;
+    const band = `M${hx - hrx - 5},${hy} a${hrx + 5},${hry + 5} 0 1 0 ${2 * (hrx + 5)},0 a${hrx + 5},${hry + 5} 0 1 0 ${-2 * (hrx + 5)},0 Z M${hx - hrx + 5},${hy} a${hrx - 5},${hry - 5} 0 1 0 ${2 * (hrx - 5)},0 a${hrx - 5},${hry - 5} 0 1 0 ${-2 * (hrx - 5)},0 Z`;
+    holes.push(`<path d="${band}" fill-rule="evenodd"/>`);
+    acr.push(`<path d="${band}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
+    const ring = [];
+    for (let k = 0; k < 48; k++) { const a = (k / 48) * TAU, x = hx + hrx * Math.cos(a), y = hy + hry * Math.sin(a); ring.push([x, y, angU(x, y)]); }
+    ART.strokes.push({ pts: ring, closed: true, w: [14, 8, 2.4], gain: 1.1 });
+    out += `<ellipse cx="${hx}" cy="${hy}" rx="${hrx + 6}" ry="${hry + 6}" fill="none" stroke="url(#pkc-chrome)" stroke-width="2"/>`;
+    out += `<ellipse cx="${hx}" cy="${hy}" rx="${hrx - 6}" ry="${hry - 6}" fill="none" stroke="url(#pkc-chrome)" stroke-width="1.6"/>`;
+    ART.sprites.push({ x: hx, y: hy, r: 70, g: 0.6 });
+    return out;
   }
 
   function circlePts(cx, cy, r, step) {
@@ -917,6 +988,12 @@
 
   function frontDefs() {
     return `
+<linearGradient id="pkc-pearl" x1="0" y1="0" x2=".35" y2="1">
+ <stop offset="0" stop-color="#ffffff"/><stop offset=".3" stop-color="#e4e9f4"/><stop offset=".55" stop-color="#f6f8fc"/><stop offset=".8" stop-color="#c9d2e4"/><stop offset="1" stop-color="#9aa6c0"/></linearGradient>
+<linearGradient id="pkc-pearlC" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#f4f6fb"/><stop offset=".4" stop-color="#d6dcea"/><stop offset="1" stop-color="#8e9ab4"/></linearGradient>
+<linearGradient id="pkc-feather" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e2e9f8"/><stop offset="1" stop-color="#aebcdc"/></linearGradient>
 <linearGradient id="pkc-gun" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#3d434d"/><stop offset=".18" stop-color="#262a32"/><stop offset=".45" stop-color="#1c1f26"/><stop offset=".7" stop-color="#2a2e36"/><stop offset=".8" stop-color="#16181d"/><stop offset="1" stop-color="#0c0d10"/></linearGradient>
 <linearGradient id="pkc-sheen" x1="0" y1="0" x2="1" y2="1">
@@ -2412,6 +2489,7 @@
     const mc = els.machine || {}, art = mc.art || {};
     S.neon = els.theme === "neon";
     S.gimmick = mc.gimmick || null;
+    S.frame = mc.frame || "dragon";
     pinLayout = mc.pins || "enbu";
     ATT_X = pinLayout === "angel" ? 294 : 432;
     SLOPE = pinLayout === "angel" ? SLOPE_ANGEL : SLOPE_ENBU;

@@ -469,7 +469,7 @@
     // 光環舞台: the screen is an ellipse (src/ui.css), so what sat in its corners moves inside it
     HOLD_SLOT_X = (i) => 170 - i * 24; HOLD_Y = 286;
     ped.y = 286;
-    FACE_BOX.x = 236; FACE_BOX.y = 226; FACE_BOX.w = 54; FACE_BOX.h = 64;
+    FACE_BOX.x = 262; FACE_BOX.y = 228; FACE_BOX.w = 50; FACE_BOX.h = 58;   // lower right, inside the ellipse
     FONT_BRUSH = '"Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
     const CHROME = [[0, "#ffffff"], [0.3, "#d8e2f4"], [0.55, "#5a6680"], [0.78, "#f2f6ff"], [1, "#3a4458"]];
     // odd digits neon pink, even neon cyan (7 stays gold): the 炎舞神龍 red and blue, in this machine's colours
@@ -2063,13 +2063,13 @@
     drawParticles(ctx, P.back);
     drawLogo(ctx);
     drawActors(ctx, "under");
+    if (THEME === "neon") drawFace(ctx);   // under the digits and the 演出: it covered the centre digit
     const pulse = hitPulse.on ? 1 + 0.035 * Math.sin((clk.t - hitPulse.t0) * 10) : 1;
     drawReel(ctx, reels[0], pulse); drawReel(ctx, reels[2], pulse); drawReel(ctx, reels[1], pulse);
     drawActors(ctx, "mid");
     drawParticles(ctx, P.front);
     drawActors(ctx, "front");
     drawHolds(ctx);
-    if (THEME === "neon") drawFace(ctx);
     ctx.restore();
     drawActors(ctx, "top");
     if (THEME === "neon" && mode === "bonus") drawDownload(ctx);
@@ -2970,7 +2970,7 @@
       },
     });
     const film = playClipToEnd("battle", 3.4);   // the face-off on film, when there is a clip
-    telop(T("lcd.battle"), { x: CX, y: 112, size: 44, cls: "fire", anim: "slam", dur: film ? 2.4 : 1.3 });
+    telop(T("lcd.battle"), { x: CX, y: 112, size: THEME === "neon" ? 32 : 44, cls: "fire", anim: "slam", dur: film ? 2.4 : 1.3 });   // ファイアウォール突破 is longer, and the screen is an ellipse
     tween(B, { hx: 96 }, 0.5, E.out); tween(B, { dx: 312 }, 0.55, E.out);
     await wait(0.9);
     if (film) await film;
@@ -3262,17 +3262,21 @@
     addActor("front", 1.5, (ctx, age) => {
       const ui = E.back(clamp(age / 0.22, 0, 1)), uo = clamp((age - 1.25) / 0.25, 0, 1);
       ctx.globalAlpha = 1 - uo;
+      // on 霓虹天使's elliptical screen the whole thing sits further in and up (its corners cut it off,
+      // and the hold pedestal covered the box)
+      const NE = THEME === "neon", ox = NE ? 44 : 0, oy = NE ? -50 : 0;
       // the hero's face, bottom left
       if (IMG.cutin_hero) {
-        ctx.save(); ctx.beginPath(); ctx.arc(70, 262, 50, 0, TAU); ctx.clip();
-        ctx.fillStyle = "#000"; ctx.fillRect(20, 212, 100, 100);
+        const fx0 = 70 + ox, fy0 = 262 + oy;
+        ctx.save(); ctx.beginPath(); ctx.arc(fx0, fy0, 50, 0, TAU); ctx.clip();
+        ctx.fillStyle = "#000"; ctx.fillRect(fx0 - 50, fy0 - 50, 100, 100);
         const dw = 300, dh = (dw * IMG.cutin_hero.naturalHeight) / IMG.cutin_hero.naturalWidth;   // the face (66%, 42% of the picture) in the circle
-        ctx.drawImage(IMG.cutin_hero, 70 - 0.66 * dw, 262 - 0.42 * dh, dw, dh);
+        ctx.drawImage(IMG.cutin_hero, fx0 - 0.66 * dw, fy0 - 0.42 * dh, dw, dh);
         ctx.restore();
-        ring(ctx, 70, 262, 50, 4, c, 1);
+        ring(ctx, fx0, fy0, 50, 4, c, 1);
       }
       // the box, in the hint colour
-      const bw = 248, bh = 54, bx = 128, by = 236 - (1 - ui) * 20;
+      const bw = NE ? 200 : 248, bh = 54, bx = 128 + ox, by = 236 + oy - (1 - ui) * 20;
       ctx.save(); ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(0.6 + 0.4 * ui, 0.6 + 0.4 * ui);
       if (gold) { ctx.save(); ctx.globalCompositeOperation = "lighter"; drawGlow(ctx, C.gold, 0, 0, 170, 0.5 + 0.2 * Math.sin(age * 12)); ctx.restore(); }
       ctx.fillStyle = "rgba(8,8,14,0.88)"; ctx.strokeStyle = rgba(c, 1); ctx.lineWidth = 4;
@@ -3436,7 +3440,7 @@
   // knockout earns a reward the shell pays. It has 9 hits per round before the last one; the last
   // round is the 神龍覚醒チャレンジ (below), and a 龍兵 still standing then withdraws.
   const boss = { on: false, hp: 1, max: 1, down: false, hitT: -9, downT: 0, pops: [], k: -1, flee: false, t0: 0, atkT: -9, gen: 0 };
-  const BOSS_HP_PER_ROUND = 9, MINIONS = 6;
+  const BOSS_HP_PER_ROUND = 9, MINIONS = 6;   // 9 again: the bar "not dropping" was 自動PUSH being off (now on with 自動打珠)
   const BOSS_ATK = { first: 2.2, every: 4.6, strike: 0.46 };   // its claw: first after, then every (s); strike: into the wind-up
   let minionN = -1;
   function bossStart(rounds, round) {
@@ -3533,10 +3537,12 @@
     lg.addColorStop(0, "#ff2a1a"); lg.addColorStop(1, "#ffb21a");
     ctx.fillStyle = lg; roundRect(ctx, x0, y0, Math.max(0.001, bw * f), 10, 4); ctx.fill();
     ctx.strokeStyle = "#ffd27a"; ctx.lineWidth = 1.5; roundRect(ctx, x0 - 3, y0 - 3, bw + 6, 16, 6); ctx.stroke();
-    ctx.font = "900 12px " + FONT_TC; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    // the name sits above the bar; on 霓虹天使 the ROUND header covers that, so below it
+    const ny = THEME === "neon" ? y0 + 15 : y0 - 5;
+    ctx.font = "900 12px " + FONT_TC; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = THEME === "neon" ? "top" : "bottom";
     ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";   // readable on bright scenes
-    ctx.strokeText(minionName(boss.k), x0, y0 - 5);
-    ctx.fillText(minionName(boss.k), x0, y0 - 5);
+    ctx.strokeText(minionName(boss.k), x0, ny);
+    ctx.fillText(minionName(boss.k), x0, ny);
     ctx.restore();
     drawPops(ctx, boss.pops, al);
   }

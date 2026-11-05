@@ -29,20 +29,20 @@
   #app { display: flex; flex-direction: column; height: 100%; }
 
   /* ---- top bar */
-  #topbar { flex: none; display: flex; align-items: center; gap: 10px; height: 46px;
+  #topbar { flex: none; position: relative; display: flex; align-items: center; gap: 10px; height: 46px;
     padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px));
     background: linear-gradient(180deg, var(--metal-2), var(--metal)); border-bottom: 1px solid var(--line); }
   .iconBtn { flex: none; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
     background: var(--metal); display: grid; place-items: center; padding: 0; }
   .burger { width: 18px; height: 2px; background: var(--ink); box-shadow: 0 -6px 0 var(--ink), 0 6px 0 var(--ink); border-radius: 1px; }
-  #brand { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  #brand { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: calc(100% - 210px); display: flex; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }   /* centred on the screen, not between the menu button and the wider ball count */
   .crest { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
     font: 900 18px/1 var(--f-display); color: #2a0b02;
     background: radial-gradient(circle at 35% 30%, #fff1b0, #ffc23d 42%, #e0620f 76%, #7a1d06);
     box-shadow: 0 0 0 2px #5a1a08, 0 0 14px rgba(255, 120, 30, 0.5); }
   #brand b { font: 900 23px/1 var(--f-display); letter-spacing: 3px; white-space: nowrap;
     background: linear-gradient(180deg, #fff3b8 0%, #ffc23d 48%, #ff6a1a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  #coins { flex: none; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; min-width: 88px; }
+  #coins { flex: none; margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; min-width: 88px; }
   #coins span { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
   #coins b { font: 15px/1.1 var(--f-num); color: var(--gold); font-variant-numeric: tabular-nums; }
 
@@ -312,3 +312,41 @@
   #app[data-machine="angel"] .big.primary, #app[data-machine="angel"] .tog[aria-pressed="true"], #app[data-machine="angel"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); border-color: #ff9ff0; color: #fff; }
   #app[data-machine="angel"] #coins b, #app[data-machine="angel"] #dataBar b, #app[data-machine="angel"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(33, 230, 255, 0.55); }
   #app[data-machine="angel"] #lcd { border-radius: 50% !important; }   /* 光環舞台: a round screen */
+
+  /* 遊戲大廳 (home): the site opens here; a big card per machine. */
+  #home { position: fixed; inset: 0; z-index: 25; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: radial-gradient(120% 60% at 50% 0%, #2a1840 0%, #0b0a18 55%, var(--ground) 100%); }
+  #home .homeIn { max-width: 520px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #home .homeHead { text-align: center; margin: 6px 0 18px; }
+  #home .homeIcon { display: block; width: 76px; height: 76px; margin: 0 auto 8px; border-radius: 20px;
+    background: #0a0b0f url(../assets/app_icon_192.png) center / cover no-repeat; box-shadow: 0 0 24px rgba(255, 150, 230, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  #home h1 { margin: 0; font: 900 34px/1.2 var(--f-display); letter-spacing: 0.08em;
+    background: linear-gradient(90deg, #ffd56a, #fff4c8 35%, #ff8ae0 65%, #6fe8ff); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 10px rgba(255, 170, 220, 0.45)); }
+  #home .homeHead p { margin: 4px 0 0; color: var(--dim); font-size: 14px; }
+  #homeList { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+  #homeList li { border-radius: 16px; overflow: hidden; background: #12141f; border: 1px solid #2f3450; }
+  #homeList li[role="button"] { cursor: pointer; }
+  #homeList li[role="button"]:active { transform: scale(0.985); }
+  #homeList li.on { border-color: #ffc94d; box-shadow: 0 0 18px rgba(255, 201, 77, 0.3); }
+  #homeList .pic { position: relative; display: block; aspect-ratio: 16 / 8; background: #0a0b0f center 30% / cover no-repeat; }
+  #homeList .pic em { position: absolute; left: 10px; top: 10px; font: 900 12px/1 var(--f-body); font-style: normal; color: #1a1000;
+    background: #ffc94d; padding: 5px 8px; border-radius: 999px; }
+  #homeList .pic em:empty { display: none; }
+  #homeList .info { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px 14px; }
+  #homeList b { font: 900 22px/1.3 var(--f-display); color: var(--ink); }
+  #homeList small { color: var(--dim); font-size: 13px; }
+  #homeList .row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  #homeList .row i { font-style: normal; font: 700 14px/1 var(--f-body); color: #ffd56a; }
+  #homeList .row u { text-decoration: none; font: 900 16px/1 var(--f-body); color: #fff; padding: 10px 18px; border-radius: 999px;
+    background: linear-gradient(90deg, #ff5fc8, #ff9a4a); box-shadow: 0 0 14px rgba(255, 110, 190, 0.45); }
+  #homeList li.soon { opacity: 0.55; }
+  #homeList li.soon .pic { aspect-ratio: 16 / 4; background-image: repeating-linear-gradient(45deg, #151922 0 10px, #1e2430 10px 20px); }
+  #homeList li.soon .row { display: none; }
+  #home .note { color: var(--dim); font-size: 12px; text-align: center; margin-top: 14px; }
+
+  /* ✕ at the top right of each sheet (shell.js adds it); it stays in view while the sheet scrolls */
+  .closeX { position: sticky; top: 0; float: right; z-index: 2; width: 40px; height: 40px; margin: -6px -6px 4px 10px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--line); background: var(--metal-2); color: var(--ink); font: 700 20px/1 var(--f-body);
+    display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+  .sheet.hasX button.big[data-close][data-t="ui.close"] { display: none; }

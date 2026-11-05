@@ -1058,14 +1058,20 @@
   // the rest of the music.
   const fileFetch = {};
   let fileQueue = [], fileBusy = false;
+  // A bed whose song file is still on its way waits for it (up to FILE_WAIT ms) instead of starting
+  // the synthesized bed: the user heard the synth's Eastern opening (taiko and gong, 「燈燈燈」) on
+  // every first PLAY before the real song took over, on both machines. fileGone[key]: no usable file.
+  const fileGone = {}, fileWait = {}, FILE_WAIT = 8000;
+  const fileComing = (name) => fileBase != null && !fileBuf[name] && !fileGone[name];
+  function noFile(key) { fileGone[key] = true; if (bedWant === key) applyBed(); }
   function fetchFile(key) {
     if (fileFetch[key]) return Promise.resolve();
     fileFetch[key] = true;
     return fetch(fileBase + "bgm_" + key + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).then((ab) => {
-      if (!ab || !ab.byteLength) return;
+      if (!ab || !ab.byteLength) { noFile(key); return; }
       fileRaw[key] = ab;
       if (bedWant === key) decodeFile(key);   // a bed's extra songs are decoded just before they play
-    }, () => { /* no file: synthesized bed */ });
+    }, () => { noFile(key); });   // no file: synthesized bed
   }
   function pumpFiles() {
     if (fileBusy || !fileQueue.length) return;
@@ -1446,7 +1452,7 @@
       if (p && p.then) p.then(res, rej);
     }).then((buf) => {
       const loop = loopFromTrack(buf, key);
-      if (!loop) return;
+      if (!loop) { if (!second) noFile(key); return; }
       if (second) {   // used from the next start of the bed; the file stays to decode it again later
         if (fileJobs[key] && bedWant === name) (altBuf[name] = altBuf[name] || {})[key.slice(name.length)] = loop;
         else delete fileJobs[key];
@@ -1456,7 +1462,8 @@
       const wasSynth = !fileBuf[name];
       fileBuf[name] = bedBuf[name] = loop;
       if (wasSynth && bedCur && bedCur.name === name && !bedCur.dead) { fadeOutBed(bedCur); bedCur = null; applyBed(); }
-    }, () => { delete fileRaw[key]; });   // unreadable file: keep the synthesized bed
+      else if (bedWant === name && !bedCur) applyBed();   // it was waiting for this file
+    }, () => { delete fileRaw[key]; if (!second) noFile(key); });   // unreadable file: the synthesized bed
   }
 
   // Bring the playing bed in line with bedWant.
@@ -1475,6 +1482,10 @@
       Object.keys(altBuf[n]).forEach((i) => { if (altBuf[n][i] !== keep) { delete fileJobs[n + i]; delete altBuf[n][i]; } });
     });
     pumpFiles();
+    if (fileComing(name)) {
+      if (!fileWait[name]) fileWait[name] = setTimeout(() => { fileGone[name] = true; if (bedWant === name && !bedCur) applyBed(); }, FILE_WAIT);
+      return;
+    }
     if (bedBuf[name]) { startBed(name); return; }
     ensureBed(name).then(() => {
       if (bedWant === name && !bedCur && rig && unlocked && enabled) startBed(name);

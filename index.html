@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0a0204"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="炎舞神龍"><link rel="icon" href="assets/app_icon_192.png"><link rel="apple-touch-icon" href="assets/app_icon_180.png"></head><body>
-<title>炎舞神龍</title>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0a0204"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="珠光遊樂館"><link rel="icon" href="assets/app_icon_192.png"><link rel="apple-touch-icon" href="assets/app_icon_180.png"></head><body>
+<title>珠光遊樂館</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+TC:wght@500;700;900&family=Noto+Serif+TC:wght@700;900&family=Orbitron:wght@900&family=Reggae+One&family=Yuji+Syuku&display=swap" rel="stylesheet">
@@ -112,12 +112,13 @@
   </div>
 </div></div>
 
-<div class="sheet" id="lobby" hidden><div class="card">
-  <h2 data-t="lobby.title"></h2>
-  <ul id="lobbyList"></ul>
-  <p class="note" data-t="lobby.note"></p>
-  <div class="list" style="margin-top:16px"><button class="big" data-close type="button" data-t="ui.close"></button></div>
-</div></div>
+<div id="home" hidden>
+  <div class="homeIn">
+    <header class="homeHead"><span class="homeIcon" aria-hidden="true"></span><h1 data-t="hall.title"></h1><p data-t="hall.sub"></p></header>
+    <ul id="homeList"></ul>
+    <p class="note" data-t="lobby.note"></p>
+  </div>
+</div>
 
 <div class="sheet" id="missions" hidden><div class="card">
   <h2 data-t="ms.title"></h2>

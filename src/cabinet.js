@@ -851,7 +851,7 @@
       : buildDragonSVG(holes, acr);
 
     // --- sub display
-    const Sd = L.sub;
+    const Sd = subBox();
     let sub = `<g id="pkc-sub">`;
     sub += `<rect x="${Sd.x - 5}" y="${Sd.y - 5}" width="${Sd.w + 10}" height="${Sd.h + 10}" rx="10" fill="#08090c" stroke="url(#pkc-chrome)" stroke-width="3"/>`;
     sub += `<rect x="${Sd.x}" y="${Sd.y}" width="${Sd.w}" height="${Sd.h}" rx="6" fill="url(#pkc-subBg)"/>`;
@@ -993,6 +993,8 @@
     });
     return out;
   }
+  // The sub display: on 霓虹天使's layout it moves right, off the elliptical screen it covered.
+  const subBox = () => (pinLayout === "angel" ? { x: 498, y: L.sub.y, w: 76, h: L.sub.h } : L.sub);
   function circlePts(cx, cy, r, step) {
     const n = Math.max(12, Math.round((TAU * r) / step)), out = [];
     for (let i = 0; i < n; i++) {
@@ -1381,7 +1383,9 @@
     const rect = f.getBoundingClientRect();
     const disp = rect.width > 0 ? rect.width / L.stage.w : 1;
     const dpr = Math.min(S.saver ? 1.25 : 2, window.devicePixelRatio || 1);   // 省電模式: a lower resolution
-    const k = clamp(disp * dpr, 0.5, 2);
+    // At most 1.5 canvas pixels per stage unit (was 2): the frame's light, pins and balls look the same
+    // on a phone, and the whole canvas is redrawn every frame, so 44% fewer pixels runs cooler.
+    const k = clamp(disp * dpr, 0.5, 1.5);
     if (Math.abs(k - S.k) / S.k > 0.08 || !S.cw) {
       S.k = k;
       S.cw = Math.round(L.stage.w * k);
@@ -2270,6 +2274,11 @@
     const cv = S.wingCv, im = S.wingImg;
     if (!cv || !S.wingX || !im || !im.naturalWidth) return;
     const x = S.wingX, A = WING_ART, t = S.time, op = S.wingOpen;
+    // At rest the wings only breathe (0.3 Hz): redraw one frame in 4 then, to spare the phone
+    // (the user felt it warm up); every frame once they spread, flap or flash.
+    S.wingN = (S.wingN || 0) + 1;
+    if (S.wingDrawn && op < 0.01 && S.flashAmt < 0.01 && S.wingN % 4) return;
+    S.wingDrawn = true;
     if (!S.wingBase) {   // the wing with its drop shadow baked in: one draw per wing a frame
       const sh = wingTint(im, "rgba(20,28,60,.55)"), c = document.createElement("canvas");
       c.width = im.naturalWidth + 8; c.height = im.naturalHeight + 10;
@@ -2281,7 +2290,7 @@
     x.globalCompositeOperation = "source-over";
     x.globalAlpha = 1;
     x.clearRect(0, 0, cv.width, cv.height);
-    x.setTransform(S.k, 0, 0, S.k, 0, 0);
+    x.setTransform(S.wk, 0, 0, S.wk, 0, 0);
     x.save();
     x.clip(S.wingClip, "evenodd");
     const breath = S.reduced ? 0 : Math.sin(TAU * t * 0.3);
@@ -2322,7 +2331,10 @@
   }
   function wingLayerSize() {
     const cv = S.wingCv;
-    if (cv && (cv.width !== S.cw || cv.height !== S.ch)) { cv.width = S.cw; cv.height = S.ch; }
+    // the wings are soft painted art: 1.1 canvas pixels per unit are enough (a third of the pixels)
+    S.wk = Math.min(S.k, 1.1);
+    const w = Math.round(L.stage.w * S.wk), h = Math.round(L.stage.h * S.wk);
+    if (cv && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; S.wingDrawn = false; }
   }
 
   function drawSprites(x) {
@@ -2722,7 +2734,7 @@
     const g = S.subText;
     if (!g) return;
     const lines = S.subStr.split("\n").filter((l, i, a) => l.length || a.length === 1);
-    const Sd = L.sub;
+    const Sd = subBox();
     const n = Math.max(1, lines.length);
     const maxLen = Math.max(1, ...lines.map((l) => l.replace(/[ -~]/g, "x").length - (l.match(/[ -~]/g) || []).length * 0.42));
     const size = Math.min((Sd.h - 8) / n / 1.08, (Sd.w - 10) / maxLen, 30);

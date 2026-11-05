@@ -26,6 +26,8 @@
   const set = Object.assign({ dataOpen: false, saver: false, sound: true, volume: 0.8, captions: true, speed: 1, autoPush: false, fireMode: "auto", autoAim: true, power: 0.4, voice: true, tutorialSeen: false,
     wakeMin: 5, showFps: false, remind: true }, parse(load(KEY_SET)));
   const saveSettings = () => store(KEY_SET, JSON.stringify(set));
+  // Once, for players from before v58: 打珠「自動」 turns 自動PUSH on too (settings are shared by all machines).
+  if (!set.autoAll) { if (set.fireMode === "auto") set.autoPush = true; set.autoAll = true; saveSettings(); }
 
   // ---------------------------------------------------------------- 機率調整
   // Each player can pick the odds on their own phone (設定 → 機率調整): the machine's presets
@@ -385,29 +387,42 @@
       title, todays, data: r,
     };
   })();
-  // ---------------------------------------------------------------- 選擇機台 (lobby)
-  // A card per machine in PK.MACHINES, then one for the machine still being made. Picking another
-  // machine saves the choice and reloads; each machine keeps its own balls, save and records.
-  function showLobby() {
-    const ul = $("lobbyList");
+  // ---------------------------------------------------------------- 遊戲大廳 (home)
+  // The site opens here (珠光遊樂館): a card per machine in PK.MACHINES, the last one played first
+  // (繼續玩), each with its own balls, then one for the machine still being made. The machine last
+  // played is loaded behind it, so picking it just closes the hall; picking another saves the choice
+  // and reloads straight into it (KEY_ENTER, once). Each machine keeps its own balls, save and records.
+  const KEY_ENTER = "pk.enter";
+  function showHome(onEnter) {
+    const ul = $("homeList");
     ul.innerHTML = "";
-    const card = (img, name, line, tag, on, click) => {
+    const card = (m, on, click) => {
       const li = document.createElement("li");
-      if (on) li.className = "on";
-      li.innerHTML = '<span class="pic"></span><div><b></b><small></small></div><em></em>';
-      if (img) li.querySelector(".pic").style.backgroundImage = "url(" + img + ")";
-      li.querySelector("b").textContent = name;
-      li.querySelector("small").textContent = line;
-      li.querySelector("em").textContent = tag;
+      li.className = on ? "on" : "";
+      li.innerHTML = '<span class="pic"><em></em></span><div class="info"><b></b><small></small><span class="row"><i></i><u></u></span></div>';
+      if (m && m.card) li.querySelector(".pic").style.backgroundImage = "url(" + m.assetsBase + m.card + ")";
+      li.querySelector("em").textContent = on ? t("hall.last") : "";
+      li.querySelector("b").textContent = m ? m.name : t("lobby.soon");
+      li.querySelector("small").textContent = m ? m.tagline || "" : t("lobby.soonBody");
+      if (m) {
+        const sv = parse(load("pk." + m.id + ".save"));
+        const n = sv && sv.S && sv.S.chips != null ? sv.S.chips : PK.engineTables.units.startChips;
+        li.querySelector("i").textContent = t("hall.balls", { n: fmt(n) });
+        li.querySelector("u").textContent = t(on ? "hall.continue" : "hall.play");
+      } else li.classList.add("soon");
       if (click) { li.tabIndex = 0; li.setAttribute("role", "button"); li.addEventListener("click", click); }
       return ul.appendChild(li);
     };
-    Object.keys(PK.MACHINES).filter((id) => !PK.MACHINES[id].hidden).forEach((id) => {
+    const ids = Object.keys(PK.MACHINES).filter((id) => !PK.MACHINES[id].hidden);
+    ids.sort((a, b) => (PK.MACHINES[b] === M) - (PK.MACHINES[a] === M));
+    ids.forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
-      card(m.card ? m.assetsBase + m.card : null, m.name, m.tagline || "", on ? t("lobby.playing") : t("lobby.play"), on,
-        on ? null : () => { store(KEY_MACHINE, id); if (m.page) location.href = m.page; else location.reload(); });
+      card(m, on, on ? () => { snd("button"); $("home").hidden = true; PK.Cabinet.pause(false); onEnter(); }
+        : () => { store(KEY_MACHINE, id); try { sessionStorage.setItem(KEY_ENTER, "1"); } catch (e) { /* the hall shows again */ } if (m.page) location.href = m.page; else location.reload(); });
     });
-    card(null, t("lobby.soon"), t("lobby.soonBody"), "", false, null).classList.add("soon");
+    card(null, false, null);
+    $("home").hidden = false;
+    PK.Cabinet.pause(true);
   }
   function showMissions() {
     const r = mis.data, day = mis.todays(), ul = $("msList");
@@ -627,7 +642,11 @@
     document.querySelectorAll("#mFire button").forEach((b) => b.addEventListener("click", () => {
       snd("button");
       if (firing) setFiring(false);
-      set.fireMode = b.dataset.v; saveSettings();
+      set.fireMode = b.dataset.v;
+      // 打珠「自動」 makes everything automatic (the user: 開自動就都自動): PUSH / HACK too.
+      // It can still be switched off on its own.
+      if (set.fireMode === "auto" && !set.autoPush) { set.autoPush = true; showAuto(); PK.LCD.setAutoPush(true); }
+      saveSettings();
       if (selfPower()) power = clamp01(+set.power || 0); else autoPower();
       showModes();
       toast(t(manual() ? "ui.fireManualHint" : "ui.fireAutoHint"));
@@ -973,6 +992,14 @@
       if (first) first.focus({ preventScroll: true });
     }
     function closeSheets() { document.querySelectorAll(".sheet").forEach((s) => { s.hidden = true; }); }
+    // A ✕ at the top right of every sheet (the user: the 關閉 at the very bottom was out of the way);
+    // the bottom 關閉 buttons are hidden where it is (src/ui.css .hasX).
+    document.querySelectorAll(".sheet:not(#tutorial) > .card").forEach((c) => {
+      const x = document.createElement("button");
+      x.type = "button"; x.className = "closeX"; x.setAttribute("data-close", ""); x.setAttribute("aria-label", t("ui.close")); x.textContent = "✕";
+      c.insertBefore(x, c.firstChild);
+      c.parentNode.classList.add("hasX");
+    });
     document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => { snd("button"); closeSheets(); }));
     document.querySelectorAll(".sheet").forEach((s) => s.addEventListener("click", (e) => { if (e.target === s && s.id !== "tutorial") closeSheets(); }));
     $("mRefill").addEventListener("click", () => openRefill());
@@ -993,7 +1020,7 @@
     showData();
     gameStats = () => eng.state;
     $("mMissions").addEventListener("click", () => { showMissions(); openSheet("missions"); });
-    $("mLobby").addEventListener("click", () => { showLobby(); openSheet("lobby"); });
+    $("mLobby").addEventListener("click", () => { snd("button"); closeSheets(); showHome(() => {}); });
     mis.pay = (n) => { eng.refill(n); PK.Cabinet.flash("#ffd84a"); };
     const lg = mis.login();
     if (lg) { mis.pay(lg.n); queueToast(t("login.bonus", { d: lg.streak, n: fmt(lg.n) })); }
@@ -1159,6 +1186,7 @@
     setFiring(false);
     drawKnob(shown); showModes();
     requestAnimationFrame(loop);
+    const welcome = () => {
     if (!set.tutorialSeen) openTutorial();
     // 加到主畫面: once, on the visit after the tutorial, on the public site (it has the manifest)
     // and not already opened from the home screen.
@@ -1168,6 +1196,10 @@
       openSheet("homeTip");
     }
     else caption("start");
+    };
+    let entered = false;
+    try { entered = sessionStorage.getItem(KEY_ENTER) === "1"; sessionStorage.removeItem(KEY_ENTER); } catch (e) { /* no session storage: show the hall */ }
+    if (entered) welcome(); else showHome(welcome);
     $("menuVer").textContent = t("ui.version", { v: VERSION });
     const lastVer = +load(KEY_VER) || 0;
     store(KEY_VER, String(VERSION));

@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 63;
+  PK.VERSION = 64;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -140,7 +140,7 @@
   // swallowed the sealed 暴食の魔剣. A giant sword pierces the cabinet (frame: "sword"); the left half of
   // the board feeds the 暴食の渦 whirlpool, the right half is machine 1's RUSH/bonus side (pins: "sword").
   // Steel and emerald (theme: "steel"). Its files are assets/sword_* (AI art made 2026-11-05/06); the drawn
-  // fallbacks show for anything missing. In the hall as 試作中 (a first version for the user to try).
+  // fallbacks show for anything missing. Out of 試作中 since v64 (its own music, voices and clips).
   PK.MACHINES.sword = {
     id: "sword",
     name: "轉生史萊姆與魔劍",
@@ -152,7 +152,7 @@
     card: "jackpot_art.jpg",
     preview: "preview.jpg",
     tutPrefix: "sword_",
-    tagline: "【試作中】吞下魔劍的史萊姆：暴食漩渦、覺醒、四大幹部、連戰 RUSH",
+    tagline: "吞下魔劍的史萊姆：暴食漩渦、覺醒、四大幹部、連戰 RUSH",
     odds: E.odds,
     // 保留 up to 10 (the user: the 暴食 slime swallows more); the per-spin odds are machine 1's
     engine: { spec: E.engine.spec, units: Object.assign({}, E.engine.units, { maxHolds: 10 }) },

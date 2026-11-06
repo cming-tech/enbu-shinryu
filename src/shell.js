@@ -603,7 +603,7 @@
     const saveM3 = () => store(KEY_M3, JSON.stringify(m3));
     function showM3() {
       if (M.devour) PK.Cabinet.setGauge(m3.gauge / M.devour.need, eng.state.awake > 0);
-      if (M.commanders) PK.Cabinet.setGems(m3.gems);
+      if (M.commanders) { PK.Cabinet.setGems(m3.gems); PK.LCD.setCommanders(M.commanders, m3.gems); }
     }
     function devour() {
       if (!M.devour) return;
@@ -616,19 +616,24 @@
       }
       saveM3(); showM3(); showSub();
     }
+    const RECRUIT_AT = 4500;   // ms after the jackpot starts
     function recruit() {
       const C4 = M.commanders;
       if (!C4 || eng.state.rushBoost) return;   // all four are waiting for their RUSH
       if (m3.gems < C4.length) {
         m3.gems++;
-        PK.LCD.announce(t("lcd.recruit", { name: C4[m3.gems - 1] }), "gold");
-        if (m3.gems < C4.length) vo("m3recruit");   // the fourth is followed by 魔王降臨's own line
-        caption("recruit", { name: C4[m3.gems - 1], k: m3.gems });
+        // its cut-in once the jackpot's fanfare is over (RECRUIT_AT), then 魔王降臨 after it
+        const i = m3.gems - 1, last = m3.gems >= C4.length;
+        setTimeout(() => {
+          PK.LCD.playRecruit(i);
+          if (!last) vo("m3recruit");   // the fourth is followed by 魔王降臨's own line
+          caption("recruit", { name: C4[i], k: i + 1 });
+        }, RECRUIT_AT);
       }
       if (m3.gems >= C4.length) {   // 魔王降臨: the next RUSH one step up the presets (the best stays the best)
         const cur = odds().rushN, up = ODDS.rush.filter((n) => n < cur).sort((a, b) => b - a)[0] || cur;
         eng.boostNextRush(1 / up);
-        setTimeout(() => { PK.LCD.announce(t("lcd.maou"), "gold"); caption("maou"); vo("m3maou"); }, 2400);
+        setTimeout(() => { PK.LCD.playMaou(); caption("maou"); vo("m3maou"); }, RECRUIT_AT + 3300);
       }
       saveM3(); showM3();
     }

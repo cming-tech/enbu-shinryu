@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 65;
+  PK.VERSION = 66;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -182,6 +182,7 @@
       "lcd.streakLbl": "連戦", "lcd.streakN": "第{n}戦",
       "lcd.awake": "覚醒!!", "lcd.awakeSub": "人の姿へ…", "lcd.recruit": "{name}が仲間になった!", "lcd.maou": "魔王降臨!!",
       "cab.subAwake": "覚醒中\n残り{n}",
+      "lcd.cmdLabel": "四大幹部 {n}/4", "lcd.recruitSub": "が仲間になった!", "lcd.chomp": "喰ッ!",
       "gl.credits": "配音：VOICEVOX:麒ヶ島宗麟、VOICEVOX:剣崎雌雄",
       // the shell (Chinese)
       "cap.lost": "保留滿 10 個時，再進去的珠子不算",

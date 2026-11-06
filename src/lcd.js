@@ -615,6 +615,7 @@
   let imgPending = 0;
   function loadImages(base) {
     if (THEME === "neon") FACES.forEach((m) => { IMG_FILES["face_" + m] = "face_" + m + ".jpg"; });
+    if (STEEL) for (let i = 1; i <= 4; i++) IMG_FILES["cmd" + i] = "cmd" + i + ".png";   // the 四大幹部
     for (const k in IMG_FILES) {
       imgPending++;
       const im = new Image();
@@ -2158,6 +2159,7 @@
     if (THEME === "neon") drawFirewall(ctx);   // in front of the guardian AI
     drawParticles(ctx, P.back);
     drawLogo(ctx);
+    drawCommanders(ctx);
     drawActors(ctx, "under");
     if (THEME === "neon") drawFace(ctx);   // under the digits and the 演出: it covered the centre digit
     const pulse = hitPulse.on ? 1 + 0.035 * Math.sin((clk.t - hitPulse.t0) * 10) : 1;
@@ -3686,18 +3688,119 @@
   }
   function awakenTap() {
     awaken.g = Math.min(0.92, awaken.g + 0.05);   // the last bit is the reveal's
-    if (STEEL) { for (let i = 0; i < 3; i++) soulSpawn(true); shake(1.2); return "awaken"; }
+    if (STEEL) { prey(); soulSpawn(true); shake(1.2); return "awaken"; }
     const a = -Math.PI / 2 + awaken.g * TAU;
     burst("front", AW.x + Math.cos(a) * AW.r, AW.y + Math.sin(a) * AW.r, 8, { cols: [C.gold, C.white], v0: 60, v1: 180, s0: 1, s1: 2.2, len: 12 });
     shake(1.2);
     return "awaken";
   }
+  // ---- 轉生史萊姆與魔劍: the 四大幹部 (the shell recruits them; dev/MACHINE3.md). Four round portraits sit
+  // at the top left of the normal screen (a dark silhouette until recruited), a recruit plays a cut-in
+  // with the portrait and the four slots, and 魔王降臨 brings all four in together.
+  const CMD = { names: [], n: 0, popT: -9, popI: -1 };
+  // the portrait's face, cropped round and cached at size px (gray: the silhouette)
+  function cmdFace(i, size, gray) {
+    const im = IMG["cmd" + (i + 1)];
+    if (!im) return null;
+    const key = "cmdf" + i + "_" + size + (gray ? "g" : "");
+    if (cache[key]) return cache[key];
+    const c = mkCanvas(size, size), g = c.getContext("2d"), cw = c.width;
+    g.beginPath(); g.arc(cw / 2, cw / 2, cw / 2, 0, TAU); g.clip();
+    g.fillStyle = gray ? "#0b1410" : "#16221c"; g.fillRect(0, 0, cw, cw);
+    const sw = im.naturalWidth * 0.62, sx = (im.naturalWidth - sw) / 2, sy = im.naturalHeight * 0.06;   // head and shoulders
+    g.drawImage(im, sx, sy, sw, sw, 0, 0, cw, cw);
+    if (gray) { g.globalCompositeOperation = "source-atop"; g.fillStyle = "rgba(6,12,10,0.86)"; g.fillRect(0, 0, cw, cw); }
+    c.naturalWidth = c.width; c.naturalHeight = c.height;
+    return (cache[key] = c);
+  }
+  function drawCmdSlot(ctx, i, x, y, r, got, a) {
+    const f = cmdFace(i, 96, !got);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.beginPath(); ctx.arc(x, y, r + 3, 0, TAU); ctx.fill();
+    if (f) ctx.drawImage(f, x - r, y - r, 2 * r, 2 * r);
+    else { ctx.fillStyle = got ? "#2ad890" : "#1a2420"; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+    ctx.lineWidth = 2.5; ctx.strokeStyle = got ? "#ffd86a" : "rgba(160,180,170,0.5)";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+    if (!got) {   // a question mark on the silhouette
+      ctx.font = "900 " + Math.round(r) + "px " + FONT_POP; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(200,220,210,0.55)"; ctx.fillText("?", x, y + 1);
+    }
+  }
+  function drawCommanders(ctx) {
+    if (!STEEL || !CMD.names.length || mode === "bonus" || fx.logoA <= 0.01) return;
+    ctx.save();
+    for (let i = 0; i < CMD.names.length; i++) {
+      const pop = i === CMD.popI ? Math.max(0, 1 - (clk.t - CMD.popT) / 0.6) : 0;
+      const r = 13 * (1 + 0.5 * Math.sin(pop * Math.PI));
+      drawCmdSlot(ctx, i, 24 + i * 30, 28, r, i < CMD.n, fx.logoA);   // clear of the logo
+    }
+    ctx.globalAlpha = fx.logoA;
+    ctx.font = "700 13px " + FONT_POP; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.fillStyle = "#cfeee0";
+    const lb = T("lcd.cmdLabel", { n: CMD.n });
+    ctx.strokeText(lb, 10, 56); ctx.fillText(lb, 10, 56);
+    ctx.restore();
+  }
+  // A recruit: a dark band, the portrait sliding in, the name, the four slots.
+  function recruitFx(i) {
+    const name = CMD.names[i] || "";
+    shake(5); flash("42,216,144", 0.5, 3);
+    addActor("front", 3.0, (ctx, age) => {
+      const inn = E.out(clamp(age / 0.35, 0, 1)), out = clamp((age - 2.6) / 0.4, 0, 1), a = inn * (1 - out);
+      const im = IMG["cmd" + (i + 1)];
+      ctx.save();
+      ctx.globalAlpha = 0.82 * a; ctx.fillStyle = "#03100a"; ctx.fillRect(0, 70, W, 220);
+      ctx.globalAlpha = a; ctx.fillStyle = "rgb(42,216,144)"; ctx.fillRect(0, 70, W, 3); ctx.fillRect(0, 287, W, 3);
+      if (im) {   // the portrait slides in from the right, its upper half
+        const h = 300, w = (h * im.naturalWidth) / im.naturalHeight, x = lerp(W + 40, W * 0.3, inn) + 14 * age;
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 73, W, 214); ctx.clip();
+        ctx.drawImage(tinted(im, "#000", 0), x - w / 2, 70, w, h);
+        ctx.restore();
+      }
+      for (let k = 0; k < CMD.names.length; k++) {   // the four slots, the new one lit
+        const lit = k < i || (k === i && age > 0.9);
+        drawCmdSlot(ctx, k, W * 0.56 + k * 52, 250, 20, lit, a);
+      }
+      ctx.restore();
+    });
+    telop(name, { x: W * 0.72, y: 128, size: 48, cls: "gold", anim: "slam", dur: 2.4, inD: 0.25 });
+    telop(T("lcd.recruitSub"), { x: W * 0.72, y: 184, size: 24, cls: "silver", anim: "pop", dur: 2.2, inD: 0.5 });
+    setTimeout(() => { CMD.popI = i; CMD.popT = clk.t; }, 900);
+  }
+  // 魔王降臨: a crimson flash, the four portraits rise in a row behind the title.
+  function maouFx() {
+    shake(10); flash("255,40,40", 0.8, 2.5);
+    addActor("front", 3.6, (ctx, age) => {
+      const out = clamp((age - 3.1) / 0.5, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = 0.75 * (1 - out); ctx.fillStyle = "#120004"; ctx.fillRect(0, 0, W, H);
+      for (let k = 0; k < 4; k++) {
+        const im = IMG["cmd" + (k + 1)];
+        if (!im) continue;
+        const u = E.out(clamp((age - 0.15 * k) / 0.5, 0, 1)), h = 230, w = (h * im.naturalWidth) / im.naturalHeight;
+        const x = W * (0.14 + 0.24 * k), y = lerp(H + 20, H - h - 10, u);
+        ctx.globalAlpha = u * (1 - out);
+        ctx.drawImage(tinted(im, "#000", 0), x - w / 2, y, w, h);
+      }
+      ctx.globalCompositeOperation = "lighter";
+      drawGlow(ctx, "255,60,40", CX, 120, 260, 0.35 * (1 - out));
+      ctx.restore();
+    });
+    telop(T("lcd.maou"), { x: CX, y: 110, size: 58, cls: "gold", anim: "slam", dur: 3, jitter: 3 });
+  }
+
   // 轉生史萊姆與魔劍 (STEEL): 暴食覚醒 instead of the ring (the user: make it about the slime's
   // devouring). The slime sits in the dark; emerald souls drift in from all sides and it swallows them
   // (PUSH throws three fast ones). With the gauge it swells and fills with emerald light from the
   // bottom up, and gulps (squash) at every soul. The reveal: it bursts with light, or deflates.
-  const SL = { x: CX, y: H / 2 + 26, h: H * 0.5 }, EM = "42,216,144", souls = [];
-  let soulT = 0, gulpT = -9;
+  const SL = { x: CX, y: H / 2 + 26, h: H * 0.5 }, EM = "42,216,144", souls = [], preys = [], chomps = [];
+  let soulT = 0, gulpT = -9, preyT = 0;
+  // a monster (one of the bonus's six) pulled in on a spiral, spinning and shrinking into the slime
+  function prey() {
+    if (preys.length > 6) return;
+    const k = randi(1, 6), a = rand(0, TAU);
+    preys.push({ k, a0: a, d0: rand(W * 0.5, W * 0.62), t0: clk.t, dur: rand(0.75, 1.0), spin: rand(-6, 6) });
+  }
   function soulSpawn(fast) {
     const a = rand(0, TAU), d = rand(W * 0.42, W * 0.55);
     souls.push({ x0: SL.x + Math.cos(a) * d, y0: SL.y + Math.sin(a) * d * 0.55, t0: clk.t, dur: fast ? rand(0.32, 0.5) : rand(1.3, 1.9), ph: rand(0, TAU) });
@@ -3710,9 +3813,40 @@
     const shrink = awaken.res === false ? Math.min(1, (t - awaken.resT) / 0.8) : 0;
     const fade = awaken.res === false ? Math.max(0, 1 - (t - awaken.resT) / 1.4) : 1;
     if (live && t - soulT > 0.22) { soulT = t; soulSpawn(false); }
+    if (live && t - preyT > 1.6) { preyT = t; prey(); }   // one comes in by itself now and then
     const mx = SL.x, my = SL.y - SL.h * 0.08;   // where the souls go in
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0," + (0.6 * (1 - lit)).toFixed(3) + ")"; ctx.fillRect(0, 0, W, H);
+    // the suction: spiral arms of light turning into the slime, faster with the gauge
+    if (live) {
+      ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+      for (let arm = 0; arm < 5; arm++) {
+        ctx.beginPath();
+        for (let j = 0; j <= 24; j++) {
+          const u = j / 24, rr = lerp(W * 0.6, 20, u), ang = arm * TAU / 5 + u * 3.2 - t * (1.6 + 2.5 * awaken.g);
+          const x = mx + Math.cos(ang) * rr, y = my + Math.sin(ang) * rr * 0.55;
+          if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.strokeStyle = "rgba(" + EM + "," + (0.1 + 0.18 * awaken.g).toFixed(3) + ")"; ctx.lineWidth = 10; ctx.stroke();
+        ctx.strokeStyle = "rgba(200,255,230," + (0.08 + 0.12 * awaken.g).toFixed(3) + ")"; ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    }
+    // the monsters on their way in
+    for (let i = preys.length - 1; i >= 0; i--) {
+      const o = preys[i], u = (t - o.t0) / o.dur, im = IMG["minion" + o.k];
+      if (u >= 1 || !live) {
+        preys.splice(i, 1);
+        if (live && u >= 1) { gulpT = t; shake(4); chomps.push({ t0: t, x: mx + (rng() < 0.5 ? -1 : 1) * rand(95, 120), y: my + rand(-20, 30) });   /* beside the slime, clear of the % */ burst("front", mx, my, 14, { cols: [EM, C.white], v0: 80, v1: 260, s0: 1, s1: 2.4, len: 14 }); }
+        continue;
+      }
+      if (!im) continue;
+      const e = u * u, ang = o.a0 + e * 4.5, rr = o.d0 * (1 - e), sz = lerp(110, 14, e);
+      const x = mx + Math.cos(ang) * rr, y = my + Math.sin(ang) * rr * 0.55, src = tinted(im, "rgb(" + EM + ")", 0.35 * e);
+      const w = (sz * src.naturalWidth) / src.naturalHeight;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(o.spin * e); ctx.globalAlpha = 1 - 0.3 * e;
+      ctx.drawImage(src, -w / 2, -sz / 2, w, sz); ctx.restore();
+    }
     // the souls: a glow and a white core, pulled in on a curve, with a short trail
     ctx.globalCompositeOperation = "lighter";
     for (let i = souls.length - 1; i >= 0; i--) {
@@ -3750,6 +3884,17 @@
       drawGlow(ctx, EM, SL.x, by - h * 0.4, w * (0.5 + 0.5 * g), (0.15 + 0.35 * g) * fade + 0.6 * lit);
       if (lit) drawGlow(ctx, C.white, SL.x, by - h * 0.4, w * 0.6, 0.5 * lit);
       ctx.globalCompositeOperation = "source-over";
+      // 喰ッ! where a monster went in
+      for (let i = chomps.length - 1; i >= 0; i--) {
+        const c = chomps[i], u = (t - c.t0) / 0.7;
+        if (u >= 1) { chomps.splice(i, 1); continue; }
+        const sc = 1 + 0.6 * Math.sin(Math.min(1, u * 4) * Math.PI / 2) - 0.3 * u;
+        ctx.save(); ctx.globalAlpha = (1 - u) * fade; ctx.translate(c.x, c.y - 30 * u); ctx.scale(sc, sc);
+        ctx.font = "900 34px " + FONT_POP; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.lineWidth = 7; ctx.strokeStyle = "rgba(0,30,15,0.9)"; ctx.fillStyle = "#b8ffd8";
+        ctx.strokeText(T("lcd.chomp"), 0, 0); ctx.fillText(T("lcd.chomp"), 0, 0);
+        ctx.restore();
+      }
       // the gauge as a number over its head
       if (live || awaken.res === true) {
         ctx.globalAlpha = fade;
@@ -4084,6 +4229,11 @@
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
     showRound(round, rounds, gained) { enqueue(() => showRoundImpl(round, rounds, gained)); },
     // ラウンド昇格: the bonus shown as 3R grows to `to` rounds (the shell shows the new count next)
+    // 轉生史萊姆與魔劍: the commanders' names and how many are recruited (the panel), a recruit's
+    // cut-in (i: 0-based), 魔王降臨.
+    setCommanders(names, n) { CMD.names = (names || []).slice(0, 4); CMD.n = clamp(n | 0, 0, 4); },
+    playRecruit(i) { CMD.n = Math.max(CMD.n, i + 1); recruitFx(i); },
+    playMaou() { maouFx(); },
     // A line over whatever plays (覚醒, a commander recruited, 魔王降臨): no queue, nothing waits on it.
     announce(text, cls) {
       flash(cls === "gold" ? C.gold : C.white, 0.6, 3); shake(5);

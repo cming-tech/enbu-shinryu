@@ -1016,19 +1016,21 @@
     acr.push(`<path d="M294,77 L304,88 L294,99 L284,88 Z" fill="url(#pkc-gem)"/>`);
     addFill("M294,77 L304,88 L294,99 L284,88 Z", 0.9, { u: 0 });
     ART.sprites.push({ x: 294, y: 88, r: 34, g: 1, core: 1 });
-    GEMS.forEach(([x, c]) => {
+    GEMS.forEach(([x, c], i) => {   // a recruited commander's gem is lit (S.gems; setGems rebuilds the frame)
+      const on = i < (S.gems || 0);
       out += `<circle cx="${x}" cy="88" r="9.5" fill="#06080a" stroke="#c8d2dc" stroke-width="1.6"/>`;
-      out += `<circle cx="${x}" cy="88" r="6" fill="${c}" opacity=".22"/><circle cx="${x - 2}" cy="86" r="1.6" fill="#fff" opacity=".35"/>`;
+      if (on) out += `<circle cx="${x}" cy="88" r="13" fill="${c}" opacity=".28"/><circle cx="${x}" cy="88" r="7" fill="${c}"/><circle cx="${x}" cy="88" r="7" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1"/><circle cx="${x - 2.4}" cy="85.6" r="2.2" fill="#fff" opacity=".9"/>`;
+      else out += `<circle cx="${x}" cy="88" r="6" fill="${c}" opacity=".22"/><circle cx="${x - 2}" cy="86" r="1.6" fill="#fff" opacity=".35"/>`;
     });
     // the blade: out from under the LCD, down the middle of the board to its point
     const B = BLADE, xl = B.x - B.w / 2, xr = B.x + B.w / 2, yt = B.y1 - 30;
     const blade = `M${xl},${B.y0} L${xr},${B.y0} L${xr},${yt} L${B.x},${B.y1} L${xl},${yt} Z`;
-    out += `<path d="${blade}" fill="#000" opacity=".5" transform="translate(3,5)"/>`;
     // the fuller: a slit cut through the blade, where the devour gauge's light (on the canvas below) shows
     const fuller = `M${B.x - 3.5},${B.y0 + 8} L${B.x + 3.5},${B.y0 + 8} L${B.x + 3.5},${yt - 4} L${B.x},${yt + 6} L${B.x - 3.5},${yt - 4} Z`;
+    out += `<path d="${blade} ${fuller}" fill-rule="evenodd" fill="#000" opacity=".5" transform="translate(3,5)"/>`;   // the shadow is cut at the fuller too (it halved the gauge light)
     out += `<path d="${blade} ${fuller}" fill-rule="evenodd" fill="url(#pkc-blade)" stroke="#1a2026" stroke-width="1.4"/>`;
     out += `<path d="M${xl + 1.5},${B.y0} L${xl + 1.5},${yt} L${B.x},${B.y1 - 3}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width=".9"/>`;
-    out += `<path d="${fuller}" fill="#03120a" fill-opacity=".55" stroke="#0a0e12" stroke-width="1.2"/>`;
+    out += `<path d="${fuller}" fill="#03120a" fill-opacity=".18" stroke="#0a0e12" stroke-width="1.2"/>`;
     const fp = [];
     for (let y = B.y0 + 10; y <= yt; y += 8) fp.push([B.x, y, angU(B.x, y)]);
     ART.strokes.push({ pts: fp, closed: false, w: [8, 4, 1.4], gain: 0.55 });
@@ -2323,7 +2325,7 @@
     x.restore();
 
     if (pinLayout === "angel") { drawAngelWings(x, t); drawHaloLight(x, t); drawDish(x); }
-    if (pinLayout === "sword") drawVortex(x);
+    if (pinLayout === "sword") { drawVortex(x); drawGauge(x); }
     // Pins.
     drawLayer(x, S.pins);
     if (pinLayout === "enbu") drawWindmill(x);
@@ -2775,6 +2777,21 @@
     g.strokeStyle = "rgba(42,216,144,0.8)"; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, V.r + 6.5, 0, TAU); g.stroke();
     return (S.vortSpr = c);
   }
+  // 吞珠覺醒: the blade's fuller fills with emerald from the bottom as the whirlpool swallows balls
+  // (S.gauge 0..1); while 覚醒 runs (S.awakeOn) it is full and pulses.
+  function drawGauge(x) {
+    const B = BLADE, top = B.y0 + 8, bot = B.y1 - 24, f = S.awakeOn ? 1 : clamp(S.gauge || 0, 0, 1);
+    if (f <= 0.001) return;
+    const y = bot - (bot - top) * f, pul = S.awakeOn ? 0.65 + 0.35 * Math.sin(S.time * 6) : 1;
+    x.globalCompositeOperation = "lighter";
+    const g = x.createLinearGradient(0, y, 0, bot);
+    g.addColorStop(0, "rgba(200,255,230," + (0.95 * pul).toFixed(2) + ")"); g.addColorStop(0.15, "rgba(42,216,144," + (0.9 * pul).toFixed(2) + ")"); g.addColorStop(1, "rgba(10,120,70," + (0.85 * pul).toFixed(2) + ")");
+    x.fillStyle = g; x.fillRect(B.x - 4, y, 8, bot - y);
+    x.globalAlpha = clamp(0.35 * pul + (f >= 1 ? 0.25 : 0), 0, 1);
+    x.drawImage(sprite(42, 216, 144), B.x - 14, y - 14, 28, 28);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+  }
   function drawVortex(x) {
     const V = VORTEX, R = V.r + 8, sp = vortexSprite();
     x.save();
@@ -3053,6 +3070,14 @@
     setSaver(on) { S.saver = !!on; S.cw = 0; if (S.mounted) measure(); },
     setIdle(on) { S.idle = !!on; S.idleN = 0; },
     setLite(on) { S.lite = !!on; },   // half the drifting wisps
+    // 轉生史萊姆與魔劍: the devour gauge in the blade (0..1, or awake: full and pulsing) and the lit commanders' gems
+    setGauge(f, awake) { S.gauge = clamp(+f || 0, 0, 1); S.awakeOn = !!awake; },
+    setGems(n) {
+      n = clamp(n | 0, 0, GEMS.length);
+      if (n === (S.gems || 0)) return;
+      S.gems = n;
+      if (S.mounted && S.front && S.frame === "sword") { buildFront(S.front); prepFills(); setSub(S.subStr, S.subCol); }
+    },
     mount, launch, setLights, flash, setAttacker, setDenchu, setSub, pause,
     // fn() is called each time a ball bounces off a pin (the shell plays a soft metallic tick).
     onPin(fn) { S.onPin = typeof fn === "function" ? fn : null; },

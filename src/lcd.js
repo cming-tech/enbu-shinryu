@@ -125,6 +125,9 @@
     if (THEME === "neon") {   // 霓虹天使: plasma instead of flame
       gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.22, "rgba(255,170,240,0.9)");
       gr.addColorStop(0.5, "rgba(255,63,208,0.5)"); gr.addColorStop(0.78, "rgba(90,40,255,0.16)"); gr.addColorStop(1, "rgba(40,0,120,0)");
+    } else if (STEEL) {   // 魔劍: the devouring emerald flame
+      gr.addColorStop(0, "rgba(240,255,248,1)"); gr.addColorStop(0.22, "rgba(140,255,200,0.92)");
+      gr.addColorStop(0.5, "rgba(30,210,130,0.5)"); gr.addColorStop(0.78, "rgba(0,90,60,0.16)"); gr.addColorStop(1, "rgba(0,40,30,0)");
     } else {
     gr.addColorStop(0, "rgba(255,250,215,1)");
     gr.addColorStop(0.22, "rgba(255,206,80,0.92)");
@@ -419,6 +422,7 @@
     const c = mkCanvas(w * K, h * K), g = c.getContext("2d");
     g.scale(K, K);
     if (THEME === "neon") return buildNeonLogo(c, g, K, w, h, variant, stage);
+    if (STEEL) return buildSteelLogo(c, g, K, w, h, variant, stage);
     // flame wings behind the title
     g.save(); g.globalCompositeOperation = "lighter";
     for (let i = 0; i < 22; i++) {
@@ -438,6 +442,33 @@
       drawCrest(g, 150, 43, 30, K);
       star4(g, 272, 36, 7, 0.9);
     }
+    return { c, w, h, ax: w / 2, ay: h / 2 };
+  }
+  // 轉生史萊姆と魔剣's logo: a small silver line over a big emerald 魔剣 crossed by a sword (RUSH: the stage name
+  // over RUSH)
+  function buildSteelLogo(c, g, K, w, h, variant, stage) {
+    const P = PAL.fire;
+    g.save(); g.globalCompositeOperation = "lighter";   // a soft emerald haze behind the letters
+    const hz = g.createRadialGradient(150, 52, 4, 150, 52, 130);
+    hz.addColorStop(0, "rgba(42,216,144,0.35)"); hz.addColorStop(1, "rgba(42,216,144,0)");
+    g.fillStyle = hz; g.fillRect(0, 0, w, h);
+    g.restore();
+    // the sword behind the title, point down-left
+    g.save(); g.translate(150, 62); g.rotate(-0.2);
+    const bl = g.createLinearGradient(0, -4, 0, 4); bl.addColorStop(0, "#ffffff"); bl.addColorStop(0.5, "#8a96a2"); bl.addColorStop(1, "#2a323a");
+    g.fillStyle = bl; g.beginPath(); g.moveTo(-132, 0); g.lineTo(-112, -4); g.lineTo(96, -4); g.lineTo(96, 4); g.lineTo(-112, 4); g.closePath(); g.fill();
+    g.fillStyle = "#c8d2dc"; g.fillRect(96, -11, 6, 22); g.fillStyle = "#3a2a1a"; g.fillRect(102, -3, 26, 6);
+    g.fillStyle = "#2ad890"; g.beginPath(); g.arc(131, 0, 4, 0, TAU); g.fill();
+    g.restore();
+    if (variant === "rush") {
+      const st = RUSH_STAGES[stage || 0], rp = PAL[st.pal];
+      fancyText(g, T(st.name), 150, 34, { K, size: 26, font: FONT_BRUSH, align: "center", face: P.face, rim: P.rim, inner: P.inner, ext: P.ext, glow: P.glow, outline: 0.14 });
+      fancyText(g, "RUSH", 150, 76, { K, size: 40, font: FONT_DIGIT, align: "center", face: rp.face, rim: rp.rim, inner: rp.inner, ext: rp.ext, glow: st.glow, outline: 0.13 });
+    } else {
+      fancyText(g, T("lcd.logoL"), 150, 26, { K, size: 21, font: FONT_BRUSH, align: "center", face: PAL.blue.face, rim: PAL.blue.rim, inner: PAL.blue.inner, ext: PAL.blue.ext, glow: "rgba(200,225,240,0.7)", outline: 0.14 });
+      fancyText(g, T("lcd.logoR"), 150, 78, { K, size: 50, font: FONT_BRUSH, align: "center", face: P.face, rim: P.rim, inner: P.inner, ext: P.ext, glow: P.glow, outline: 0.14 });
+    }
+    star4(g, 236, 30, 7, 0.9);
     return { c, w, h, ax: w / 2, ay: h / 2 };
   }
   // 霓虹天使's logo: a glowing halo over chrome letters, pink (the RUSH stage's colour for RUSH)
@@ -463,6 +494,8 @@
   // Switch to a machine's look before the sprites are built (mount).
   function applyTheme(theme) {
     THEME = theme === "neon" ? "neon" : "fire";
+    STEEL = theme === "steel";
+    if (STEEL) return applySteel();
     if (THEME !== "neon") return;
     LAY.corner = [[118, 104, 0.27, 1], [148, 104, 0.27, 1], [178, 104, 0.27, 1]];
     FONT_DIGIT = '"Orbitron","Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
@@ -483,13 +516,34 @@
     PAL.blue = { face: [[0, "#ffffff"], [0.18, "#d0fbff"], [0.38, "#40e6ff"], [0.55, "#0a6a9a"], [0.62, "#20d0ff"], [0.85, "#a0f4ff"], [1, "#00283a"]],
       rim: CHROME, inner: "#00202e", ext: ["#063a5a", "#000a14"], glow: "rgba(33,230,255,0.95)", rgb: C.cyan };
   }
+  // 轉生史萊姆與魔劍 (theme "steel", dev/MACHINE3.md): machine 1's rectangular screen and layout in steel and
+  // emerald: odd digits emerald, even cold steel (7 stays gold), green embers and flames (暴食の炎), its own
+  // logo and drawn backgrounds (until its AI art exists), emerald captions.
+  let STEEL = false;
+  function applySteel() {
+    const SILVER = [[0, "#ffffff"], [0.28, "#dfe6ee"], [0.55, "#5a646e"], [0.75, "#f2f6fa"], [1, "#3a424a"]];
+    PAL.red = { face: [[0, "#f4fff8"], [0.16, "#b8ffd8"], [0.36, "#2ad890"], [0.52, "#05683c"], [0.6, "#24c880"], [0.82, "#a8ffd4"], [1, "#023018"]],
+      rim: SILVER, inner: "#012a14", ext: ["#03401f", "#000e06"], glow: "rgba(42,216,144,0.95)", rgb: "42,216,144" };
+    PAL.blue = { face: [[0, "#ffffff"], [0.16, "#e6eef6"], [0.36, "#9aaab8"], [0.52, "#34404c"], [0.6, "#8a9aa8"], [0.82, "#e0e8f0"], [1, "#1a222a"]],
+      rim: SILVER, inner: "#0e1418", ext: ["#2a323a", "#06080a"], glow: "rgba(200,225,240,0.9)", rgb: "210,228,240" };
+    PAL.fire = { face: [[0, "#ffffff"], [0.2, "#e8fff4"], [0.42, "#9af0c8"], [0.62, "#2ad890"], [0.8, "#0a7a48"], [1, "#022a16"]],
+      rim: SILVER, inner: "#02200f", ext: ["#033a1c", "#000a04"], glow: "rgba(42,216,144,0.9)", rgb: "42,216,144" };
+    C.ember = "90,240,160"; C.orange = "150,255,200";   // embers and sparks turn emerald (C.red stays: the red hold means chance)
+    // until its AI art exists the drawn monsters stand in: dark emerald beasts instead of 炎舞神龍's red and
+    // gold dragons (the shadow one turns black-green)
+    DPAL.fire = { body: "#0e5a38", dark: "#021a10", belly: "#9af0c8", bellyLine: "#1a7a4c", fin: "#2ad890", finDark: "#04402a", hi: "rgba(160,255,210,0.5)", horn: "#e8f2f8", hornDark: "#5a646e", eye: "#ffef6a", glow: "42,216,144", mouth: "#021a10", scale: "rgba(0,30,18,0.6)" };
+    DPAL.gold = { body: "#9aa6b2", dark: "#2a323a", belly: "#f2f6fa", bellyLine: "#6a7480", fin: "#2ad890", finDark: "#04402a", hi: "rgba(240,250,255,0.6)", horn: "#ffffff", hornDark: "#5a646e", eye: "#2ad890", glow: "200,230,245", mouth: "#14181c", scale: "rgba(20,26,30,0.5)" };
+    DPAL.shadow = Object.assign({}, DPAL.shadow, { body: "#04140c", belly: "#08261a", fin: "#0a3a24", hi: "rgba(42,216,144,0.4)", horn: "#0a2a1a" });
+    RUSH_STAGES[0].pal = "red"; RUSH_STAGES[0].glow = "rgba(42,216,144,0.9)"; RUSH_STAGES[0].c1 = "42,216,144"; RUSH_STAGES[0].c2 = C.white;
+    RUSH_STAGES[1].pal = "blue"; RUSH_STAGES[1].glow = "rgba(200,225,240,0.9)"; RUSH_STAGES[1].c1 = C.white; RUSH_STAGES[1].c2 = "42,216,144";
+  }
   function buildPush() {
     const K = SPR_K, S = 120;
     const c = mkCanvas(S * K, S * K), g = c.getContext("2d");
     g.scale(K, K);
     const x = S / 2, y = S / 2, r = 48;
     const neon = THEME === "neon";
-    g.shadowColor = neon ? "rgba(255,63,208,0.9)" : "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
+    g.shadowColor = neon ? "rgba(255,63,208,0.9)" : STEEL ? "rgba(42,216,144,0.9)" : "rgba(255,40,20,0.9)"; g.shadowBlur = 14 * K;
     g.fillStyle = neon ? "#20001a" : "#200"; g.beginPath(); g.arc(x, y, r + 4, 0, TAU); g.fill();
     g.shadowBlur = 0;
     const ring = g.createLinearGradient(x - r, y - r, x + r, y + r);
@@ -499,6 +553,7 @@
     g.fillStyle = "#1a0000"; g.beginPath(); g.arc(x, y, r * 0.82, 0, TAU); g.fill();
     const dome = g.createRadialGradient(x - r * 0.25, y - r * 0.35, r * 0.05, x, y, r * 0.8);
     if (neon) { dome.addColorStop(0, "#ffd6f6"); dome.addColorStop(0.25, "#ff4fd8"); dome.addColorStop(0.7, "#a00a84"); dome.addColorStop(1, "#40002e"); }
+    else if (STEEL) { dome.addColorStop(0, "#d8ffec"); dome.addColorStop(0.25, "#2ad890"); dome.addColorStop(0.7, "#056a3a"); dome.addColorStop(1, "#012414"); }
     else { dome.addColorStop(0, "#ffd0c0"); dome.addColorStop(0.25, "#ff4a2a"); dome.addColorStop(0.7, "#b00800"); dome.addColorStop(1, "#4a0000"); }
     g.fillStyle = dome; g.beginPath(); g.arc(x, y, r * 0.77, 0, TAU); g.fill();
     const word = T("lcd.push");
@@ -1340,7 +1395,7 @@
   }
 
   // ------------------------------------------------------------------ holds (保留)
-  let HOLD_SLOT_X = (i) => 160 - i * 27, HOLD_Y = 300;
+  let HOLD_SLOT_X = (i) => 160 - i * 27, HOLD_Y = 300, HOLD_MAX = 4, HOLD_S = 1;   // 10 holds (魔劍): smaller and closer
   let holdView = [];       // [{c, x, born}]
   let holdSrc = { holds: [], rush: [] };
   const ped = { c: null, a: 0, x: CX, y: 298, s: 1, t0: -9, chT0: -9 };
@@ -1443,13 +1498,13 @@
       if (Math.abs(tx - h.x) < 0.05) h.x = tx;
       const tb = clk.t - h.born;
       const sIn = tb < 0.28 ? E.back(clamp(tb / 0.28, 0, 1)) : 1;
-      drawHoldIcon(ctx, h.c, h.x, HOLD_Y, 10 * sIn, A);
+      drawHoldIcon(ctx, h.c, h.x, HOLD_Y, 10 * sIn * HOLD_S, A);
       const tc = clk.t - (h.chT0 || -9);
       if (tc >= 0 && tc < 0.5) ring(ctx, h.x, HOLD_Y, 10 + tc * 50, 2, HOLD_RGB[h.c] || C.white, 1 - tc / 0.5);
     });
     // empty slot markers
     ctx.globalAlpha = A * 0.35; ctx.fillStyle = "#000";
-    for (let i = holdView.length; i < 4; i++) { ctx.beginPath(); ctx.arc(HOLD_SLOT_X(i), HOLD_Y, 4, 0, TAU); ctx.fill(); }
+    for (let i = holdView.length; i < HOLD_MAX; i++) { ctx.beginPath(); ctx.arc(HOLD_SLOT_X(i), HOLD_Y, 4 * HOLD_S, 0, TAU); ctx.fill(); }
     ctx.restore();
   }
 
@@ -1483,11 +1538,44 @@
     const K = BGK[id] || 1, c = mkCanvas((W + 24) * K, (H + 24) * K), g = c.getContext("2d");
     g.scale(K, K); g.translate(12, 12);
     const save = rng; rng = mulberry32(1234 + id.length * 77);
-    (BGB[id] || BGB.normal)(g, K);
+    if (STEEL) steelBg(g, id); else (BGB[id] || BGB.normal)(g, K);
     rng = save;
     return (cache[key] = c);
   }
   function drawBg(ctx, id) { ctx.drawImage(bgSprite(id), -12, -12, W + 24, H + 24); }
+  // 魔劍's drawn backgrounds (until its AI art): a dark hall of stone pillars, an emerald rune circle on the
+  // floor, mist; each scene its own light (battle red, bonus silver, RUSH bright emerald).
+  const STEEL_BG = {
+    normal: ["#020806", "#07261a", "#0c3a26", "42,216,144"], sp: ["#04020a", "#1a0a2a", "#0c3a26", "150,90,255"],
+    spsp: ["#080206", "#2a0a1a", "#0c2a1e", "255,90,150"], battle: ["#0a0202", "#2a0806", "#1a0c0a", "255,70,50"],
+    bonus: ["#06080a", "#2a3238", "#4a5660", "230,240,250"], result: ["#06080a", "#2a3238", "#4a5660", "230,240,250"],
+    rush: ["#010a06", "#06402a", "#0e6a44", "90,255,180"], jitan: ["#02080a", "#0a2a30", "#0e3a40", "90,220,230"],
+  };
+  function steelBg(g, id) {
+    const [c0, c1, c2, lc] = STEEL_BG[id] || STEEL_BG.normal;
+    vGrad(g, [[0, c0], [0.45, c1], [0.8, c2], [1, c0]]);
+    const glow = g.createRadialGradient(CX, 200, 10, CX, 200, 230);
+    glow.addColorStop(0, "rgba(" + lc + ",0.35)"); glow.addColorStop(1, "rgba(" + lc + ",0)");
+    g.fillStyle = glow; g.fillRect(-12, -12, W + 24, H + 24);
+    // stone pillars
+    for (let i = 0; i < 6; i++) {
+      const x = -6 + i * 82 + (i % 2) * 10, w = 34, top = 20 + (i % 3) * 14;
+      const pg = g.createLinearGradient(x, 0, x + w, 0);
+      pg.addColorStop(0, "rgba(0,0,0,0.75)"); pg.addColorStop(0.5, "rgba(40,52,58,0.55)"); pg.addColorStop(1, "rgba(0,0,0,0.8)");
+      g.fillStyle = pg; g.fillRect(x, top, w, H - top);
+      g.fillStyle = "rgba(" + lc + ",0.18)"; g.fillRect(x + w * 0.45, top, 2, H - top);
+    }
+    // the rune circle on the floor
+    g.save(); g.translate(CX, 290); g.scale(1, 0.32);
+    g.strokeStyle = "rgba(" + lc + ",0.6)"; g.lineWidth = 3;
+    g.beginPath(); g.arc(0, 0, 150, 0, TAU); g.stroke(); g.beginPath(); g.arc(0, 0, 118, 0, TAU); g.stroke();
+    for (let k = 0; k < 12; k++) { const a = (k / 12) * TAU; g.beginPath(); g.moveTo(118 * Math.cos(a), 118 * Math.sin(a)); g.lineTo(150 * Math.cos(a + 0.2), 150 * Math.sin(a + 0.2)); g.stroke(); }
+    g.restore();
+    clouds(g, 300, 10, "rgba(" + lc + ",0.12)", 80, 14);
+    const fl = g.createLinearGradient(0, 260, 0, H + 12);
+    fl.addColorStop(0, "rgba(0,0,0,0)"); fl.addColorStop(1, "rgba(0,0,0,0.85)");
+    g.fillStyle = fl; g.fillRect(-12, 260, W + 24, 80);
+  }
   // A scene's AI background when there is one (the result screen shares the bonus one), else the
   // drawn one.
   function sceneBg(ctx, id) {
@@ -1839,9 +1927,13 @@
 .g-red{--gr:linear-gradient(180deg,#ffffff 0%,#ffc0f0 22%,#ff3fd0 46%,#8a0070 62%,#ff5fe0 82%,#ffd0f6 100%);--bk:#24001e;--bk2:#0e000c;--gl:rgba(255,40,200,.9);--hl:#ffe8fa;}
 .g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#c8f8ff 22%,#21e6ff 46%,#005a7a 62%,#3af0ff 82%,#d0fbff 100%);--bk:#001a24;--bk2:#000a10;--gl:rgba(33,230,255,.9);--hl:#e8fdff;}
 .pkl-aim{left:252px;top:242px;background:linear-gradient(180deg,#ff5fe0,#8a0a70);border-color:#ffd0f6;box-shadow:0 0 12px rgba(255,63,208,.9);}`;
+  const CSS_STEEL = `
+.g-fire{--gr:linear-gradient(180deg,#ffffff 0%,#d8ffec 22%,#5af0b0 44%,#0e9a5a 64%,#04502c 82%,#b0ffd8 100%);--bk:#002412;--bk2:#000e06;--gl:rgba(42,216,144,.9);--hl:#f0fff8;}
+.g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#eef4fa 22%,#b8c6d4 46%,#4a5664 62%,#c8d4e0 82%,#ffffff 100%);--bk:#141a20;--bk2:#06080a;--gl:rgba(200,225,240,.85);--hl:#ffffff;}
+.pkl-aim{background:linear-gradient(180deg,#2ad890,#06603a);border-color:#c8ffe4;box-shadow:0 0 12px rgba(42,216,144,.9);}`;
   function injectCss() {
     if (document.getElementById("pkl-css")) return;
-    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : "");
+    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : STEEL ? CSS_STEEL : "");
     document.head.appendChild(st);
   }
   function mkText(text, cls, size, font, stat) {
@@ -3826,6 +3918,7 @@
       mounted = true;
       o = o || {};
       applyTheme(o.theme);
+      if (o.maxHolds > 4) { HOLD_MAX = o.maxHolds; HOLD_S = 0.7; HOLD_SLOT_X = (i) => 166 - i * 15.5; }
       injectCss();
       lcdEl.style.overflow = "hidden";
       if (!lcdEl.style.borderRadius) lcdEl.style.borderRadius = LL.r + "px";
@@ -3919,6 +4012,11 @@
     playJackpot(script) { return enqueue(() => playJackpotImpl(script)); },
     showRound(round, rounds, gained) { enqueue(() => showRoundImpl(round, rounds, gained)); },
     // ラウンド昇格: the bonus shown as 3R grows to `to` rounds (the shell shows the new count next)
+    // A line over whatever plays (覚醒, a commander recruited, 魔王降臨): no queue, nothing waits on it.
+    announce(text, cls) {
+      flash(cls === "gold" ? C.gold : C.white, 0.6, 3); shake(5);
+      telop(String(text), { x: CX, y: 118, size: String(text).length > 8 ? 26 : 40, cls: cls || "gold", anim: "slam", dur: 2.2 });
+    },
     playRoundUpgrade(to) {
       return enqueue(async () => {
         flash(C.white, 1, 2.5); shake(10);

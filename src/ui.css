@@ -318,6 +318,24 @@
   #app[data-machine="angel"] #coins b, #app[data-machine="angel"] #dataBar b, #app[data-machine="angel"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(33, 230, 255, 0.55); }
   #app[data-machine="angel"] #lcd { border-radius: 50% !important; }   /* 光環舞台: a round screen */
 
+  /* 轉生史萊姆與魔劍: steel and emerald */
+  #app[data-machine="sword"] { --gold: #6af0b8; --ice: #c8d6e4; --led: #5af0b0; --fire: #2ad890; --metal: #12171a; --metal-2: #1a2125; --line: #2c3a36; --amb: rgba(42, 216, 144, 0.28); }
+  #app[data-machine="sword"][data-theme="reach"] { --amb: rgba(140, 255, 200, 0.4); }
+  #app[data-machine="sword"][data-theme="hot"] { --amb: rgba(220, 245, 255, 0.42); }
+  #app[data-machine="sword"][data-theme="bonus"] { --amb: rgba(230, 240, 250, 0.4); }
+  #app[data-machine="sword"][data-theme="rush"] { --amb: rgba(60, 255, 170, 0.44); }
+  #app[data-machine="sword"] .crest { background: radial-gradient(circle at 35% 30%, #ffffff, #c8d2dc 40%, #5a646e 75%, #1a2026); box-shadow: 0 0 0 2px #0a2a1a, 0 0 14px rgba(42, 216, 144, 0.6); color: #04301c; }
+  #app[data-machine="sword"] #brand b { background: linear-gradient(180deg, #ffffff 0%, #c8ffe4 45%, #2ad890 100%); -webkit-background-clip: text; background-clip: text; }
+  #app[data-machine="sword"] #push { background: linear-gradient(#5af0b0, #067a44); text-shadow: 0 2px 0 #02301a; }
+  #app[data-machine="sword"] #push.prompt { animation-name: swordPulse; }
+  @keyframes swordPulse { from { filter: brightness(1); } to { filter: brightness(1.45) drop-shadow(0 0 14px #2ad890); } }
+  #app[data-machine="sword"] #panel .oval { background: radial-gradient(ellipse at 50% 30%, #8af5c8 0%, #12885a 45%, #06321e 100%);
+    box-shadow: inset 0 0 0 3px #eef4fa, inset 0 0 0 5px #3a444a, inset 0 6px 10px rgba(255, 255, 255, 0.35), 0 4px 10px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="sword"] #autoBtn { border-color: #6af0b8; background: linear-gradient(#123024, #06120c); color: #c8ffe4; }
+  #app[data-machine="sword"] #autoBtn[aria-pressed="true"] { background: linear-gradient(#5af0b0, #0a8a50); color: #fff; }
+  #app[data-machine="sword"] .big.primary, #app[data-machine="sword"] .tog[aria-pressed="true"], #app[data-machine="sword"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#5af0b0, #0a8a50); border-color: #8af5c8; color: #fff; }
+  #app[data-machine="sword"] #coins b, #app[data-machine="sword"] #dataBar b, #app[data-machine="sword"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(42, 216, 144, 0.55); }
+
   /* 遊戲大廳 (home): the site opens here; a big card per machine. */
   #home { position: fixed; inset: 0; z-index: 25; overflow-y: auto; -webkit-overflow-scrolling: touch;
     background: radial-gradient(120% 60% at 50% 0%, #2a1840 0%, #0b0a18 55%, var(--ground) 100%); }

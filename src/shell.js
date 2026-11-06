@@ -94,7 +94,7 @@
     ["glg.numbers", ["gl.balls", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.upgrade", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
     ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.serif", "gl.premium", "gl.pushLong", "gl.zen", "gl.stLast"]],
-  ];
+  ].concat(M.devour ? [["glg.own", ["gl.vortex", "gl.awake", "gl.commanders", "gl.maou", "gl.renzen"]]] : []);   // 轉生史萊姆與魔劍's own rules first
 
   // ---------------------------------------------------------------- 力道旋鈕
   // The PLAY/STOP button is also the handle's knob. Its power 0..1 is drawn as a dot on a coloured
@@ -203,13 +203,13 @@
   // ---------------------------------------------------------------- 提示字幕
   const capLast = {};
   let capTimer = 0;
-  function caption(key) {
+  function caption(key, vars) {
     if (!set.captions) return;
     const now = Date.now();
     if (capLast[key] && now - capLast[key] < 45000) return;   // same tip at most every 45 s
     capLast[key] = now;
     const el = $("caption");
-    el.lastChild.textContent = t("cap." + key);
+    el.lastChild.textContent = t("cap." + key, vars);
     el.classList.add("show");
     clearTimeout(capTimer);
     capTimer = setTimeout(() => el.classList.remove("show"), 3800);
@@ -597,8 +597,46 @@
     function bgm(name) { bgmWant = name; if (musicOn) PK.Sound.bgm(name); }
     // The sub display says what matters now (it used to show the RUSH continuation rate all the time).
     const SPEC = eng.tables.spec;
+    // 轉生史萊姆與魔劍 (M.devour, M.commanders; dev/MACHINE3.md): kept per machine apart from the engine save
+    const KEY_M3 = "pk." + M.id + ".m3";
+    const m3 = Object.assign({ gauge: 0, gems: 0 }, parse(load(KEY_M3)));
+    const saveM3 = () => store(KEY_M3, JSON.stringify(m3));
+    function showM3() {
+      if (M.devour) PK.Cabinet.setGauge(m3.gauge / M.devour.need, eng.state.awake > 0);
+      if (M.commanders) PK.Cabinet.setGems(m3.gems);
+    }
+    function devour() {
+      if (!M.devour) return;
+      if (++m3.gauge >= M.devour.need) {
+        m3.gauge = 0;
+        eng.awaken(M.devour.mul, M.devour.spins);
+        PK.LCD.announce(t("lcd.awake"), "gold");
+        lights("rainbow"); setTimeout(modeLook, 2200);
+        snd("rushIn"); caption("awake", { n: M.devour.spins });
+      }
+      saveM3(); showM3(); showSub();
+    }
+    function recruit() {
+      const C4 = M.commanders;
+      if (!C4 || eng.state.rushBoost) return;   // all four are waiting for their RUSH
+      if (m3.gems < C4.length) {
+        m3.gems++;
+        PK.LCD.announce(t("lcd.recruit", { name: C4[m3.gems - 1] }), "gold");
+        caption("recruit", { name: C4[m3.gems - 1], k: m3.gems });
+      }
+      if (m3.gems >= C4.length) {   // 魔王降臨: the next RUSH one step up the presets (the best stays the best)
+        const cur = odds().rushN, up = ODDS.rush.filter((n) => n < cur).sort((a, b) => b - a)[0] || cur;
+        eng.boostNextRush(1 / up);
+        setTimeout(() => { PK.LCD.announce(t("lcd.maou"), "gold"); caption("maou"); }, 2400);
+      }
+      saveM3(); showM3();
+    }
+    if (M.commanders) eng.on("rushBoost", () => { m3.gems = 0; saveM3(); showM3(); });   // the boosted RUSH has begun
+    if (M.devour) eng.on("awake", () => { showM3(); showSub(); });
     function showSub() {
-      if (mode === "rush") PK.Cabinet.setSub(t("cab.subRush", { p: Math.round(100 * (1 - Math.pow(1 - SPEC.rushChance, SPEC.st))) }));
+      const rc = eng.state.rushBoostOn || SPEC.rushChance;
+      if (mode === "rush") PK.Cabinet.setSub(t("cab.subRush", { p: Math.round(100 * (1 - Math.pow(1 - rc, SPEC.st))) }));
+      else if (M.devour && eng.state.awake > 0 && mode === "normal") PK.Cabinet.setSub(t("cab.subAwake", { n: eng.state.awake }));
       else if (mode === "jitan") PK.Cabinet.setSub(t("cab.subJitan"));
       else if (bonusy()) PK.Cabinet.setSub(t("cab.subBonus"));
       else PK.Cabinet.setSub(t("cab.subNormal", { n: Math.round(10 / SPEC.normalChance) / 10 }));
@@ -728,6 +766,7 @@
     function arrive(b) {
       const r = eng.ballArrived(b.id);
       if (!r) return;
+      if (r.target === "heso" && (r.result === "hold" || r.result === "lost")) devour();
       if (r.result === "hold") snd("pocket");
       else if (r.result === "lost") { snd("lost"); caption("lost"); }
       else if (r.result === "pay") snd("payout");
@@ -827,6 +866,7 @@
     let shownRounds = 0;   // 0 = show the engine's
     const showRounds = (s) => PK.LCD.showRound(s.round, shownRounds || s.rounds, s.bonusGained);
     function startJackpot(sc) {
+      if (sc.mode === "normal" || sc.mode === "jitan") recruit();   // the spin's own mode: the shell's is already bonusPending
       bonusFlow = true; holdFire = true;
       if (day.date !== today()) day = { date: today(), hits: 0 };
       day.hits++; dirty = true;
@@ -1184,13 +1224,13 @@
     $("app").dataset.machine = M.id;   // per-machine colours in src/ui.css
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet, theme: M.theme });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
-    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme });
+    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme, maxHolds: eng.tables.units.maxHolds });
     $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n.startsWith("rushStage:")) { snd("rushIn"); lights("rainbow"); vo("rushStage" + n.slice(10)); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase, { soft: M.softMusic });   // AI-made music in assets/ replaces the synthesized beds
     PK.Sound.useVoices(VOICE_LINES);
     PK.Sound.setVoice(set.voice);
-    applySaver(); showSaver();
+    applySaver(); showSaver(); showM3();
     const s0 = eng.state;
     PK.LCD.setHolds(s0.holds, s0.rushHolds);
     applyMode(false);

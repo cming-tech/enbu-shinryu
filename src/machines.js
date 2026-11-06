@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 61;
+  PK.VERSION = 62;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -139,9 +139,8 @@
   // Machine 3, 轉生史萊姆與魔劍 (design: dev/MACHINE3.md): an original slime reborn in another world that
   // swallowed the sealed 暴食の魔剣. A giant sword pierces the cabinet (frame: "sword"); the left half of
   // the board feeds the 暴食の渦 whirlpool, the right half is machine 1's RUSH/bonus side (pins: "sword").
-  // Steel and emerald (theme: "steel"). Its files will be assets/sword_*; until the AI art exists the
-  // drawn fallbacks show. `hidden` keeps it out of the hall while it is being built (pk.machine=sword
-  // still opens it).
+  // Steel and emerald (theme: "steel"). Its files are assets/sword_* (AI art made 2026-11-05/06); the drawn
+  // fallbacks show for anything missing. In the hall as 試作中 (a first version for the user to try).
   PK.MACHINES.sword = {
     id: "sword",
     name: "轉生史萊姆與魔劍",
@@ -150,12 +149,50 @@
     assetsBase: "assets/sword_",
     theme: "steel",
     refill: 10000,
-    tagline: "吞下魔劍的史萊姆：暴食漩渦、覺醒、四大幹部、連戰 RUSH",
+    card: "jackpot_art.jpg",
+    preview: "preview.jpg",
+    tutPrefix: "sword_",
+    tagline: "【試作中】吞下魔劍的史萊姆：暴食漩渦、覺醒、四大幹部、連戰 RUSH",
     odds: E.odds,
-    engine: E.engine,
-    cabinet: { pins: "sword", frame: "sword", art: {} },
-    hidden: true,
-    text: Object.assign({}, E.text, {}),
+    // 保留 up to 10 (the user: the 暴食 slime swallows more); the per-spin odds are machine 1's
+    engine: { spec: E.engine.spec, units: Object.assign({}, E.engine.units, { maxHolds: 10 }) },
+    // 吞珠覺醒: every ball the 暴食の渦 swallows fills the blade; `need` of them -> 覚醒, the next `spins`
+    // normal/時短 spins at `mul` times the hit chance. 四大幹部: each first hit (normal or 時短) recruits
+    // the next commander (a gem lights on the crossguard); all four -> 魔王降臨, the next RUSH one step up
+    // the odds presets. Both are kept per machine (shell.js, pk.sword.m3).
+    devour: { need: 200, mul: 2, spins: 50 },
+    commanders: ["劍鬼", "狼王", "龍姬", "影"],
+    cabinet: { pins: "sword", frame: "sword", art: { board: { file: "board.jpg" } } },
+    text: Object.assign({}, E.text, {
+      // the LCD (Japanese, like a real machine): the slime that swallowed the 暴食の魔剣
+      "lcd.logoL": "転生スライムと", "lcd.logoR": "魔剣", "lcd.crest": "剣",
+      "lcd.gun": "魔群", "lcd.kokuchi": "魔剣解放!!", "lcd.zone": "暴食ゾーン", "lcd.premium": "魔剣降臨!!",
+      "lcd.serif.white": "……何か、いる？", "lcd.serif.blue": "腹が、減ったな。", "lcd.serif.green": "喰らい尽くしてやる！",
+      "lcd.serif.red": "この剣で、斬る！", "lcd.serif.gold": "全部、喰らってやる！",
+      "lcd.rushName0": "連戦", "lcd.rushName1": "猛攻", "lcd.rushName2": "魔王",
+      "lcd.spReach": "暴食リーチ", "lcd.spspReach": "魔剣リーチ",
+      "lcd.hero": "スライム", "lcd.rival": "魔将", "lcd.battle": "魔将決戦", "lcd.lose": "喰われた…", "lcd.battleHint": "喰らえ!!",
+      "lcd.roundLines": "喰らえ！|まだ足りない！|剣が唸る！|もっと喰わせろ！|勝利は目前！|暴食、止まらず！|まだまだ！|魔剣の力！|一気に喰らえ！|追撃せよ！",
+      "lcd.minions": "ゴブリン兵|骸骨剣士|大蜘蛛|オーク戦士|闇狼|石像兵",
+      "lcd.awakenTitle": "覚醒チャレンジ", "lcd.awakenHint": "PUSH連打で人の姿へ覚醒しろ！", "lcd.awakenOk": "覚醒!!",
+      "lcd.rushOver": "連戦RUSH 終了",
+      "lcd.streakLbl": "連戦", "lcd.streakN": "第{n}戦",
+      "lcd.awake": "覚醒!!", "lcd.awakeSub": "人の姿へ…", "lcd.recruit": "{name}が仲間になった!", "lcd.maou": "魔王降臨!!",
+      "cab.subAwake": "覚醒中\n残り{n}",
+      // the shell (Chinese)
+      "cap.lost": "保留滿 10 個時，再進去的珠子不算",
+      "cap.awake": "覺醒！接下來 {n} 轉，中大當的機會加倍",
+      "cap.recruit": "{name} 成為夥伴（四大幹部 {k}/4）",
+      "cap.maou": "四大幹部到齊：魔王降臨！下一次 RUSH 連莊率提高",
+      "gl.hold": "保留|數字還在轉時進的珠子，會排隊等著轉。這台的史萊姆特別能吃：最多 10 個（別台是 4 個）。",
+      "glg.own": "這台的特別玩法",
+      "gl.vortex": "暴食漩渦（入賞口）|左下會轉的綠色漩渦。平常往左打，珠子被吸進中心就是進入賞口，數字開始轉；被甩出來的就沒進。",
+      "gl.awake": "吞珠覺醒|漩渦每吃一顆珠子，中間的劍身就亮一格。吃滿 200 顆會「覚醒」：接下來 50 轉，中大當的機會加倍（小螢幕會顯示還剩幾轉）。",
+      "gl.commanders": "四大幹部|從平常（或時短）中大當，就會收一位幹部當夥伴：劍鬼、狼王、龍姬、影。每收一位，機台上方護手的寶石就亮一顆。",
+      "gl.maou": "魔王降臨|四大幹部到齊時，下一次 RUSH 的連莊率提高一級。那次 RUSH 開始時寶石會清空，重新收集。",
+      "gl.renzen": "連戰 RUSH|這台的 RUSH 是一場接一場的戰鬥：每連中一次就打下一戰（第 1 戰、第 2 戰⋯），越往後敵人越強。",
+      "gl.rush": "連戦RUSH|大當之後的特別模式，中獎機率很高，很容易一直連續中。連中會升級：連戦 → 猛攻（連 2）→ 魔王（連 3），畫面和顏色跟著變。",
+    }),
   };
 
   // Machine 2, a 羽根物 with real ball physics (src/hane/hane.js) instead of 炎舞神龍's engine and

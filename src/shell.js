@@ -94,7 +94,7 @@
     ["glg.numbers", ["gl.balls", "gl.serial", "gl.sinceHit", "gl.totalSpins", "gl.todayHits", "gl.history", "gl.hold", "gl.st", "gl.sub"]],
     ["glg.win", ["gl.spin", "gl.reach", "gl.jackpot", "gl.round", "gl.upgrade", "gl.boss", "gl.awaken", "gl.rush", "gl.rate", "gl.jitan"]],
     ["glg.hints", ["gl.holdColor", "gl.stepup", "gl.gun", "gl.cutin", "gl.pseudo", "gl.battle", "gl.hot", "gl.kokuchi", "gl.revive", "gl.zone", "gl.reachVar", "gl.serif", "gl.premium", "gl.pushLong", "gl.zen", "gl.stLast"]],
-  ].concat(M.devour ? [["glg.own", ["gl.vortex", "gl.awake", "gl.commanders", "gl.maou", "gl.renzen"]]] : []);   // 轉生史萊姆與魔劍's own rules first
+  ].concat(M.devour ? [["glg.own", ["gl.vortex", "gl.awake", "gl.commanders", "gl.maou", "gl.renzen"]]] : M.lt ? [["glg.own", ["gl.lt"]]] : []);   // a machine's own rules first (轉生史萊姆與魔劍, 蒸氣巨神)
 
   // ---------------------------------------------------------------- 力道旋鈕
   // The PLAY/STOP button is also the handle's knob. Its power 0..1 is drawn as a dot on a coloured
@@ -641,13 +641,14 @@
     if (M.devour) eng.on("awake", () => { showM3(); showSub(); });
     function showSub() {
       const rc = eng.state.rushBoostOn || SPEC.rushChance;
-      if (mode === "rush") PK.Cabinet.setSub(t("cab.subRush", { p: Math.round(100 * (1 - Math.pow(1 - rc, SPEC.st))) }));
+      if (mode === "rush") PK.Cabinet.setSub(t(eng.state.upper ? "cab.subUpper" : "cab.subRush", { p: Math.round(100 * (1 - Math.pow(1 - rc, SPEC.st))) }));
       else if (M.devour && eng.state.awake > 0 && mode === "normal") PK.Cabinet.setSub(t("cab.subAwake", { n: eng.state.awake }));
       else if (mode === "jitan") PK.Cabinet.setSub(t("cab.subJitan"));
       else if (bonusy()) PK.Cabinet.setSub(t("cab.subBonus"));
       else PK.Cabinet.setSub(t("cab.subNormal", { n: Math.round(10 / SPEC.normalChance) / 10 }));
     }
     function modeLook() {
+      if (!bonusy()) head3("up");
       showSub();
       lights(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
       bgm(rushy() ? "rush" : bonusy() ? "bonus" : "normal");
@@ -817,6 +818,7 @@
     // LCD 演出 events -> lights, sound, captions.
     function onLcdEvent(n, sc) {
       const r = sc.reach || {};
+      if (M.head3d) headFx(n, r);
       const seenAs = { chanceUp: 1, count: 1, slip: 1, devTease: 1, battleWin: 1, battleLose: 1, revive: 1, gun: 1, zone: 1, kokuchi: 1, premium: 1, pushLong: 1 };
       if (seenAs[n]) rec.seen(n);
       else if (n === "reach" && (r.type === "normal" || r.type === "sp" || r.type === "spsp")) rec.seen(r.type === "normal" ? "reach" : r.type);
@@ -865,6 +867,24 @@
       else if (n === "miss") { pushPrompt(false); modeLook(); }
     }
 
+    // 蒸氣巨神's 3D head as the 予告: it drops for a developed reach, opens for 激熱 and a win, its eyes
+    // in the reach's colour; back up when the spin is over (modeLook).
+    function headFx(n, r) {
+      const col = ["green", "red", "gold", "rainbow"].indexOf(r.color) >= 0 ? r.color : "blue";
+      if (n === "reach" && r.type && r.type !== "normal") headShow(col, r.type === "spsp");
+      else if (n === "reachUp") headShow(col, true);
+      else if (n === "kokuchi" || n === "premium") headShow(n === "premium" ? "rainbow" : "gold", true);
+      else if (n === "hitConfirm") headShow("gold", true);
+    }
+    // The drop is a moment: it covers the LCD's upper half, so it goes back up and the 演出 under it shows.
+    let headT = 0;
+    function headShow(col, open) {
+      head3("eye", col); head3("drop");
+      clearTimeout(headT);
+      if (open) setTimeout(() => head3("open"), 450);
+      headT = setTimeout(() => head3("up"), open ? 2300 : 1500);
+    }
+
     // ---- bonus: fanfare -> rounds (with breaks) -> ending -> RUSH / 時短 / normal
     // ラウンド昇格: a 10R or 6R jackpot may first show as 3R and grow at the start of round 2. Every
     // heso 10R does (the 3R that grows), and half of the RUSH ones (never on 777, which shows its
@@ -873,6 +893,11 @@
     const showRounds = (s) => PK.LCD.showRound(s.round, shownRounds || s.rounds, s.bonusGained);
     function startJackpot(sc) {
       if (sc.mode === "normal" || sc.mode === "jitan") recruit();   // the spin's own mode: the shell's is already bonusPending
+      if (sc.lt) setTimeout(() => {   // ラッキートリガー: after the fanfare the head opens in gold, then the titles
+        headShow("gold", true); lights("rainbow"); snd("rushIn"); caption("lt"); vo("lt");
+        setTimeout(() => PK.LCD.announce(t("lcd.lt"), "gold"), 2500);
+        setTimeout(() => PK.LCD.announce(t("lcd.ltSub"), "gold"), 4200);
+      }, 3500);
       bonusFlow = true; holdFire = true;
       if (day.date !== today()) day = { date: today(), hits: 0 };
       day.hits++; dirty = true;
@@ -1231,10 +1256,15 @@
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet, theme: M.theme });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
     PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme, maxHolds: eng.tables.units.maxHolds });
+    if (M.head3d) loadHead3d();
+    if (M.lt) {   // 神域RUSH: one odds preset up from the RUSH chance in use (the best stays the best)
+      const cur = odds().rushN, up = ODDS.rush.filter((n) => n < cur).sort((a, b) => b - a)[0] || cur;
+      eng.luckyTrigger(M.lt.chance, 1 / up);
+    }
     $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n.startsWith("rushStage:")) { snd("rushIn"); lights("rainbow"); vo("rushStage" + n.slice(10)); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase, { soft: M.softMusic });   // AI-made music in assets/ replaces the synthesized beds
-    PK.Sound.useVoices(VOICE_LINES.concat(M.devour ? ["m3awake", "m3recruit", "m3maou"] : []));   // 轉生史萊姆與魔劍's own moments
+    PK.Sound.useVoices(VOICE_LINES.concat(M.devour ? ["m3awake", "m3recruit", "m3maou"] : [], M.lt ? ["lt"] : []));   // 轉生史萊姆與魔劍's own moments
     PK.Sound.setVoice(set.voice);
     applySaver(); showSaver(); showM3();
     const s0 = eng.state;
@@ -1265,6 +1295,7 @@
     hallRest = (on) => {   // the hall plays its own song; the machine's comes back on the way in
       if (on && firing) setFiring(false);
       PK.Sound.lobby(on);
+      head3("pause", on);
     };
     if (entered) welcome(); else showHome(welcome);
     // The phone's back button / gesture (the user: it closed the whole game every time). Extra history
@@ -1299,6 +1330,22 @@
     // dev/test hook (not used by the game)
     PK.shell = { eng, setFiring, get busy() { return { spinning, bonusFlow, holdFire, mode }; } };
   }
+
+  // ---------------------------------------------------------------- 3D head (蒸氣巨神)
+  // three.js (cdnjs, the Artifact's allowed CDN) and src/titan3d.js load only for a machine with head3d;
+  // without WebGL the canvas goes and the machine plays without its head.
+  const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+  function loadHead3d() {
+    const H3 = M.head3d, cv = document.createElement("canvas"), [x, y, w, h] = H3.box;
+    cv.id = "head3d";
+    Object.assign(cv.style, { position: "absolute", left: x + "px", top: y + "px", width: w + "px", height: h + "px", pointerEvents: "none" });
+    $("stage").insertBefore(cv, $("ui"));
+    const add = (src) => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    (window.THREE ? Promise.resolve() : add(THREE_URL)).then(() => (PK.Titan3D ? null : add("src/titan3d.js")))
+      .then(() => { if (!PK.Titan3D.mount(cv, H3)) cv.remove(); else if (!$("home").hidden) PK.Titan3D.pause(true); })
+      .catch(() => cv.remove());
+  }
+  function head3(fn, arg) { if (M.head3d && PK.Titan3D && PK.Titan3D.ready) PK.Titan3D[fn](arg); }
 
   // ---------------------------------------------------------------- loading screen
   // index.html's #boot covers the bare page while the scripts load. Once the game has started it

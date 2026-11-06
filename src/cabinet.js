@@ -221,7 +221,9 @@
   const PINS = { all: [], L: [], R: [], road: [], yori: [], inochi: [], hakama: [] };
   // Pin layouts by name (PK.MACHINES[id].cabinet.pins). Each fills PINS; the ball paths below use
   // its lanes (L, R, road, yori, inochi, hakama), so a new layout keeps those groups.
-  const PIN_LAYOUTS = { enbu: pinsEnbu, angel: pinsAngel, sword: pinsSword };
+  const PIN_LAYOUTS = { enbu: pinsEnbu, angel: pinsAngel, sword: pinsSword, titan: pinsSword };
+  // 蒸氣巨神 (pins "titan") takes machine 3's board: the whirlpool is the furnace gear there
+  const VTX = () => pinLayout === "sword" || pinLayout === "titan";
   let pinLayout = "enbu";
   function buildPins() { (PIN_LAYOUTS[pinLayout] || pinsEnbu)(); }
   function pinsEnbu() {
@@ -514,7 +516,7 @@
     let rays = "";
     for (let i = 0; i < 18; i++) {
       const a = (-180 + i * 10 + 5) * DEG, a2 = a + 3.2 * DEG;
-      const rx0 = pinLayout === "sword" ? VORTEX.x : 294, ry0 = pinLayout === "sword" ? VORTEX.y : 548;
+      const rx0 = VTX() ? VORTEX.x : 294, ry0 = VTX() ? VORTEX.y : 548;
       rays += `M${rx0},${ry0}L${f1(rx0 + 400 * Math.cos(a))},${f1(ry0 + 400 * Math.sin(a))}L${f1(rx0 + 400 * Math.cos(a2))},${f1(ry0 + 400 * Math.sin(a2))}Z`;
     }
     s += `<path d="${rays}" fill="#ffb040" opacity=".045"/>`;
@@ -674,7 +676,7 @@
     ART.strokes.push({ pts: loopPts(11, 11), closed: true, w: [16, 9, 2.6], gain: 1, main: true });
     // --- energy swirl band s0..s1 (lit by drawSwirl), clipped above the console
     const swirlD = loopPath(SWIRL.s1, 3) + loopPath(SWIRL.s0, 3);
-    const WINGS = S.frame === "wings", SWORD = S.frame === "sword", PLAIN = WINGS || SWORD;   // PLAIN: none of 炎舞神龍's ornaments
+    const WINGS = S.frame === "wings", SWORD = S.frame === "sword", TITAN = S.frame === "titan", PLAIN = WINGS || SWORD || TITAN;   // PLAIN: none of 炎舞神龍's ornaments
     if (!PLAIN) holes.push(`<path d="${swirlD}" fill-rule="evenodd" clip-path="url(#pkc-aboveConsole)"/>`);
     if (!PLAIN) acr.push(`<path d="${swirlD}" fill-rule="evenodd" fill="#06142c" fill-opacity=".22" clip-path="url(#pkc-aboveConsole)"/>`);
 
@@ -726,6 +728,7 @@
     const mir = (d) => d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (m, x, y) => f1(588 - parseFloat(x)) + "," + y);
     if (WINGS) crest = buildWingFrame(holes, acr);
     if (SWORD) crest = buildSwordFrame(holes, acr);
+    else if (TITAN) crest = buildTitanFrame(holes, acr);
     else {
     // --- crest (top ornament): wings, medallion, LED strip
     const bladesR = [
@@ -949,7 +952,7 @@
 </defs>`;
     s += `<g mask="url(#pkc-bodyMask)">`;
     if (WINGS) s += `<rect width="588" height="860" fill="url(#pkc-pearl)"/>`;
-    else if (SWORD) s += `<rect width="588" height="860" fill="url(#pkc-slate)"/><rect width="588" height="860" fill="url(#pkc-brushed)" opacity=".55"/><rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
+    else if (SWORD || TITAN) s += `<rect width="588" height="860" fill="url(#pkc-slate)"/><rect width="588" height="860" fill="url(#pkc-brushed)" opacity=".55"/><rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
     else {
     s += `<rect width="588" height="860" fill="url(#pkc-gun)"/>`;
     s += `<rect width="588" height="860" fill="url(#pkc-sheen)"/>`;
@@ -1034,6 +1037,46 @@
     const fp = [];
     for (let y = B.y0 + 10; y <= yt; y += 8) fp.push([B.x, y, angU(B.x, y)]);
     ART.strokes.push({ pts: fp, closed: false, w: [8, 4, 1.4], gain: 0.55 });
+    return out;
+  }
+
+  // 蒸氣巨神's cabinet (frame: "titan"): rivets round the frame, two pressure gauges in the top corners,
+  // steam pipes down the sides and a half gear over the window, where the 3D head (titan3d.js) rests.
+  function buildTitanFrame(holes, acr) {
+    let out = "";
+    let rv = "";
+    for (let deg = 0; deg < 360; deg += 5) {
+      const p = fpt(deg, 30);
+      if (p[0] < 6 || p[0] > 582 || p[1] < 10 || p[1] > 622) continue;
+      if (p[0] > 488 && p[1] > 316 && p[1] < 396) continue;   // the sub display
+      rv += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="3.2"/>`;
+    }
+    out += `<g fill="#000" opacity=".5" transform="translate(.8,1.2)">${rv}</g><g fill="url(#pkc-brassG)" stroke="#3a2808" stroke-width=".6">${rv}</g>`;
+    // the half gear over the window (the head rests in front of it)
+    let tg = "";
+    for (let i = 0; i <= 18; i++) { const a = Math.PI + (i / 18) * Math.PI; tg += `<rect x="-6" y="-8" width="12" height="16" transform="translate(${f1(294 + Math.cos(a) * 128)},${f1(102 + Math.sin(a) * 128)}) rotate(${f1((a * 180) / Math.PI + 90)})"/>`; }
+    out += `<g fill="#6a4818" stroke="#2a1a08" stroke-width="1">${tg}</g>`;
+    out += `<path d="M166,102 A128,128 0 0 1 422,102 L404,102 A110,110 0 0 0 184,102 Z" fill="url(#pkc-brassG)" stroke="#2a1a08" stroke-width="1.4"/>`;
+    for (let i = 1; i < 6; i++) { const a = Math.PI + (i / 6) * Math.PI; out += `<line x1="294" y1="102" x2="${f1(294 + Math.cos(a) * 110)}" y2="${f1(102 + Math.sin(a) * 110)}" stroke="#8a6428" stroke-width="6"/>`; }
+    out += `<circle cx="294" cy="102" r="20" fill="#2a1406" stroke="url(#pkc-brassG)" stroke-width="4"/>`;
+    // pressure gauges in the top corners: a brass bezel, a cream dial, ticks, a red zone and the needle
+    for (const [cx, cy, ang] of [[70, 74, -40], [518, 74, 25]]) {
+      out += `<circle cx="${cx + 2}" cy="${cy + 3}" r="40" fill="#000" opacity=".45"/><circle cx="${cx}" cy="${cy}" r="40" fill="url(#pkc-brassG)" stroke="#2a1a08" stroke-width="1.5"/>`;
+      out += `<circle cx="${cx}" cy="${cy}" r="31" fill="#f2e6c8" stroke="#3a2808" stroke-width="1.2"/>`;
+      let ticks = "";
+      for (let k = 0; k <= 10; k++) { const a = (-225 + k * 27) * DEG, r0 = k % 5 ? 25 : 21; ticks += `M${f1(cx + Math.cos(a) * r0)},${f1(cy + Math.sin(a) * r0)} L${f1(cx + Math.cos(a) * 29)},${f1(cy + Math.sin(a) * 29)}`; }
+      out += `<path d="${ticks}" stroke="#2a1a08" stroke-width="1.4"/>`;
+      out += `<path d="M${f1(cx + Math.cos(-9 * DEG) * 27)},${f1(cy + Math.sin(-9 * DEG) * 27)} A27,27 0 0 1 ${f1(cx + Math.cos(45 * DEG) * 27)},${f1(cy + Math.sin(45 * DEG) * 27)}" fill="none" stroke="#c0281a" stroke-width="4"/>`;
+      const a = ang * DEG;
+      out += `<path d="M${f1(cx - Math.cos(a) * 6)},${f1(cy - Math.sin(a) * 6)} L${f1(cx + Math.cos(a) * 24)},${f1(cy + Math.sin(a) * 24)}" stroke="#1a0e04" stroke-width="2.4" stroke-linecap="round"/>`;
+      out += `<circle cx="${cx}" cy="${cy}" r="4" fill="#c8963c" stroke="#2a1a08"/>`;
+      out += `<path d="M${cx - 18},${cy - 22} Q${cx},${cy - 32} ${cx + 18},${cy - 22}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>`;
+    }
+    // steam pipes down the sides with flanges, and a lit window in each (the light channel below them)
+    for (const x of [22, 566]) {
+      out += `<rect x="${x - 7}" y="130" width="14" height="300" rx="6" fill="url(#pkc-brassG)" stroke="#2a1a08" stroke-width="1"/>`;
+      for (const y of [150, 250, 350, 420]) out += `<rect x="${x - 10}" y="${y}" width="20" height="8" rx="2" fill="#8a6428" stroke="#2a1a08" stroke-width=".8"/>`;
+    }
     return out;
   }
 
@@ -1147,6 +1190,8 @@
  <stop offset="0" stop-color="#5a646e"/><stop offset=".22" stop-color="#e8eef4"/><stop offset=".48" stop-color="#9aa6b2"/><stop offset=".52" stop-color="#4a545e"/><stop offset=".78" stop-color="#c8d2dc"/><stop offset="1" stop-color="#3a424a"/></linearGradient>
 <linearGradient id="pkc-guardS" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#f2f6fa"/><stop offset=".35" stop-color="#9aa6b2"/><stop offset=".55" stop-color="#3a424a"/><stop offset=".8" stop-color="#c8d2dc"/><stop offset="1" stop-color="#5a646e"/></linearGradient>
+<linearGradient id="pkc-brassG" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#fff0c8"/><stop offset=".3" stop-color="#d8a850"/><stop offset=".55" stop-color="#6a4818"/><stop offset=".8" stop-color="#e8c070"/><stop offset="1" stop-color="#7a5420"/></linearGradient>
 <linearGradient id="pkc-feather" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e2e9f8"/><stop offset="1" stop-color="#aebcdc"/></linearGradient>
 <linearGradient id="pkc-gun" x1="0" y1="0" x2="0" y2="1">
@@ -1394,8 +1439,41 @@
     const to = (v) => Math.round(Math.max(0, Math.min(1, v + m)) * 255).toString(16).padStart(2, "0");
     return "#" + to(rr) + to(gg) + to(bb);
   }
+  // 蒸氣巨神 (theme "brass"): reds and oranges turn furnace amber, golds stay brass, blues turn iron grey
+  function brassHex(hex) {
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (d < 0.04) return hex;
+    const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    let hue = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hue = (hue * 60 + 360) % 360;
+    let nh, ns = sat;
+    if (hue < 28 || hue >= 330) { nh = 30; ns = sat * 0.9; }            // red, orange -> furnace amber
+    else if (hue >= 160 && hue < 280) { nh = 210; ns = sat * 0.12; }   // blue, violet -> iron grey
+    else return hex;                                                    // golds and bronzes stay brass
+    const c = (1 - Math.abs(2 * l - 1)) * ns, x = c * (1 - Math.abs(((nh / 60) % 2) - 1)), m = l - c / 2;
+    const [rr, gg, bb] = nh < 60 ? [c, x, 0] : nh < 120 ? [x, c, 0] : nh < 180 ? [0, c, x] : nh < 240 ? [0, x, c] : nh < 300 ? [x, 0, c] : [c, 0, x];
+    const to = (v) => Math.round(Math.max(0, Math.min(1, v + m)) * 255).toString(16).padStart(2, "0");
+    return "#" + to(rr) + to(gg) + to(bb);
+  }
   const neonSvg = (str) => (S.neon ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, neonHex)
-    : S.steel ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, steelHex) : str);
+    : S.steel ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, steelHex)
+    : S.brass ? str.replace(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi, brassHex) : str);
+  // its lights: furnace amber breathing, white-hot flashes; RUSH races gold over amber
+  function brassAt(name, u, t, o) {
+    let r, g, b, i;
+    switch (name) {
+      case "normal": { const w = 0.5 + 0.5 * Math.sin(TAU * (t * 0.25 - u * 2)); r = 255; g = 120 + 60 * w; b = 30 + 30 * w; i = 0.55 + 0.3 * w; break; }
+      case "reach": { const p = Math.pow(0.5 + 0.5 * Math.sin(TAU * t * 1.6), 2); r = 255; g = 70 + 90 * p; b = 20 + 30 * p; i = 0.45 + 0.75 * p; break; }
+      case "hot": { const band = Math.floor(u * 20 + t * 11) & 1; if (band) { r = 255; g = 245; b = 220; } else { r = 255; g = 140; b = 30; } i = 0.85 + 0.3 * (0.5 + 0.5 * Math.sin(t * 19)); break; }
+      case "bonus": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 8 - t * 1.6))), 6); r = 255; g = lerp(150, 225, ch); b = lerp(40, 140, ch); i = 0.45 + 0.9 * ch; break; }
+      case "rush": { const ch = Math.pow(Math.max(0, Math.cos(TAU * (u * 6 + t * 1.7))), 6); r = 255; g = lerp(110, 240, ch); b = lerp(20, 200, ch); i = 0.6 + 0.8 * ch; break; }
+      default: return themeAt(name, u, t, o, true);
+    }
+    o[0] = r; o[1] = g; o[2] = b; o[3] = i;
+  }
   // its lights: emerald, silver flashes; RUSH races white over green
   function steelAt(name, u, t, o) {
     let r, g, b, i;
@@ -1442,6 +1520,7 @@
   function themeAt(name, u, t, o, base) {
     if (S.neon && !base) return neonAt(name, u, t, o);
     if (S.steel && !base) return steelAt(name, u, t, o);
+    if (S.brass && !base) return brassAt(name, u, t, o);
     let r, g, b, i;
     switch (name) {
       case "normal": {
@@ -1704,7 +1783,7 @@
   // Tint the swirl with the theme light around the frame (conic gradient over u) and add it.
   const SWIRL_STOPS = 24;
   function drawSwirl(x) {
-    if (!S.swirl || S.frame === "wings" || S.frame === "sword") return;   // 翼之枠 and 魔劍 have no swirl band: nothing would show
+    if (!S.swirl || S.frame === "wings" || S.frame === "sword" || S.frame === "titan") return;   // 翼之枠 and 魔劍 have no swirl band: nothing would show
     const c = S.swirlLayer;
     // The light flows slowly. On its own canvas under the field (炎舞神龍, the user: still a bit slow) it is
     // rebuilt one frame in 3 and the browser shows it as it is: the field no longer repaints it every frame.
@@ -1973,7 +2052,7 @@
 
   function pathLeft(pb, target) {
     if (pinLayout === "angel") return pathLeftAngel(pb, target);
-    if (pinLayout === "sword") return pathLeftSword(pb, target);
+    if (VTX()) return pathLeftSword(pb, target);
     const isHeso = target === "heso";
     if (!isHeso && rnd() < 0.12) { pb.route = "foul"; return pathFoul(pb); }
     const warp = rnd() < (isHeso ? 0.32 : 0.14);
@@ -2326,6 +2405,7 @@
 
     if (pinLayout === "angel") { drawAngelWings(x, t); drawHaloLight(x, t); drawDish(x); }
     if (pinLayout === "sword") { drawVortex(x); drawGauge(x); }
+    else if (pinLayout === "titan") drawGearWheel(x);
     // Pins.
     drawLayer(x, S.pins);
     if (pinLayout === "enbu") drawWindmill(x);
@@ -2792,6 +2872,46 @@
     x.globalAlpha = 1;
     x.globalCompositeOperation = "source-over";
   }
+  // 蒸氣巨神's heso: a brass gear turning where machine 3's whirlpool turns (the balls ride it the same
+  // way), the furnace glowing in its hub
+  function gearSprite() {
+    if (S.gearSpr) return S.gearSpr;
+    const R = VORTEX.r + 10, k = 2, c = document.createElement("canvas");
+    c.width = c.height = Math.ceil(2 * R * k + 4);
+    const g = c.getContext("2d");
+    g.translate(c.width / 2, c.height / 2); g.scale(k, k);
+    const teeth = 14, ro = R, ri = R - 6;
+    g.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = (i / teeth) * TAU, a1 = ((i + 0.22) / teeth) * TAU, a2 = ((i + 0.5) / teeth) * TAU, a3 = ((i + 0.72) / teeth) * TAU;
+      g.lineTo(Math.cos(a0) * ri, Math.sin(a0) * ri); g.lineTo(Math.cos(a1) * ro, Math.sin(a1) * ro);
+      g.lineTo(Math.cos(a2) * ro, Math.sin(a2) * ro); g.lineTo(Math.cos(a3) * ri, Math.sin(a3) * ri);
+    }
+    g.closePath();
+    const br = g.createLinearGradient(-R, -R, R, R);
+    br.addColorStop(0, "#f6dc9a"); br.addColorStop(0.35, "#c8963c"); br.addColorStop(0.7, "#6a4818"); br.addColorStop(1, "#d8b060");
+    g.fillStyle = br; g.fill(); g.lineWidth = 1; g.strokeStyle = "#2a1a08"; g.stroke();
+    g.globalCompositeOperation = "destination-out";   // the spokes' windows
+    for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(0, 0, ri - 5, (i / 5) * TAU + 0.18, ((i + 1) / 5) * TAU - 0.18); g.arc(0, 0, 13, ((i + 1) / 5) * TAU - 0.45, (i / 5) * TAU + 0.45, true); g.closePath(); g.fill(); }
+    g.globalCompositeOperation = "source-over";
+    g.beginPath(); g.arc(0, 0, ri - 5, 0, TAU); g.lineWidth = 1.2; g.strokeStyle = "rgba(255,240,200,.5)"; g.stroke();
+    g.beginPath(); g.arc(0, 0, 11, 0, TAU); g.fillStyle = "#2a1406"; g.fill(); g.lineWidth = 2; g.strokeStyle = "#c8963c"; g.stroke();
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU; g.beginPath(); g.arc(Math.cos(a) * (ri - 2), Math.sin(a) * (ri - 2), 1.3, 0, TAU); g.fillStyle = "#fff0c0"; g.fill(); }
+    return (S.gearSpr = c);
+  }
+  function drawGearWheel(x) {
+    const V = VORTEX, R = V.r + 10, sp = gearSprite();
+    x.save();
+    x.translate(V.x, V.y); x.rotate(S.vortA);
+    x.drawImage(sp, -R - 1, -R - 1, 2 * R + 2, 2 * R + 2);
+    x.restore();
+    const gl = Math.max(S.glow.vortex, 0.3 + 0.12 * Math.sin(S.time * 3));
+    x.globalCompositeOperation = "lighter";
+    x.globalAlpha = clamp(gl, 0, 1);
+    x.drawImage(sprite(255, 150, 40), V.x - 22, V.y - 22, 44, 44);   // the furnace in the hub
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+  }
   function drawVortex(x) {
     const V = VORTEX, R = V.r + 8, sp = vortexSprite();
     x.save();
@@ -2855,6 +2975,7 @@
     const g2 = x.createLinearGradient(0, top, 0, bot);
     if (S.neon) { g2.addColorStop(0, k > 0.5 ? "#bff8ff" : "#ff7ae6"); g2.addColorStop(0.5, "#b0168e"); g2.addColorStop(1, "#30063e"); }
     else if (S.steel) { g2.addColorStop(0, k > 0.5 ? "#e8fff4" : "#c8d2dc"); g2.addColorStop(0.5, "#4a6a5c"); g2.addColorStop(1, "#14201a"); }
+    else if (S.brass) { g2.addColorStop(0, k > 0.5 ? "#fff0c8" : "#f0cc78"); g2.addColorStop(0.5, "#8a5a18"); g2.addColorStop(1, "#2a1606"); }   // 蒸氣巨神: a brass door
     else { g2.addColorStop(0, k > 0.5 ? "#ffd27a" : "#ff6a2a"); g2.addColorStop(0.5, "#d0280c"); g2.addColorStop(1, "#5a0800"); }
     x.fillStyle = g2; x.strokeStyle = "#200200"; x.lineWidth = 1;
     x.beginPath(); x.moveTo(ATT_X - 52, top); x.lineTo(ATT_X + 52, top); x.lineTo(ATT_X + 52 + sp, bot); x.lineTo(ATT_X - 52 - sp, bot); x.closePath(); x.fill(); x.stroke();
@@ -2885,7 +3006,7 @@
     x.globalCompositeOperation = "lighter";
     const gl = S.glow;
     if (gl.heso > 0.02) {
-      if (pinLayout === "sword") { x.globalAlpha = gl.heso; x.drawImage(sprite(60, 235, 150), VORTEX.x - 44, VORTEX.y - 44, 88, 88); }
+      if (VTX()) { x.globalAlpha = gl.heso; x.drawImage(pinLayout === "titan" ? sprite(255, 178, 74) : sprite(60, 235, 150), VORTEX.x - 44, VORTEX.y - 44, 88, 88); }
       else { x.globalAlpha = gl.heso; x.drawImage(sprite(255, 90, 50), 294 - 26, (pinLayout === "angel" ? DISH.y : 551) - 26, 52, 52); }
     }
     if (gl.halo > 0.02) { const m = haloPt(HALO.a0); x.globalAlpha = gl.halo * 0.9; x.drawImage(sprite(255, 110, 230), m[0] - 18, m[1] - 18, 36, 36); }
@@ -2936,6 +3057,7 @@
     const mc = els.machine || {}, art = mc.art || {};
     S.neon = els.theme === "neon";
     S.steel = els.theme === "steel";
+    S.brass = els.theme === "brass";
     S.gimmick = mc.gimmick || null;
     S.frame = mc.frame || "dragon";
     pinLayout = mc.pins || "enbu";
@@ -3114,7 +3236,7 @@
       inWin: (x, y, s) => inWin(x, y, s), pins: () => PINS.all.slice(), attX: () => ATT_X,
       goals: () => {
         const angel = pinLayout === "angel";
-        return { heso: [angel ? [DISH.x, DISH.y] : pinLayout === "sword" ? [VORTEX.x, VORTEX.y] : [294, 548]], denchu: [[528, 468]], attacker: [[ATT_X, 612]],
+        return { heso: [angel ? [DISH.x, DISH.y] : VTX() ? [VORTEX.x, VORTEX.y] : [294, 548]], denchu: [[528, 468]], attacker: [[ATT_X, 612]],
           out: L.outs.map((o) => [o.x, o.y]).concat(angel ? [[DISH.x, DISH.y]] : []) };
       },
       // the screen: an ellipse on 霓虹天使 (src/ui.css), a rounded rect otherwise

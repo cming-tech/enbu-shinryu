@@ -423,6 +423,7 @@
     g.scale(K, K);
     if (THEME === "neon") return buildNeonLogo(c, g, K, w, h, variant, stage);
     if (STEEL) return buildSteelLogo(c, g, K, w, h, variant, stage);
+    if (BRASS) return buildBrassLogo(c, g, K, w, h, variant, stage);
     // flame wings behind the title
     g.save(); g.globalCompositeOperation = "lighter";
     for (let i = 0; i < 22; i++) {
@@ -495,7 +496,9 @@
   function applyTheme(theme) {
     THEME = theme === "neon" ? "neon" : "fire";
     STEEL = theme === "steel";
+    BRASS = theme === "brass";
     if (STEEL) return applySteel();
+    if (BRASS) return applyBrass();
     if (THEME !== "neon") return;
     LAY.corner = [[118, 104, 0.27, 1], [148, 104, 0.27, 1], [178, 104, 0.27, 1]];
     FONT_DIGIT = '"Orbitron","Dela Gothic One","Noto Sans TC","Arial Black",sans-serif';
@@ -520,6 +523,79 @@
   // emerald: odd digits emerald, even cold steel (7 stays gold), green embers and flames (暴食の炎), its own
   // logo and drawn backgrounds (until its AI art exists), emerald captions.
   let STEEL = false;
+  // 蒸氣巨神 (theme "brass", dev/MACHINE4.md): machine 1's layout in brass, copper and furnace amber,
+  // its own logo (a gear behind 蒸気巨神) and drawn backgrounds (pipes, a great gear, steam) until its AI art.
+  let BRASS = false;
+  function applyBrass() {
+    const BRASSRIM = [[0, "#fff6d8"], [0.28, "#f0cc78"], [0.55, "#7a5418"], [0.75, "#ffe6a8"], [1, "#4a3008"]];
+    // odd digits furnace copper, even dark iron with a brass rim (7 stays gold)
+    PAL.red = { face: [[0, "#fff4e4"], [0.16, "#ffd2a0"], [0.36, "#ff8a2a"], [0.52, "#8a3608"], [0.6, "#e0701e"], [0.82, "#ffc890"], [1, "#3a1404"]],
+      rim: BRASSRIM, inner: "#2a1004", ext: ["#4a1e06", "#140602"], glow: "rgba(255,150,40,0.95)", rgb: "255,150,40" };
+    PAL.blue = { face: [[0, "#f4f6f8"], [0.16, "#c8ccd2"], [0.36, "#6a727c"], [0.52, "#24282e"], [0.6, "#5a626c"], [0.82, "#b8bec6"], [1, "#101216"]],
+      rim: BRASSRIM, inner: "#0e1012", ext: ["#2a2e33", "#08090a"], glow: "rgba(255,200,120,0.8)", rgb: "230,210,170" };
+    PAL.fire = { face: [[0, "#ffffff"], [0.2, "#fff0d0"], [0.42, "#ffc860"], [0.62, "#e08a1e"], [0.8, "#8a4a08"], [1, "#2a1202"]],
+      rim: BRASSRIM, inner: "#2a1404", ext: ["#4a2408", "#140802"], glow: "rgba(255,170,60,0.9)", rgb: "255,170,60" };
+    DPAL.fire = { body: "#6a4a28", dark: "#1a1006", belly: "#e8c890", bellyLine: "#8a6430", fin: "#c8963c", finDark: "#4a3008", hi: "rgba(255,230,180,0.5)", horn: "#e8e0d0", hornDark: "#6a5a40", eye: "#ffb24a", glow: "255,178,74", mouth: "#1a1006", scale: "rgba(30,18,6,0.6)" };
+    RUSH_STAGES[0].pal = "red"; RUSH_STAGES[0].glow = "rgba(255,150,40,0.9)"; RUSH_STAGES[0].c1 = "255,150,40"; RUSH_STAGES[0].c2 = C.white;
+    RUSH_STAGES[1].pal = "blue"; RUSH_STAGES[1].glow = "rgba(255,220,160,0.9)"; RUSH_STAGES[1].c1 = C.white; RUSH_STAGES[1].c2 = "255,150,40";
+  }
+  function brassGear(g, cx, cy, r, teeth, col, w) {
+    g.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = (i / teeth) * TAU, a1 = ((i + 0.25) / teeth) * TAU, a2 = ((i + 0.5) / teeth) * TAU, a3 = ((i + 0.75) / teeth) * TAU, ri = r * 0.86;
+      g.lineTo(cx + Math.cos(a0) * ri, cy + Math.sin(a0) * ri); g.lineTo(cx + Math.cos(a1) * r, cy + Math.sin(a1) * r);
+      g.lineTo(cx + Math.cos(a2) * r, cy + Math.sin(a2) * r); g.lineTo(cx + Math.cos(a3) * ri, cy + Math.sin(a3) * ri);
+    }
+    g.closePath(); g.strokeStyle = col; g.lineWidth = w; g.stroke();
+    g.beginPath(); g.arc(cx, cy, r * 0.62, 0, TAU); g.stroke();
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; g.beginPath(); g.moveTo(cx + Math.cos(a) * r * 0.14, cy + Math.sin(a) * r * 0.14); g.lineTo(cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62); g.stroke(); }
+  }
+  function buildBrassLogo(c, g, K, w, h, variant, stage) {
+    const P = PAL.fire;
+    g.save(); g.globalCompositeOperation = "lighter";   // a furnace glow behind the letters
+    const hz = g.createRadialGradient(150, 50, 4, 150, 50, 130);
+    hz.addColorStop(0, "rgba(255,160,50,0.35)"); hz.addColorStop(1, "rgba(255,160,50,0)");
+    g.fillStyle = hz; g.fillRect(0, 0, w, h);
+    g.restore();
+    brassGear(g, 150, 50, 46, 16, "rgba(0,0,0,0.55)", 9);   // the great gear behind the title
+    brassGear(g, 150, 50, 46, 16, "#c8963c", 5);
+    brassGear(g, 150, 50, 46, 16, "rgba(255,240,200,0.6)", 1.2);
+    if (variant === "rush") {
+      const st = RUSH_STAGES[stage || 0], rp = PAL[st.pal];
+      fancyText(g, T(st.name), 150, 34, { K, size: 26, font: FONT_BRUSH, align: "center", face: P.face, rim: P.rim, inner: P.inner, ext: P.ext, glow: P.glow, outline: 0.14 });
+      fancyText(g, "RUSH", 150, 76, { K, size: 40, font: FONT_DIGIT, align: "center", face: rp.face, rim: rp.rim, inner: rp.inner, ext: rp.ext, glow: st.glow, outline: 0.13 });
+    } else {
+      fancyText(g, T("lcd.logoL"), 150, 24, { K, size: 22, font: FONT_BRUSH, align: "center", face: PAL.blue.face, rim: PAL.blue.rim, inner: PAL.blue.inner, ext: PAL.blue.ext, glow: "rgba(255,210,150,0.7)", outline: 0.14 });
+      fancyText(g, T("lcd.logoR"), 150, 72, { K, size: 50, font: FONT_BRUSH, align: "center", face: P.face, rim: P.rim, inner: P.inner, ext: P.ext, glow: P.glow, outline: 0.14 });
+    }
+    return { c, w, h, ax: w / 2, ay: h / 2 };
+  }
+  // its drawn backgrounds: a hall of copper pipes, a great gear turning in the dark, steam; each scene its light
+  const BRASS_BG = {
+    normal: ["#0a0602", "#2a1a08", "#3a2408", "255,170,60"], sp: ["#0a0406", "#2a0c14", "#3a1a0a", "255,110,60"],
+    spsp: ["#0c0402", "#3a0c04", "#4a1a06", "255,80,30"], battle: ["#0c0202", "#3a0804", "#2a0c06", "255,60,30"],
+    bonus: ["#0a0804", "#3a2c14", "#5a4420", "255,230,170"], result: ["#0a0804", "#3a2c14", "#5a4420", "255,230,170"],
+    rush: ["#0c0602", "#4a2a08", "#6a3a0a", "255,190,80"], jitan: ["#04060a", "#14202a", "#24303a", "200,220,240"],
+  };
+  function brassBg(g, id) {
+    const [c0, c1, c2, lc] = BRASS_BG[id] || BRASS_BG.normal;
+    vGrad(g, [[0, c0], [0.45, c1], [0.8, c2], [1, c0]]);
+    const glow = g.createRadialGradient(CX, 190, 10, CX, 190, 240);
+    glow.addColorStop(0, "rgba(" + lc + ",0.35)"); glow.addColorStop(1, "rgba(" + lc + ",0)");
+    g.fillStyle = glow; g.fillRect(-12, -12, W + 24, H + 24);
+    brassGear(g, CX, 170, 170, 28, "rgba(" + lc + ",0.12)", 14);   // the great gear in the dark
+    for (let i = 0; i < 7; i++) {   // copper pipes
+      const x = -10 + i * 66 + (i % 2) * 14, w = 18;
+      const pg = g.createLinearGradient(x, 0, x + w, 0);
+      pg.addColorStop(0, "rgba(20,10,4,0.85)"); pg.addColorStop(0.45, "rgba(176,96,58,0.55)"); pg.addColorStop(1, "rgba(10,4,0,0.85)");
+      g.fillStyle = pg; g.fillRect(x, -12, w, H + 24);
+      g.fillStyle = "rgba(200,150,60,0.5)"; for (let y = 30 + (i % 3) * 40; y < H; y += 110) g.fillRect(x - 3, y, w + 6, 7);
+    }
+    clouds(g, 260, 12, "rgba(255,240,220,0.10)", 90, 16);   // steam
+    const fl = g.createLinearGradient(0, 250, 0, H + 12);
+    fl.addColorStop(0, "rgba(0,0,0,0)"); fl.addColorStop(1, "rgba(0,0,0,0.85)");
+    g.fillStyle = fl; g.fillRect(-12, 250, W + 24, 90);
+  }
   function applySteel() {
     const SILVER = [[0, "#ffffff"], [0.28, "#dfe6ee"], [0.55, "#5a646e"], [0.75, "#f2f6fa"], [1, "#3a424a"]];
     PAL.red = { face: [[0, "#f4fff8"], [0.16, "#b8ffd8"], [0.36, "#2ad890"], [0.52, "#05683c"], [0.6, "#24c880"], [0.82, "#a8ffd4"], [1, "#023018"]],
@@ -1542,7 +1618,7 @@
     const K = BGK[id] || 1, c = mkCanvas((W + 24) * K, (H + 24) * K), g = c.getContext("2d");
     g.scale(K, K); g.translate(12, 12);
     const save = rng; rng = mulberry32(1234 + id.length * 77);
-    if (STEEL) steelBg(g, id); else (BGB[id] || BGB.normal)(g, K);
+    if (STEEL) steelBg(g, id); else if (BRASS) brassBg(g, id); else (BGB[id] || BGB.normal)(g, K);
     rng = save;
     return (cache[key] = c);
   }
@@ -2130,6 +2206,9 @@
       const lx = u < 1 ? lerp(90, -128, E.io(u)) : -128, [px, py] = L(150 + lx * ca, 62 + lx * sa);
       const a = u < 1 ? fx.logoA : fx.logoA * Math.max(0, 1 - (u - 1) * 0.9);
       star4(ctx, px, py, (u < 1 ? 5 : 9 * Math.sin(Math.min(1, u - 1) * Math.PI)) + 2, a);
+    } else if (BRASS) {   // round the rim of the great gear
+      const a = clk.t * 1.2, [px, py] = L(150 + Math.cos(a) * 46, 50 + Math.sin(a) * 46);
+      star4(ctx, px, py, 4 + 2.5 * Math.sin(clk.t * 5), fx.logoA);
     } else if (THEME === "neon") {   // round the halo over the letters
       const a = clk.t * 1.6, [px, py] = L(150 + Math.cos(a) * 40, 14 + Math.sin(a) * 7);
       star4(ctx, px, py, 4 + 2.5 * Math.sin(clk.t * 5), fx.logoA * (Math.sin(a) > -0.2 ? 1 : 0.35));   // dimmer behind

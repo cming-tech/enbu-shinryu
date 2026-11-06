@@ -419,6 +419,8 @@
         // 轉生史萊姆與魔劍 (dev/MACHINE3.md), unused by the other machines: 覚醒 (awake spins left at awakeMul
         // times the normal chance) and 魔王降臨 (rushBoost: the next RUSH's chance; rushBoostOn while it runs)
         awake: 0, awakeMul: 1, rushBoost: 0, rushBoostOn: 0,
+        // 蒸氣巨神's ラッキートリガー: a RUSH hit may lift the rest of the streak into 神域RUSH (upper: on)
+        upper: 0,
         ballSeq: 0, spinSeq: 0, slumpEvery: 1,
         tot: { start: startChips, fired: 0, paid: 0, refill: 0, lost: 0 },
         stats: { totalSpins: 0, spinsSinceHit: 0, hits: 0, rushHits: 0, maxChips: startChips, history: [], slump: [startChips] },
@@ -441,6 +443,7 @@
       S = freshState(isFinite(sc0) ? Math.max(0, sc0) : U.startChips);
     }
     if (!(boost > 0)) boost = 1;
+    let LT = null;   // ラッキートリガー (luckyTrigger)
 
     // -- events
     // A listener that throws never stops the rest: ballArrived must still emit roundEnd/bonusEnd,
@@ -474,7 +477,7 @@
       if (from === to) return;
       // the boost lasts the whole RUSH streak (its bonuses included) and ends when the streak does
       if (to === "rush" && S.rushBoost && !S.rushBoostOn) { S.rushBoostOn = S.rushBoost; S.rushBoost = 0; emit("rushBoost", { chance: S.rushBoostOn }); }
-      if (to === "normal" || to === "jitan") S.rushBoostOn = 0;
+      if (to === "normal" || to === "jitan") { S.rushBoostOn = 0; S.upper = 0; }
       S.mode = to;
       emit("mode", { from, to });
     }
@@ -634,15 +637,20 @@
       if (h.src === "denchu" && h.pm !== mode) diag.projMismatch++;
       const hit = h.hit || h.r < chance(mode);
       if (mode !== "rush" && S.awake > 0) { S.awake--; emit("awake", { left: S.awake }); }
-      let kind = null, next = null;
+      let kind = null, next = null, lt = false;
       if (hit) {
         if (mode === "rush" || h.src === "denchu") { kind = pick(C_KINDS.denchu, h.r2); next = "rush"; }
         else {
           kind = pick(C_KINDS.heso, h.r2);
           next = h.r3 < SP.hesoRushShare ? "rush" : "jitan";
         }
+        // ラッキートリガー: a RUSH hit pulls it with LT.chance; from then on the streak runs at LT.rushChance
+        // (through rushBoostOn, which ends with the streak) and every hit is a 10R
+        if (mode === "rush" && LT && !S.upper && rng() < LT.chance) { S.upper = 1; S.rushBoostOn = Math.max(S.rushBoostOn || 0, LT.rushChance); lt = true; }
+        if (mode === "rush" && S.upper) kind = "10R";
       }
       const sc = buildScript(h, mode, hit, kind, next, before);
+      if (lt) sc.lt = true;
       // 先読み: spins to go until a marked hold (zone), or this is the marked one (zoneLast)
       const ahead = mode === "normal" ? q.findIndex((x) => x.zone) : -1;
       sc.zone = ahead >= 0 ? ahead + 1 : 0;
@@ -740,7 +748,7 @@
         // must get a normal-mode spin, not a 12th ST spin. Event order: rushEnd, mode, denchu.
         S.chain = false;
         S.mode = "normal";
-        S.rushBoostOn = 0;   // 魔王降臨 ends with the streak
+        S.rushBoostOn = 0; S.upper = 0;   // 魔王降臨 and 神域RUSH end with the streak
         if (from === "rush") emit("rushEnd", { streak: S.rushStreak, gained: S.rushGained });
         emit("mode", { from, to: "normal" });
         emit("denchu", false);
@@ -832,7 +840,7 @@
         round: S.round, rounds: S.rounds, roundCount: S.roundCount,
         bonusGained: S.bonusGained, bonusKind: S.bonusKind, bonusNext: S.bonusNext,
         rushStreak: S.rushStreak, rushGained: S.rushGained,
-        awake: S.awake, rushBoost: S.rushBoost, rushBoostOn: S.rushBoostOn,
+        awake: S.awake, rushBoost: S.rushBoost, rushBoostOn: S.rushBoostOn, upper: S.upper,
         attacker: S.attackerOpen, denchu: S.mode === "rush" || S.mode === "jitan",
         spinning: !!S.spinning,
         stats: {
@@ -851,6 +859,8 @@
       // 魔王降臨 = the next RUSH runs at `rushChance` (back to the machine's own when it ends)
       awaken: function (mul, spins) { S.awakeMul = Math.max(1, +mul || 1); S.awake = Math.max(0, spins | 0); emit("awake", { left: S.awake }); },
       boostNextRush: function (rushChance) { S.rushBoost = Math.min(1, Math.max(0, +rushChance || 0)); },
+      // 蒸氣巨神: ラッキートリガー on, a RUSH hit pulls it with `chance`, the rest of the streak at `rushChance`
+      luckyTrigger: function (chance, rushChance) { LT = chance > 0 ? { chance: Math.min(1, +chance), rushChance: Math.min(1, Math.max(0, +rushChance || 0)) } : null; },
       tables: T,
       derived: D,
       warnings,

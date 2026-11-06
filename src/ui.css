@@ -373,6 +373,31 @@
   #app[data-machine="sword"] #handle.on { box-shadow: inset 0 0 0 6px #eef4fa, inset 0 0 0 9px #3a444a, inset 0 0 0 11px #0a2a1a, 0 0 26px 6px rgba(42, 216, 144, 0.8); }
   #app[data-machine="sword"] #handle.on b { color: #8a0a14; }
 
+  /* 蒸氣巨神: brass, copper, iron and furnace amber (no machine 1 red/green/blue on its console) */
+  #app[data-machine="titan"] { --gold: #e8b860; --ice: #d8c8a8; --led: #ffb24a; --fire: #ff8a2a; --metal: #17140f; --metal-2: #201b14; --line: #3a3020; --amb: rgba(255, 160, 60, 0.28); }
+  #app[data-machine="titan"][data-theme="reach"] { --amb: rgba(255, 110, 40, 0.42); }
+  #app[data-machine="titan"][data-theme="hot"] { --amb: rgba(255, 230, 190, 0.44); }
+  #app[data-machine="titan"][data-theme="bonus"] { --amb: rgba(255, 210, 120, 0.42); }
+  #app[data-machine="titan"][data-theme="rush"] { --amb: rgba(255, 170, 60, 0.46); }
+  #app[data-machine="titan"] .crest { background: radial-gradient(circle at 35% 30%, #fff6d8, #e8c070 40%, #8a6428 75%, #2a1a08); box-shadow: 0 0 0 2px #2a1a08, 0 0 14px rgba(255, 170, 60, 0.6); color: #2a1404; }
+  #app[data-machine="titan"] #brand b { background: linear-gradient(180deg, #fff6d8 0%, #f0cc78 45%, #c8862c 100%); -webkit-background-clip: text; background-clip: text; }
+  #app[data-machine="titan"] #push { background: linear-gradient(#ffb060, #a8480c); text-shadow: 0 2px 0 #3a1404; }
+  #app[data-machine="titan"] #push.prompt { animation-name: titanPulse; }
+  @keyframes titanPulse { from { filter: brightness(1); } to { filter: brightness(1.45) drop-shadow(0 0 14px #ff9a2a); } }
+  #app[data-machine="titan"] #panel .oval { background: radial-gradient(ellipse at 50% 30%, #f0cc78 0%, #8a6428 45%, #2a1a08 100%);
+    box-shadow: inset 0 0 0 3px #fff0c8, inset 0 0 0 5px #4a3818, inset 0 6px 10px rgba(255, 255, 255, 0.35), 0 4px 10px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="titan"] #autoBtn { border-color: #e8b860; background: linear-gradient(#2a1e10, #120c06); color: #ffe6b0; }
+  #app[data-machine="titan"] #autoBtn[aria-pressed="true"] { background: linear-gradient(#ffb060, #a8480c); color: #fff; }
+  #app[data-machine="titan"] .big.primary, #app[data-machine="titan"] .tog[aria-pressed="true"], #app[data-machine="titan"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#ffb060, #a8480c); border-color: #ffc890; color: #fff; }
+  #app[data-machine="titan"] #coins b, #app[data-machine="titan"] #dataBar b, #app[data-machine="titan"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(255, 170, 60, 0.55); }
+  /* its PLAY knob: a pressure gauge's glass over the furnace, a brass rim */
+  #app[data-machine="titan"] #handle { background: radial-gradient(circle at 50% 42%, #fffaf0 0%, #ffe8c0 24%, #ffa040 56%, #8a3a08 80%, #1a0a02 100%);
+    box-shadow: inset 0 0 0 6px #e8c070, inset 0 0 0 9px #6a4818, inset 0 0 0 11px #2a1a08, 0 6px 14px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="titan"] #handle .grip { background: repeating-conic-gradient(from 0deg, rgba(42, 20, 4, 0.55) 0 3deg, rgba(255, 255, 255, 0) 3deg 27deg); }
+  #app[data-machine="titan"] #handle b, #app[data-machine="titan"] #handle .lbl, #app[data-machine="titan"] #handle .pw { color: #2a1004; }
+  #app[data-machine="titan"] #handle.on { box-shadow: inset 0 0 0 6px #fff0c8, inset 0 0 0 9px #6a4818, inset 0 0 0 11px #2a1a08, 0 0 26px 6px rgba(255, 160, 60, 0.8); }
+  #app[data-machine="titan"] #handle.on b { color: #8a0a04; }
+
   /* 遊戲大廳 (home): the site opens here; a big card per machine. */
   #home { position: fixed; inset: 0; z-index: 25; overflow-y: auto; -webkit-overflow-scrolling: touch;
     background: radial-gradient(120% 60% at 50% 0%, #2a1840 0%, #0b0a18 55%, var(--ground) 100%); }

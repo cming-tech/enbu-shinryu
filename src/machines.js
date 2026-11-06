@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 68;
+  PK.VERSION = 69;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -218,6 +218,73 @@
       "gl.rush": "連戦RUSH|大當之後的特別模式，中獎機率很高，很容易一直連續中。連中會升級：連戦 → 猛攻（連 2）→ 魔王（連 3），畫面和顏色跟著變。",
     }),
   };
+
+  // Machine 4, 蒸氣巨神 (design: dev/MACHINE4.md): the clockwork colossus of a lost civilisation under a
+  // steam city. Brass, copper, iron and furnace amber (theme: "brass"); rivets, pressure gauges, steam
+  // pipes and a half gear over the window (frame: "titan"), where its 3D head will rest; machine 3's board
+  // with the whirlpool as a turning furnace gear (pins: "titan"). In the hall as 試作中.
+  PK.MACHINES.titan = {
+    id: "titan",
+    name: "蒸氣巨神",
+    crest: "巨",
+    serial: "0404",
+    assetsBase: "assets/titan_",
+    theme: "brass",
+    refill: 10000,
+    card: "jackpot_art.jpg",
+    preview: "preview.jpg",
+    tutPrefix: "titan_",
+    tagline: "【試作中】古代機械巨神：3D 大型機關、ラッキートリガー、神域RUSH",
+    odds: E.odds,
+    engine: E.engine,
+    cabinet: { pins: "titan", frame: "titan", art: {} },
+    // the 3D head (src/titan3d.js): its canvas over the stage (design units), resting in front of the half
+    // gear over the window and dropping in front of the LCD's top (three.js world units, scale)
+    // ラッキートリガー: a RUSH hit pulls it with `chance`; the rest of the streak (神域RUSH) runs one odds
+    // preset up and every hit is a 10R (engine luckyTrigger; the shell picks the preset)
+    lt: { chance: 1 / 8 },
+    head3d: { base: "assets/titan_", box: [94, 0, 400, 420], rest: { y: 1.86, s: 0.38 }, down: { y: -0.65, s: 0.88 } },
+    text: Object.assign({}, E.text, {
+      "lcd.logoL": "蒸気", "lcd.logoR": "巨神", "lcd.crest": "巨",
+      "lcd.lt": "ラッキートリガー!!", "lcd.ltSub": "神域RUSH突入",
+      // the LCD (Japanese): the colossus, its old engineer, the iron beasts
+      "lcd.gun": "鉄獣群", "lcd.kokuchi": "巨神起動!!", "lcd.zone": "臨界ゾーン", "lcd.premium": "黄金飛来!!",
+      "lcd.serif.white": "む……何か来るか？", "lcd.serif.blue": "圧力が、上がっておる。", "lcd.serif.green": "いい調子じゃ！",
+      "lcd.serif.red": "いけるぞ、いける！", "lcd.serif.gold": "全ての蒸気を、この一撃に！",
+      "lcd.spReach": "巨神リーチ", "lcd.spspReach": "炉心リーチ",
+      "lcd.hero": "蒸気巨神", "lcd.rival": "鉄獣王", "lcd.battle": "巨神決戦", "lcd.lose": "機能停止…", "lcd.battleHint": "炉心全開!!",
+      "lcd.roundLines": "叩き潰せ！|蒸気全開！|まだまだ！|圧力上昇！|歯車よ回れ！|巨神の拳！|一気に行け！|炉心が燃える！|押し切れ！|勝利は目前！",
+      "lcd.minions": "鉄狼|発条蠍|甲虫戦車|鉄牛|機械大蛇|鉄翼鬼",
+      "lcd.awakenTitle": "巨神覚醒チャレンジ", "lcd.awakenHint": "PUSH連打で炉心に火を入れろ！", "lcd.awakenOk": "巨神覚醒!!",
+      "lcd.rushName0": "巨神", "lcd.rushName1": "烈風", "lcd.rushName2": "黄金", "lcd.rushOver": "巨神RUSH 終了",
+      // the shell (Chinese)
+      "ex.sp": "巨神リーチ|巨神在蒸汽城市裡起身的聽牌", "ex.battleWin": "巨神決戦・勝利|巨神打倒鐵獸王", "ex.battleLose": "巨神決戦・敗北|巨神被鐵獸王打倒",
+      "ex.gun": "鉄獣群|一大群鋼鐵巨獸衝過畫面", "ex.zone": "臨界ゾーン|邊框越來越燙，最後勝負!!", "ex.premium": "黄金飛来|很少見，黃金飛船飛過＝確定大當",
+      "ms.note": "每天換 3 個新任務，完成就送珠子和經驗。中大當、打倒鋼鐵巨獸也有經驗。等級和稱號按「重新開始」也不會清除。",
+      "ms.boss": "打倒 {n} 隻鋼鐵巨獸", "ms.sp": "看到 {n} 次大演出（巨神リーチ、巨神決戦、激アツ）",
+      "lv.titles": "見習技師|蒸汽技師|巨神駕駛|鋼鐵英雄|巨神之主",
+      "rec.boss": "擊倒鋼鐵巨獸", "ach.rush": "突入 RUSH|第一次進入巨神RUSH", "ach.boss": "擊倒巨獸|大當中連打 PUSH 擊倒鋼鐵巨獸",
+      "ach.boss10": "巨獸剋星|擊倒 10 隻鋼鐵巨獸", "ach.awaken": "巨神覺醒|在決定戰讓巨神覺醒", "ach.premium": "黃金飛來|看到很少見的黃金飛船",
+      "cap.premium": "黄金飛来：黃金飛船飛過整個畫面＝確定大當！很少見", "cap.zone": "臨界ゾーン（先讀預告）：後面排隊的保留裡可能藏著大當，最後一轉出現「勝負!!」",
+      "cap.battle": "巨神決戦（對決）：連打 PUSH 幫巨神，打贏就是大當", "cap.gun": "鉄獣群預告：大約一半機會",
+      "cap.rush": "巨神RUSH：很容易連續中獎", "cap.minion": "大當中：連打 PUSH 打倒鋼鐵巨獸，打倒多拿 100 顆",
+      "cap.awaken": "最後決戰：連打 PUSH 替巨神的爐心點火，成功就進 RUSH！", "cap.awakenNg": "這次爐心沒點著，接下來是時短 20 轉",
+      "gl.credits": "配音：VOICEVOX:No.7、VOICEVOX:ちび式じい",
+      "gl.flow": "打珠|珠子進入賞口|數字轉|リーチ（聽牌）|大当り（大當）|右打ち拿珠|巨神RUSH 或 時短",
+      "gl.boss": "鋼鐵巨獸|大當前幾回合出現的鐵獸王手下，每次大當換一隻。連打 PUSH 把牠的血條打光，就多拿 100 顆。開了「自動 PUSH」會自動幫你打。",
+      "gl.awaken": "巨神覚醒チャレンジ（巨神覺醒挑戰）|大當最後一回合的決定戰。連打 PUSH 替巨神的爐心點火：成功就進巨神RUSH，沒醒就是時短 20 轉。結果在中大當時就決定了。",
+      "gl.rush": "巨神RUSH|大當之後的特別模式。中獎機率很高，很容易一直連續中。連中會升級：巨神RUSH → 烈風RUSH（連 2）→ 黃金RUSH（連 3）。另外有ラッキートリガー觸發的神域RUSH。",
+      "gl.gun": "鉄獣群預告|一大群鋼鐵巨獸衝過畫面，大約一半機會。",
+      "gl.battle": "巨神決戦（對決）|リーチ後巨神和鐵獸王對戰。連打 PUSH 幫巨神，打贏就是大當。",
+      "gl.kokuchi": "巨神起動!!（確定告知）|巨神的頭落下、眼睛發金光，一出現就確定中了大當。",
+      "gl.zone": "臨界ゾーン（先讀預告）|畫面邊緣連續好幾轉越來越燙。表示後面排隊的保留裡可能有大當（大約四成），輪到那一轉時出現「勝負!!」。",
+      "gl.premium": "黄金飛来|很少見的演出：黃金飛船飛過整個畫面，出現就確定大當。",
+      "cab.subUpper": "神域RUSH\n約{p}%",
+      "cap.lt": "ラッキートリガー：升級成神域RUSH！連莊率提高，之後每次大當都是 10 回合",
+      "gl.lt": "ラッキートリガー（幸運扳機）|RUSH 中中大當時，大約 8 次有 1 次會觸發。巨神張開臉、全身發金光，升級成「神域RUSH」：連莊率提高一級，而且之後每次大當都是 10 回合，一直到這一輪 RUSH 結束。",
+    }),
+  };
+
 
   // Machine 2, a 羽根物 with real ball physics (src/hane/hane.js) instead of 炎舞神龍's engine and
   // LCD, so it has its own page (`page`) and shell (src/hane/hane_shell.js); the lobby switches

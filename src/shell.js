@@ -428,12 +428,12 @@
     ids.sort((a, b) => (PK.MACHINES[b] === M) - (PK.MACHINES[a] === M));
     ids.forEach((id) => {
       const m = PK.MACHINES[id], on = m === M;
-      card(m, on, on ? () => { $("home").hidden = true; PK.Cabinet.pause(false); if (hallRest) hallRest(false); snd("button"); onEnter(); }
+      card(m, on, on ? () => { $("home").hidden = true; PK.Cabinet.pause(false); PK.LCD.pause(false); if (hallRest) hallRest(false); snd("button"); onEnter(); }
         : () => { store(KEY_MACHINE, id); try { sessionStorage.setItem(KEY_ENTER, "1"); } catch (e) { /* the hall shows again */ } if (m.page) location.href = m.page; else location.reload(); });
     });
     card(null, false, null);
     $("home").hidden = false;
-    PK.Cabinet.pause(true);
+    PK.Cabinet.pause(true); PK.LCD.pause(true);
   }
   function showMissions() {
     const r = mis.data, day = mis.todays(), ul = $("msList");
@@ -554,7 +554,7 @@
     }
     setInterval(save, 4000);
     document.addEventListener("visibilitychange", () => {
-      PK.Cabinet.pause(document.hidden);
+      PK.Cabinet.pause(document.hidden || !$("home").hidden);   // the hall keeps it paused on return
       if (document.hidden) save(true);
     });
     window.addEventListener("pagehide", () => save(true));
@@ -1262,9 +1262,9 @@
     };
     let entered = false;
     try { entered = sessionStorage.getItem(KEY_ENTER) === "1"; sessionStorage.removeItem(KEY_ENTER); } catch (e) { /* no session storage: show the hall */ }
-    hallRest = (on) => {
-      if (on) { if (firing) setFiring(false); PK.Sound.setEnabled(false); }
-      else PK.Sound.setEnabled(set.sound);
+    hallRest = (on) => {   // the hall plays its own song; the machine's comes back on the way in
+      if (on && firing) setFiring(false);
+      PK.Sound.lobby(on);
     };
     if (entered) welcome(); else showHome(welcome);
     // The phone's back button / gesture (the user: it closed the whole game every time). Extra history

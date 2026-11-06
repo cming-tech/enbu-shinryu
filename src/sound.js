@@ -1497,6 +1497,7 @@
 
   // Bring the playing bed in line with bedWant.
   function applyBed() {
+    applyLobby();
     if (!rig || !unlocked || !enabled) return;
     if (bedCur && bedCur.name === bedWant && !bedCur.dead) return;
     if (bedCur) { fadeOutBed(bedCur); bedCur = null; }
@@ -1577,6 +1578,42 @@
     for (const v of rig.voices.slice()) finishVoice(rig, v);
   }
 
+  // ---------------------------------------------------------------- 遊戲大廳 music
+  // One song for the hall, shared by every machine (assets/hall_bgm_lobby.mp3, its loop in
+  // assets/hall_bgm_loops.json from `node dev/make_bgm_loops.js hall_`). While it plays the
+  // machine's bed is off (the user: the hall had no music, it was muted behind the machine).
+  const LOBBY_FILE = "assets/hall_bgm_lobby.mp3", LOBBY_LOOPS = "assets/hall_bgm_loops.json";
+  let lobbyWant = false, lobbyBuf = null, lobbyJob = null, lobbySrc = null, lobbyPrev = null;
+  function lobbyLoad() {
+    if (lobbyJob || !ctx || typeof fetch !== "function") return;
+    lobbyJob = Promise.all([
+      fetch(LOBBY_FILE).then((r) => (r.ok ? r.arrayBuffer() : null)),
+      fetch(LOBBY_LOOPS).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([ab, j]) => {
+      if (!ab) return null;
+      if (j && j.lobby) LOOPS.hall_lobby = j.lobby;
+      return new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+    }).then((buf) => (buf ? runSliced(loopGen(buf, "hall_lobby")) : null)).then((loop) => { lobbyBuf = loop; applyLobby(); }, () => {});
+  }
+  function applyLobby() {
+    if (!ctx || !rig) return;
+    const on = lobbyWant && unlocked && enabled;
+    if (on && !lobbyBuf) { lobbyLoad(); return; }
+    if (on && !lobbySrc) {
+      const s = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime + 0.02;
+      s.buffer = lobbyBuf; s.loop = true;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 1.5);
+      s.connect(g); g.connect(rig.bgm); s.start(t);
+      lobbySrc = { s, g };
+    } else if (!on && lobbySrc) {
+      const { s, g } = lobbySrc, t = ctx.currentTime;
+      g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + 0.6);
+      try { s.stop(t + 0.65); } catch (e) { /* ignore */ }
+      s.onended = () => { try { s.disconnect(); g.disconnect(); } catch (e) { /* ignore */ } };
+      lobbySrc = null;
+    }
+  }
+
   const Sound = {
     unlock() {
       try {
@@ -1616,6 +1653,7 @@
           if (unlocked) prerender();
         } else {
           if (bedCur) { fadeOutBed(bedCur); bedCur = null; }
+          applyLobby();
           stopVoiceLine();
           setTimeout(() => { if (!enabled) stopAllVoices(); }, 120);
           suspendSoon(400);
@@ -1643,8 +1681,19 @@
         rig.play(String(name), ctx.currentTime + 0.006);
       } catch (e) { /* never throw */ }
     },
+    // The 遊戲大廳's song: on puts the machine's bed aside (it comes back when the hall closes).
+    lobby(on) {
+      try {
+        on = !!on;
+        if (on === lobbyWant) return;
+        lobbyWant = on;
+        if (on) { lobbyPrev = bedWant; bedWant = null; } else { bedWant = lobbyPrev; lobbyPrev = null; }
+        applyBed();
+      } catch (e) { /* never throw */ }
+    },
     bgm(name) {
       try {
+        if (lobbyWant) { lobbyPrev = BGM_NAMES.indexOf(name) >= 0 ? name : null; return; }   // kept for when the hall closes
         bedWant = BGM_NAMES.indexOf(name) >= 0 ? name : null;
         applyBed();
       } catch (e) { /* never throw */ }
@@ -1692,6 +1741,7 @@
   };
 
   // Introspection and offline-render hooks for dev/sound_demo.html (not part of the game API).
+  Sound._lobby = () => ({ want: lobbyWant, loaded: !!lobbyBuf, playing: !!lobbySrc });   // test hook
   Sound._debug = () => ({
     hasCtx: !!ctx, state: ctx ? ctx.state : "none", time: ctx ? ctx.currentTime : 0,
     unlocked, enabled, volume, hidden,

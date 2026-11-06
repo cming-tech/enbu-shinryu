@@ -1400,8 +1400,10 @@
   let holdView = [];       // [{c, x, born}]
   let holdSrc = { holds: [], rush: [] };
   const ped = { c: null, a: 0, x: CX, y: 298, s: 1, t0: -9, chT0: -9 };
-  function holdSpr(c, hueStep) {
-    const key = "h" + c + (c === "rainbow" ? hueStep : "");
+  // thin: the small holds of a 10-hold machine (HOLD_S < 1): a thin rim and a bigger orb, else the
+  // silver rim took most of the icon and the user saw grey balls instead of blue ones
+  function holdSpr(c, hueStep, thin) {
+    const key = "h" + c + (c === "rainbow" ? hueStep : "") + (thin ? "t" : "");
     if (cache[key]) return cache[key];
     const K = 2.4, R = 16, S = R * 3;
     const cv = mkCanvas(S * K, S * K), g = cv.getContext("2d");
@@ -1415,19 +1417,20 @@
     if (c === "gold" || c === "rainbow") { rim.addColorStop(0, "#fffbe0"); rim.addColorStop(0.4, "#ffc21a"); rim.addColorStop(0.7, "#8a5000"); rim.addColorStop(1, "#ffe48a"); }
     else { rim.addColorStop(0, "#ffffff"); rim.addColorStop(0.4, "#b8c4d4"); rim.addColorStop(0.7, "#4a5668"); rim.addColorStop(1, "#e4ecf4"); }
     g.fillStyle = rim; g.beginPath(); g.arc(0, 0, R * 0.92, 0, TAU); g.fill();
+    const OR = thin ? 0.86 : 0.76;   // the orb's radius
     const [r0, g0, b0] = rgb.split(",").map(Number);
     const lite = "rgb(" + Math.min(255, r0 + 120) + "," + Math.min(255, g0 + 120) + "," + Math.min(255, b0 + 120) + ")";
     const dark = "rgb(" + Math.round(r0 * 0.3) + "," + Math.round(g0 * 0.3) + "," + Math.round(b0 * 0.3) + ")";
-    const orb = g.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R * 0.8);
-    orb.addColorStop(0, "#ffffff"); orb.addColorStop(0.2, lite); orb.addColorStop(0.6, "rgb(" + rgb + ")"); orb.addColorStop(1, dark);
-    g.fillStyle = orb; g.beginPath(); g.arc(0, 0, R * 0.76, 0, TAU); g.fill();
+    const orb = g.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R * (OR + 0.04));
+    orb.addColorStop(0, "#ffffff"); orb.addColorStop(thin ? 0.12 : 0.2, lite); orb.addColorStop(thin ? 0.45 : 0.6, "rgb(" + rgb + ")"); orb.addColorStop(1, dark);
+    g.fillStyle = orb; g.beginPath(); g.arc(0, 0, R * OR, 0, TAU); g.fill();
     if (c === "rainbow" && g.createConicGradient) {
       const cg = g.createConicGradient((hueStep / 12) * TAU, 0, 0);
       for (let i = 0; i <= 6; i++) cg.addColorStop(i / 6, "hsl(" + i * 60 + ",100%,55%)");
-      g.fillStyle = cg; g.beginPath(); g.arc(0, 0, R * 0.76, 0, TAU); g.fill();
+      g.fillStyle = cg; g.beginPath(); g.arc(0, 0, R * OR, 0, TAU); g.fill();
       const sh = g.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R * 0.8);
       sh.addColorStop(0, "rgba(255,255,255,0.95)"); sh.addColorStop(0.35, "rgba(255,255,255,0.15)"); sh.addColorStop(1, "rgba(0,0,0,0.45)");
-      g.fillStyle = sh; g.beginPath(); g.arc(0, 0, R * 0.76, 0, TAU); g.fill();
+      g.fillStyle = sh; g.beginPath(); g.arc(0, 0, R * OR, 0, TAU); g.fill();
     }
     // flame emblem
     g.fillStyle = "rgba(255,255,255,0.55)";
@@ -1439,7 +1442,7 @@
   function drawHoldIcon(ctx, c, x, y, r, a) {
     if (a <= 0.01) return;
     const hs = Math.floor(clk.t * 10) % 12;
-    const sp = holdSpr(c, hs);
+    const sp = holdSpr(c, hs, HOLD_S < 1 && r < 11);
     const sz = (sp.S * r) / 16;
     ctx.globalAlpha = a;
     ctx.drawImage(sp.c, x - sz / 2, y - sz / 2, sz, sz);
@@ -1763,8 +1766,10 @@
     },
     bonus: {
       draw(ctx, age) {
-        sceneBg(ctx, "bonus");
-        drawRays(ctx, CX, 150, C.gold, age * 0.18, 0.4, 440, 18, true);
+        // a journey scene (round1..10) covers the whole screen once faded in: then the background
+        // and the rays under it are not drawn (perf round 4: the bonus painted ~6.5 screens a frame)
+        const covered = gal.cur && gal.cur.startsWith("round") && IMG[gal.cur] && clk.t - gal.t0 >= 0.6;
+        if (!covered) { sceneBg(ctx, "bonus"); drawRays(ctx, CX, 150, C.gold, age * 0.18, 0.4, 440, 18, true); }
         if (gal.cur) drawGallery(ctx);
         else drawWarrior(ctx, { x: CX - 10, y: H + 34, sc: 1.02, t: age, rim: "gold", aura: 1, sword: -1.25 + Math.sin(age * 1.5) * 0.04 });
         if (boss.on) drawBoss(ctx);
@@ -2328,6 +2333,7 @@
   let saver = false, saverEmit = false, lite = false;
   // 閒置 (set by the shell while nothing plays): one frame in IDLE_SKIP is drawn, to keep the phone cool.
   let idle = false, idleN = 0;
+  let paused = false;
   const IDLE_SKIP = 3;
   function frame(ts) {
     raf = requestAnimationFrame(frame);
@@ -2336,6 +2342,7 @@
     lastTs = ts;
     if (++frameN % 60 === 0) resize();
     step(dt);
+    if (paused) return;   // behind the 遊戲大廳: nothing shows
     if (idle && ++idleN % IDLE_SKIP) return;
     if (!clipCovers()) render();
   }
@@ -4267,6 +4274,7 @@
     skip() { return skipNow(); },
     setSaver(on) { saver = !!on; lastW = 0; resize(); },
     setIdle(on) { idle = !!on; },
+    pause(on) { paused = !!on; },   // the shell's 遊戲大廳 covers the machine
     // 輕量: half the particles at full resolution (the shell turns it on by itself when a phone slows)
     setLite(on) { lite = !!on; },
     setRush(o) {

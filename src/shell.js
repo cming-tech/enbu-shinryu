@@ -685,7 +685,7 @@
     function showPower() {
       const z = zoneOf(power), el = $("handlePw");
       el.textContent = selfPower() ? t(z[3]) : t(manual() ? "ui.powerBest" : "ui.powerAuto");
-      el.style.color = selfPower() ? z[4] : "";
+      el.style.color = selfPower() && !M.theme ? z[4] : "";   // the zone's ink is for machine 1's blue knob
     }
     function autoPower() { if (!selfPower()) power = KNOB.auto[eng.aim()]; }
     function showModes() {

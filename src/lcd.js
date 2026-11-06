@@ -2118,8 +2118,17 @@
       ctx.drawImage(tmp, x - sp.ax * s, y - sp.ay * s, sp.w * s, sp.h * s);
       ctx.globalCompositeOperation = "source-over";
     }
-    // crest sparkle
-    if (logoVariant() === "main") {
+    // the sparkle, each machine on its own logo (logo units -> screen: L)
+    const L = (px, py) => [x + (px - sp.ax) * s, y + (py - sp.ay) * s];
+    if (STEEL) {   // a glint runs down the sword from the guard to its point, then twinkles there
+      const per = 3.2, u = (clk.t % per) / 1.1, ca = Math.cos(-0.2), sa = Math.sin(-0.2);
+      const lx = u < 1 ? lerp(90, -128, E.io(u)) : -128, [px, py] = L(150 + lx * ca, 62 + lx * sa);
+      const a = u < 1 ? fx.logoA : fx.logoA * Math.max(0, 1 - (u - 1) * 0.9);
+      star4(ctx, px, py, (u < 1 ? 5 : 9 * Math.sin(Math.min(1, u - 1) * Math.PI)) + 2, a);
+    } else if (THEME === "neon") {   // round the halo over the letters
+      const a = clk.t * 1.6, [px, py] = L(150 + Math.cos(a) * 40, 14 + Math.sin(a) * 7);
+      star4(ctx, px, py, 4 + 2.5 * Math.sin(clk.t * 5), fx.logoA * (Math.sin(a) > -0.2 ? 1 : 0.35));   // dimmer behind
+    } else if (logoVariant() === "main") {   // 炎舞神龍: round the 龍 crest
       const a = clk.t * 1.8;
       star4(ctx, x + Math.cos(a) * 28 * s, y + 4 * s + Math.sin(a) * 28 * s, 5 + 3 * Math.sin(clk.t * 5), fx.logoA);
     }
@@ -2555,13 +2564,15 @@
     for (let i = 0; i < 13; i++) {
       const z = rand(0, 1);
       ds.push({ y: 96 + (i % 7) * 26 + rand(-10, 10), ph: rand(0, TAU), z, sc: lerp(0.2, 0.52, z), dl: (i % 5) * 0.11 + rand(0, 0.12),
-        sp: lerp(0.8, 1.25, z) * rand(0.95, 1.05), amp: rand(8, 22), gold: i % 4 === 0 });
+        sp: lerp(0.8, 1.25, z) * rand(0.95, 1.05), amp: rand(8, 22), gold: i % 4 === 0, k: 1 + (i % 6) });
     }
     ds.sort((a, b) => a.z - b.z);
     // 霓虹天使 (機群預告): the guardian robots in its own neon (dark navy far, cyan/pink near), no fire
-    const NE = THEME === "neon";
+    // 轉生史萊姆與魔劍 (魔群): the six monsters in emerald and dark, the gold ones the demon sword
+    const NE = THEME === "neon", ST = STEEL && IMG.minion1;
     const art = (d) => {
       if (d.gold) return goldDragon() ? tinted(goldDragon(), "#ffcf5a", 0) : tinted(IMG.rival, "#ffc23a", 0.45);
+      if (ST) { const im = IMG["minion" + d.k] || IMG.minion1; return d.z < 0.35 ? tinted(im, "#02140c", 0.6) : d.z < 0.7 ? tinted(im, "#2ad890", 0.2) : tinted(im, "#000", 0); }
       if (NE) return d.z < 0.35 ? tinted(IMG.rival, "#06103a", 0.55) : d.z < 0.7 ? tinted(IMG.rival, d.y % 2 < 1 ? "#21e6ff" : "#ff3fd0", 0.22) : tinted(IMG.rival, "#000", 0);
       return d.z < 0.35 ? tinted(IMG.rival, "#2a0604", 0.55) : d.z < 0.7 ? tinted(IMG.rival, "#ff7a1a", 0.18) : tinted(IMG.rival, "#000", 0);
     };
@@ -2574,8 +2585,8 @@
     };
     addActor("front", 2.0, (ctx, age) => {
       const k = Math.sin(clamp(age / 2, 0, 1) * Math.PI);
-      ctx.globalAlpha = 0.6 * k; ctx.fillStyle = NE ? "#020414" : "#1a0200"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
-      hLines(ctx, 60, 280, 18, NE ? C.cyan : C.orange, 0.35 * k, age, 900);
+      ctx.globalAlpha = 0.6 * k; ctx.fillStyle = NE ? "#020414" : STEEL ? "#00140a" : "#1a0200"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+      hLines(ctx, 60, 280, 18, NE ? C.cyan : STEEL ? "42,216,144" : C.orange, 0.35 * k, age, 900);
       for (const d of ds) {
         const p = pos(d, age);
         if (p.u < 0 || p.u > 1) continue;

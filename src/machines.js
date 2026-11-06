@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 66;
+  PK.VERSION = 67;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -128,6 +128,8 @@
       "gl.push": "HACK（中間）|粉紅大按鈕。畫面出現 HACK 時按它揭曉結果；對決時要一直連打。",
       "gl.auto": "自動HACK（左下）|打開後會顯示「自動HACK 開」，出現 HACK 時會自動幫你按。",
       "gl.boss": "保全機器人|大當前幾回合出現的保全 AI 手下，每次大當換一台。連打 HACK 把它的血條打光，就多拿 100 顆。",
+      "gl.zone": "ハックゾーン（先讀預告）|畫面邊緣連續好幾轉亮起霓虹，越來越亮。表示後面排隊的保留裡可能有大當（大約四成），輪到那一轉時出現「勝負!!」。",
+      "gl.premium": "天使降臨|很少見的演出：光之鳳凰飛過整個畫面，出現就確定大當。",
       "gl.awaken": "天使覚醒チャレンジ（天使覺醒挑戰）|大當最後一回合的決定戰。連打 HACK 讓天使覺醒：成功就進 OVERDRIVE RUSH，沒醒就是時短 20 轉。結果在中大當時就決定了。",
       "gl.rush": "OVERDRIVE RUSH|大當之後的特別模式。中獎機率很高，很容易一直連續中。連中會升級：OVERDRIVE → HYPER（連 2）→ ANGEL（連 3），畫面和顏色跟著變。",
       "gl.gun": "機群預告|一大群保全機器人帶著霓虹光飛過畫面，混著金色鳳凰；大約一半機會。",
@@ -182,6 +184,23 @@
       "lcd.streakLbl": "連戦", "lcd.streakN": "第{n}戦",
       "lcd.awake": "覚醒!!", "lcd.awakeSub": "人の姿へ…", "lcd.recruit": "{name}が仲間になった!", "lcd.maou": "魔王降臨!!",
       "cab.subAwake": "覚醒中\n残り{n}",
+      "ex.sp": "暴食リーチ|魔劍飛過整個畫面的聽牌", "ex.battleWin": "魔将決戦・勝利|史萊姆打倒魔將", "ex.battleLose": "魔将決戦・敗北|史萊姆被魔將打敗",
+      "ex.gun": "魔群|一大群魔物飛過畫面", "ex.zone": "暴食ゾーン|邊框越來越亮，最後勝負!!", "ex.premium": "魔剣降臨|很少見，出現就確定大當",
+      "ms.note": "每天換 3 個新任務，完成就送珠子和經驗。中大當、打倒魔物也有經驗。等級和稱號按「重新開始」也不會清除。",
+      "ms.boss": "打倒 {n} 隻魔物", "ms.sp": "看到 {n} 次大演出（暴食リーチ、魔将決戦、激アツ）",
+      "lv.titles": "初生史萊姆|暴食史萊姆|魔劍使|魔將殺手|魔王",
+      "rec.boss": "擊倒魔物", "ach.rush": "突入 RUSH|第一次進入連戦RUSH", "ach.boss": "擊倒魔物|大當中連打 PUSH 擊倒魔物",
+      "ach.boss10": "魔物剋星|擊倒 10 隻魔物", "ach.premium": "魔劍降臨|看到很少見的魔劍降臨",
+      "cap.premium": "魔剣降臨：魔劍飛過整個畫面＝確定大當！很少見", "cap.zone": "暴食ゾーン（先讀預告）：後面排隊的保留裡可能藏著大當，最後一轉出現「勝負!!」",
+      "cap.battle": "魔将決戦（對決）：連打 PUSH 幫史萊姆，打贏就是大當", "cap.gun": "魔群預告：大約一半機會",
+      "cap.rush": "連戦RUSH：很容易連續中獎", "cap.minion": "大當中：連打 PUSH 打倒魔物，打倒多拿 100 顆",
+      "gl.flow": "打珠|珠子進入賞口|數字轉|リーチ（聽牌）|大当り（大當）|右打ち拿珠|連戦RUSH 或 時短",
+      "gl.boss": "魔物|大當前幾回合出現的魔將手下，每次大當換一隻。連打 PUSH 把牠的血條打光，就多拿 100 顆。開了「自動 PUSH」會自動幫你打。",
+      "gl.gun": "魔群預告|一大群魔物飛過畫面，大約一半機會。",
+      "gl.battle": "魔将決戦（對決）|リーチ後史萊姆和魔將對戰。連打 PUSH 幫史萊姆，打贏就是大當。",
+      "gl.kokuchi": "魔剣解放!!（確定告知）|魔劍帶著光衝出來，一出現就確定中了大當。",
+      "gl.zone": "暴食ゾーン（先讀預告）|畫面邊緣連續好幾轉亮起綠光，越來越亮。表示後面排隊的保留裡可能有大當（大約四成），輪到那一轉時出現「勝負!!」。",
+      "gl.premium": "魔剣降臨|很少見的演出：魔劍飛過整個畫面，出現就確定大當。",
       "lcd.cmdLabel": "四大幹部 {n}/4", "lcd.recruitSub": "が仲間になった!", "lcd.chomp": "喰ッ!",
       "gl.credits": "配音：VOICEVOX:麒ヶ島宗麟、VOICEVOX:剣崎雌雄",
       // the shell (Chinese)

@@ -339,6 +339,14 @@
   #app[data-machine="angel"] .big.primary, #app[data-machine="angel"] .tog[aria-pressed="true"], #app[data-machine="angel"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#ff8fe8, #c0249e); border-color: #ff9ff0; color: #fff; }
   #app[data-machine="angel"] #coins b, #app[data-machine="angel"] #dataBar b, #app[data-machine="angel"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(33, 230, 255, 0.55); }
   #app[data-machine="angel"] #lcd { border-radius: 50% !important; }   /* 光環舞台: a round screen */
+  /* its PLAY knob: pink neon glass with cyan grip lines and a chrome rim (the user: the three were alike) */
+  #app[data-machine="angel"] #handle { background: radial-gradient(circle at 50% 45%, #ffffff 0%, #ffe0f8 26%, #ff7ae6 58%, #8a0a74 82%, #20041c 100%);
+    box-shadow: inset 0 0 0 6px #eef2ff, inset 0 0 0 11px #3a0a4a, 0 0 14px rgba(255, 63, 208, 0.45), 0 6px 14px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="angel"] #handle .grip { background: repeating-conic-gradient(from 0deg, rgba(33, 230, 255, 0.6) 0 6deg, rgba(255, 255, 255, 0) 6deg 30deg); }
+  #app[data-machine="angel"] #handle b { font-family: "Orbitron", var(--f-num); font-size: 27px; color: #3a0030; }
+  #app[data-machine="angel"] #handle .lbl, #app[data-machine="angel"] #handle .pw { color: #3a0030; }
+  #app[data-machine="angel"] #handle.on { box-shadow: inset 0 0 0 6px #6af4ff, inset 0 0 0 11px #3a0a4a, 0 0 26px 6px rgba(33, 230, 255, 0.75); }
+  #app[data-machine="angel"] #handle.on b { color: #0a6a8a; }
 
   /* 轉生史萊姆與魔劍: steel and emerald */
   #app[data-machine="sword"] { --gold: #6af0b8; --ice: #c8d6e4; --led: #5af0b0; --fire: #2ad890; --metal: #12171a; --metal-2: #1a2125; --line: #2c3a36; --amb: rgba(42, 216, 144, 0.28); }
@@ -357,6 +365,13 @@
   #app[data-machine="sword"] #autoBtn[aria-pressed="true"] { background: linear-gradient(#5af0b0, #0a8a50); color: #fff; }
   #app[data-machine="sword"] .big.primary, #app[data-machine="sword"] .tog[aria-pressed="true"], #app[data-machine="sword"] .seg2 button[aria-pressed="true"] { background: linear-gradient(#5af0b0, #0a8a50); border-color: #8af5c8; color: #fff; }
   #app[data-machine="sword"] #coins b, #app[data-machine="sword"] #dataBar b, #app[data-machine="sword"] #counter b { color: var(--led); text-shadow: 0 0 8px rgba(42, 216, 144, 0.55); }
+  /* its PLAY knob: an emerald gem in a steel rim, the grip like blade runes */
+  #app[data-machine="sword"] #handle { background: radial-gradient(circle at 50% 42%, #ffffff 0%, #e2fff0 24%, #46e0a0 56%, #0a6a40 80%, #021a10 100%);
+    box-shadow: inset 0 0 0 6px #c8d2dc, inset 0 0 0 9px #3a444a, inset 0 0 0 11px #0a2a1a, 0 6px 14px rgba(0, 0, 0, 0.6); }
+  #app[data-machine="sword"] #handle .grip { background: repeating-conic-gradient(from 0deg, rgba(4, 48, 28, 0.6) 0 4deg, rgba(255, 255, 255, 0) 4deg 22.5deg); }
+  #app[data-machine="sword"] #handle b, #app[data-machine="sword"] #handle .lbl, #app[data-machine="sword"] #handle .pw { color: #04301c; }
+  #app[data-machine="sword"] #handle.on { box-shadow: inset 0 0 0 6px #eef4fa, inset 0 0 0 9px #3a444a, inset 0 0 0 11px #0a2a1a, 0 0 26px 6px rgba(42, 216, 144, 0.8); }
+  #app[data-machine="sword"] #handle.on b { color: #8a0a14; }
 
   /* 遊戲大廳 (home): the site opens here; a big card per machine. */
   #home { position: fixed; inset: 0; z-index: 25; overflow-y: auto; -webkit-overflow-scrolling: touch;

@@ -520,8 +520,8 @@
       rays += `M${rx0},${ry0}L${f1(rx0 + 400 * Math.cos(a))},${f1(ry0 + 400 * Math.sin(a))}L${f1(rx0 + 400 * Math.cos(a2))},${f1(ry0 + 400 * Math.sin(a2))}Z`;
     }
     s += `<path d="${rays}" fill="#ffb040" opacity=".045"/>`;
-    // Faint flame decals rising from the floor (魔劍: none).
-    if (!S.steel) s += `<g fill="#ff4a10" opacity=".09">
+    // Faint flame decals rising from the floor (魔劍, 蒸氣巨神: none).
+    if (!S.steel && !S.brass) s += `<g fill="#ff4a10" opacity=".09">
 <path d="M70,650 C60,600 90,570 84,520 C110,560 120,590 112,650 Z"/><path d="M140,650 C130,590 170,560 160,500 C196,560 200,610 186,650 Z"/>
 <path d="M400,650 C392,600 430,560 424,505 C460,560 466,610 450,650 Z"/><path d="M480,650 C474,610 500,585 496,540 C522,580 526,620 516,650 Z"/></g>`;
     // Lane plates: engraved bronze panels behind the left and right pin lanes.
@@ -549,7 +549,7 @@
         s += `<circle cx="${f1((507 + x1) / 2)}" cy="${y}" r="2.6" fill="#2a8cff" stroke="#bfe0ff" stroke-width=".8"/>`;
       });
       const vt = `font-family="'Yuji Syuku','Dela Gothic One','Noto Sans TC',serif" font-size="20" fill="#ffcf6a" fill-opacity=".22" text-anchor="middle"`;
-      if (!S.neon && !S.steel) s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
+      if (!S.neon && !S.steel && !S.brass) s += `<text ${vt} x="75" y="338">炎</text><text ${vt} x="80" y="392">舞</text><text ${vt} x="530" y="372">龍</text>`;
       if (pinLayout === "angel") {   // the circuit traces under 霓虹天使's pins (the pins sit on them)
         const pl = (pts) => pts.map((q) => q[0] + "," + q[1]).join(" ");
         ANGEL_TRACES.forEach((t) => {
@@ -637,7 +637,7 @@
         const [x, y, k] = p;
         fl += `M${x - 10 * k},${y + 14 * k} C${x - 14 * k},${y} ${x - 2 * k},${y - 8 * k} ${x},${y - 22 * k} C${x + 4 * k},${y - 8 * k} ${x + 14 * k},${y} ${x + 10 * k},${y + 14 * k} Z`;
       });
-      if (!S.steel) s += `<path d="${fl}" fill="#ff7a20" opacity=".22" stroke="#ffcf6a" stroke-opacity=".35" stroke-width="1"/>`;
+      if (!S.steel && !S.brass) s += `<path d="${fl}" fill="#ff7a20" opacity=".22" stroke="#ffcf6a" stroke-opacity=".35" stroke-width="1"/>`;
       const o = L.outs[1];
       s += `<circle cx="${o.x}" cy="${o.y + 1}" r="10.5" fill="#000" opacity=".5"/>`;
       s += `<circle cx="${o.x}" cy="${o.y + 1}" r="8" fill="url(#pkc-hole)" stroke="url(#pkc-bChrome)" stroke-width="2.2"/>`;

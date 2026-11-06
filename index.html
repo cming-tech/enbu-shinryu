@@ -5,6 +5,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+TC:wght@500;700;900&family=Noto+Serif+TC:wght@700;900&family=Orbitron:wght@900&family=Reggae+One&family=Yuji+Syuku&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="src/ui.css">
 
+<!-- Loading screen (the user saw the bare page while ~670 KB of scripts loaded). Its text is fixed
+     here because PK.TEXT is not loaded yet. The inline script only moves the bar as each script
+     loads; shell.js removes the screen when the game is ready, so it never stays if this is blocked. -->
+<div id="boot" aria-hidden="true"><div class="bIn">
+  <div class="bPit"><span class="bBall"></span></div>
+  <b class="bName">珠光遊樂館</b>
+  <span class="bBar"><u id="bootBar"></u></span>
+  <small id="bootPct">載入中…</small>
+</div></div>
+<script>
+  (function () {
+    var n = 0, N = 10;   // 8 scripts, then the shell's start, then the hall's pictures
+    window.PKBOOT = function () {
+      n = Math.min(N - 1, n + 1);
+      var b = document.getElementById("bootBar"), p = document.getElementById("bootPct");
+      if (b) b.style.width = Math.round(100 * n / N) + "%";
+      if (p) p.textContent = "載入中… " + Math.round(100 * n / N) + "%";
+    };
+    document.addEventListener("load", function (e) { if (e.target && e.target.tagName === "SCRIPT") window.PKBOOT(); }, true);
+  })();
+</script>
+
 <div id="app">
   <header id="topbar">
     <button class="iconBtn" id="menuBtn" type="button"><i class="burger"></i></button>

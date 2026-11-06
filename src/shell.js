@@ -610,7 +610,7 @@
       if (++m3.gauge >= M.devour.need) {
         m3.gauge = 0;
         eng.awaken(M.devour.mul, M.devour.spins);
-        PK.LCD.announce(t("lcd.awake"), "gold");
+        PK.LCD.announce(t("lcd.awake"), "gold"); vo("m3awake");
         lights("rainbow"); setTimeout(modeLook, 2200);
         snd("rushIn"); caption("awake", { n: M.devour.spins });
       }
@@ -622,12 +622,13 @@
       if (m3.gems < C4.length) {
         m3.gems++;
         PK.LCD.announce(t("lcd.recruit", { name: C4[m3.gems - 1] }), "gold");
+        if (m3.gems < C4.length) vo("m3recruit");   // the fourth is followed by 魔王降臨's own line
         caption("recruit", { name: C4[m3.gems - 1], k: m3.gems });
       }
       if (m3.gems >= C4.length) {   // 魔王降臨: the next RUSH one step up the presets (the best stays the best)
         const cur = odds().rushN, up = ODDS.rush.filter((n) => n < cur).sort((a, b) => b - a)[0] || cur;
         eng.boostNextRush(1 / up);
-        setTimeout(() => { PK.LCD.announce(t("lcd.maou"), "gold"); caption("maou"); }, 2400);
+        setTimeout(() => { PK.LCD.announce(t("lcd.maou"), "gold"); caption("maou"); vo("m3maou"); }, 2400);
       }
       saveM3(); showM3();
     }
@@ -1228,7 +1229,7 @@
     $("lcd").addEventListener("click", () => { if (PK.LCD.skip()) snd("button"); });   // 演出スキップ: tap to fast-forward
     PK.LCD.onBonusEvent((n) => { if (n === "atk:minion") snd("gun"); else if (n.startsWith("rushStage:")) { snd("rushIn"); lights("rainbow"); vo("rushStage" + n.slice(10)); } });   // a 龍兵 claws; RUSH climbs a stage
     PK.Sound.useFiles(M.assetsBase, { soft: M.softMusic });   // AI-made music in assets/ replaces the synthesized beds
-    PK.Sound.useVoices(VOICE_LINES);
+    PK.Sound.useVoices(VOICE_LINES.concat(M.devour ? ["m3awake", "m3recruit", "m3maou"] : []));   // 轉生史萊姆與魔劍's own moments
     PK.Sound.setVoice(set.voice);
     applySaver(); showSaver(); showM3();
     const s0 = eng.state;
@@ -1289,8 +1290,38 @@
     store(KEY_VER, String(VERSION));
     if (lastVer && lastVer !== VERSION) toast(t("ui.updated", { v: VERSION }), 5000);   // shown while the page is still loading
     kick();
+    bootDone();
     // dev/test hook (not used by the game)
     PK.shell = { eng, setFiring, get busy() { return { spinning, bonusFlow, holdFire, mode }; } };
+  }
+
+  // ---------------------------------------------------------------- loading screen
+  // index.html's #boot covers the bare page while the scripts load. Once the game has started it
+  // waits for the fonts and the hall's pictures (at most BOOT_WAIT ms), fills the bar and fades out.
+  const BOOT_WAIT = 4000;
+  function bootDone() {
+    const el = $("boot");
+    if (!el) return;   // already gone (a hot reload)
+    window.PKBOOT = () => {};   // shell.js's own load event comes after this; the bar is ours now
+    {   // the bar keeps creeping while the fonts and pictures load, so it never looks stuck
+      const b = $("bootBar"), p = $("bootPct");
+      if (b) { b.style.transition = "width " + BOOT_WAIT / 1000 + "s cubic-bezier(.2,.6,.3,1)"; b.style.width = "98%"; }
+      if (p) p.textContent = "準備機台中…";
+    }
+    const imgs = [...document.querySelectorAll("#home:not([hidden]) img")].filter((im) => !im.complete)
+      .map((im) => new Promise((ok) => { im.addEventListener("load", ok); im.addEventListener("error", ok); }));
+    const fonts = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      const b = $("bootBar"), p = $("bootPct");
+      if (b) { b.style.transition = "width .2s ease"; b.style.width = "100%"; }
+      if (p) p.textContent = "100%";
+      setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 500); }, 200);
+    };
+    Promise.all([fonts, ...imgs]).then(finish, finish);
+    setTimeout(finish, BOOT_WAIT);
   }
 
   // ---------------------------------------------------------------- tutorial art

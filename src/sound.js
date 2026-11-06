@@ -1384,26 +1384,52 @@
   // follows a 3 s loudness envelope (read around the loop's seam, since it repeats) and corrects
   // LEVEL_STRENGTH of each difference from the loop's own average, within LEVEL_RANGE.
   const LEVEL_STRENGTH = 0.65, LEVEL_RANGE = [0.4, 3];
-  function levelLoop(d) {
+  // The work on a song is a generator that yields every CHUNK samples: decodeFile runs it a few ms at
+  // a time between frames (the user felt the reels stall on entering RUSH: a 150 s song took ~0.4 s
+  // in one go at 4x CPU throttle, and again at every song switch); the tests run it straight through.
+  const CHUNK = 32768;
+  function* levelGen(d) {
     const n = d.length, hop = Math.round(0.5 * BED_SR), half = Math.round(1.5 * BED_SR), m = Math.ceil(n / hop);
     if (m < 4) return;
     const env = new Float32Array(m);
     let all = 0;
-    for (let i = 0; i < n; i++) all += d[i] * d[i];
+    for (let i0 = 0; i0 < n; i0 += CHUNK) { for (let i = i0, e = Math.min(n, i0 + CHUNK); i < e; i++) all += d[i] * d[i]; yield; }
     const avg = all / n;
     for (let h = 0; h < m; h++) {
       let s = 0;
       for (let i = h * hop - half, e = h * hop + half; i < e; i += 4) { const v = d[((i % n) + n) % n]; s += v * v; }
       env[h] = s / (2 * half / 4);
+      if (h % 4 === 3) yield;
     }
     const gain = new Float32Array(m);
     for (let h = 0; h < m; h++) gain[h] = Math.min(LEVEL_RANGE[1], Math.max(LEVEL_RANGE[0], Math.pow(avg / (env[h] + 1e-9), LEVEL_STRENGTH / 2)));
-    for (let i = 0; i < n; i++) {
-      const x = i / hop, h = Math.floor(x), f = x - h;
-      d[i] *= gain[h] + (gain[(h + 1) % m] - gain[h]) * f;
+    for (let i0 = 0; i0 < n; i0 += CHUNK) {
+      for (let i = i0, e = Math.min(n, i0 + CHUNK); i < e; i++) {
+        const x = i / hop, h = Math.floor(x), f = x - h;
+        d[i] *= gain[h] + (gain[(h + 1) % m] - gain[h]) * f;
+      }
+      yield;
     }
   }
-  function loopFromTrack(buf, key) {
+  const runGen = (g) => { let r; do r = g.next(); while (!r.done); return r.value; };
+  // Runs a generator a few ms at a time, letting frames draw in between.
+  const SLICE_MS = 5;
+  function runSliced(g) {
+    return new Promise((res, rej) => {
+      const step = () => {
+        try {
+          const t0 = performance.now();
+          let r;
+          do r = g.next(); while (!r.done && performance.now() - t0 < SLICE_MS);
+          if (r.done) res(r.value); else setTimeout(step, 0);
+        } catch (e) { rej(e); }
+      };
+      step();
+    });
+  }
+  function levelLoop(d) { runGen(levelGen(d)); }
+  function loopFromTrack(buf, key) { return runGen(loopGen(buf, key)); }
+  function* loopGen(buf, key) {
     const sr = buf.sampleRate, info = key && LOOPS[key], S = (s) => Math.round(s * sr);
     let a, end, lp;
     if (info) {
@@ -1427,18 +1453,22 @@
     const tmp = new Float32Array(L);
     for (let ch = 0; ch < nch; ch++) {
       const src = buf.getChannelData(ch);
-      for (let i = 0; i < L; i++) tmp[i] += src[start + i] / nch;
+      for (let i0 = 0; i0 < L; i0 += CHUNK) { for (let i = i0, e = Math.min(L, i0 + CHUNK); i < e; i++) tmp[i] += src[start + i] / nch; yield; }
       for (let i = 0; i < X; i++) { const x = ((i + 0.5) / X) * (Math.PI / 2); tmp[i] += (src[start + L + i] * Math.cos(x) - src[start + i] * (1 - Math.sin(x))) / nch; }
+      yield;
     }
-    for (let i = 0; i < Lo; i++) {
-      const p = i * k, j = Math.floor(p), f = p - j;
-      d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0);
+    for (let i0 = 0; i0 < Lo; i0 += CHUNK) {
+      for (let i = i0, e = Math.min(Lo, i0 + CHUNK); i < e; i++) {
+        const p = i * k, j = Math.floor(p), f = p - j;
+        d[i] = tmp[j] + (j + 1 < L ? (tmp[j + 1] - tmp[j]) * f : 0);
+      }
+      yield;
     }
-    levelLoop(d);
+    yield* levelGen(d);
     let sum = 0, peak = 0;
-    for (let i = 0; i < Lo; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; }
+    for (let i0 = 0; i0 < Lo; i0 += CHUNK) { for (let i = i0, e = Math.min(Lo, i0 + CHUNK); i < e; i++) { const v = d[i]; sum += v * v; const m = v < 0 ? -v : v; if (m > peak) peak = m; } yield; }
     const rms = Math.sqrt(sum / Lo), g = rms > 0 ? Math.min(BED_RMS / rms, 0.95 / peak) : 1;
-    for (let i = 0; i < Lo; i++) d[i] *= g;
+    for (let i0 = 0; i0 < Lo; i0 += CHUNK) { for (let i = i0, e = Math.min(Lo, i0 + CHUNK); i < e; i++) d[i] *= g; yield; }
     return out;
   }
   // Decode a fetched track once; when it is ready it replaces the synthesized bed (and the
@@ -1450,8 +1480,7 @@
     fileJobs[key] = new Promise((res, rej) => {
       const p = ctx.decodeAudioData(fileRaw[key].slice(0), res, rej);
       if (p && p.then) p.then(res, rej);
-    }).then((buf) => {
-      const loop = loopFromTrack(buf, key);
+    }).then((buf) => runSliced(loopGen(buf, key))).then((loop) => {
       if (!loop) { if (!second) noFile(key); return; }
       if (second) {   // used from the next start of the bed; the file stays to decode it again later
         if (fileJobs[key] && bedWant === name) (altBuf[name] = altBuf[name] || {})[key.slice(name.length)] = loop;

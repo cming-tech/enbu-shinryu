@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 64;
+  PK.VERSION = 65;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -174,7 +174,10 @@
       "lcd.hero": "スライム", "lcd.rival": "魔将", "lcd.battle": "魔将決戦", "lcd.lose": "喰われた…", "lcd.battleHint": "喰らえ!!",
       "lcd.roundLines": "喰らえ！|まだ足りない！|剣が唸る！|もっと喰わせろ！|勝利は目前！|暴食、止まらず！|まだまだ！|魔剣の力！|一気に喰らえ！|追撃せよ！",
       "lcd.minions": "ゴブリン兵|骸骨剣士|大蜘蛛|オーク戦士|闇狼|石像兵",
-      "lcd.awakenTitle": "覚醒チャレンジ", "lcd.awakenHint": "PUSH連打で人の姿へ覚醒しろ！", "lcd.awakenOk": "覚醒!!",
+      "lcd.awakenTitle": "暴食覚醒チャレンジ", "lcd.awakenHint": "PUSH連打で魂を喰らえ！",
+      "cap.awaken": "最後決戰：連打 PUSH 讓史萊姆吞下更多靈魂，吃飽就覺醒進 RUSH！", "cap.awakenNg": "這次沒吃飽、沒覺醒，接下來是時短 20 轉",
+      "ach.awaken": "暴食覺醒|在決定戰讓史萊姆覺醒",
+      "gl.awaken": "暴食覚醒チャレンジ（暴食覺醒挑戰）|大當最後一回合的決定戰。四周的綠色靈魂會飛進史萊姆嘴裡，連打 PUSH 丟更多進去；史萊姆越吃越大、身體從下往上亮起來。吃飽覺醒就進連戦RUSH，沒醒就是時短 20 轉。結果在中大當時就決定了。", "lcd.awakenOk": "覚醒!!",
       "lcd.rushOver": "連戦RUSH 終了",
       "lcd.streakLbl": "連戦", "lcd.streakN": "第{n}戦",
       "lcd.awake": "覚醒!!", "lcd.awakeSub": "人の姿へ…", "lcd.recruit": "{name}が仲間になった!", "lcd.maou": "魔王降臨!!",

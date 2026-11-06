@@ -3686,12 +3686,83 @@
   }
   function awakenTap() {
     awaken.g = Math.min(0.92, awaken.g + 0.05);   // the last bit is the reveal's
+    if (STEEL) { for (let i = 0; i < 3; i++) soulSpawn(true); shake(1.2); return "awaken"; }
     const a = -Math.PI / 2 + awaken.g * TAU;
     burst("front", AW.x + Math.cos(a) * AW.r, AW.y + Math.sin(a) * AW.r, 8, { cols: [C.gold, C.white], v0: 60, v1: 180, s0: 1, s1: 2.2, len: 12 });
     shake(1.2);
     return "awaken";
   }
+  // 轉生史萊姆與魔劍 (STEEL): 暴食覚醒 instead of the ring (the user: make it about the slime's
+  // devouring). The slime sits in the dark; emerald souls drift in from all sides and it swallows them
+  // (PUSH throws three fast ones). With the gauge it swells and fills with emerald light from the
+  // bottom up, and gulps (squash) at every soul. The reveal: it bursts with light, or deflates.
+  const SL = { x: CX, y: H / 2 + 26, h: H * 0.5 }, EM = "42,216,144", souls = [];
+  let soulT = 0, gulpT = -9;
+  function soulSpawn(fast) {
+    const a = rand(0, TAU), d = rand(W * 0.42, W * 0.55);
+    souls.push({ x0: SL.x + Math.cos(a) * d, y0: SL.y + Math.sin(a) * d * 0.55, t0: clk.t, dur: fast ? rand(0.32, 0.5) : rand(1.3, 1.9), ph: rand(0, TAU) });
+  }
+  function drawAwakenSlime(ctx) {
+    const t = clk.t, im = IMG.hero, live = awaken.res == null;
+    if (live) awaken.g = Math.min(0.92, awaken.g + 0.0025);
+    const g = awaken.res === true ? 1 : awaken.g;
+    const lit = awaken.res === true ? Math.min(1, (t - awaken.resT) / 0.4) : 0;
+    const shrink = awaken.res === false ? Math.min(1, (t - awaken.resT) / 0.8) : 0;
+    const fade = awaken.res === false ? Math.max(0, 1 - (t - awaken.resT) / 1.4) : 1;
+    if (live && t - soulT > 0.22) { soulT = t; soulSpawn(false); }
+    const mx = SL.x, my = SL.y - SL.h * 0.08;   // where the souls go in
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0," + (0.6 * (1 - lit)).toFixed(3) + ")"; ctx.fillRect(0, 0, W, H);
+    // the souls: a glow and a white core, pulled in on a curve, with a short trail
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = souls.length - 1; i >= 0; i--) {
+      const o = souls[i], u = (t - o.t0) / o.dur;
+      if (u >= 1 || !live) { souls.splice(i, 1); if (live && u >= 1) gulpT = t; continue; }
+      for (let k = 3; k >= 0; k--) {
+        const uk = Math.max(0, u - k * 0.05), e = uk * uk, sw = Math.sin(uk * 5 + o.ph) * 40 * (1 - uk);
+        const x = lerp(o.x0, mx, e) + sw, y = lerp(o.y0, my, e) - Math.cos(uk * 4 + o.ph) * 20 * (1 - uk);
+        drawGlow(ctx, EM, x, y, (k ? 9 : 16) * (1 - 0.4 * e), (k ? 0.25 : 0.8) * (1 - k * 0.2));
+        if (!k) drawGlow(ctx, C.white, x, y, 5, 0.9);
+      }
+    }
+    ctx.globalCompositeOperation = "source-over";
+    if (im) {
+      // size: grows with the gauge, gulps at each soul, bursts or deflates at the reveal
+      const gp = Math.max(0, 1 - (t - gulpT) / 0.25), sq = Math.sin(gp * Math.PI) * 0.08;
+      const sc = (0.78 + 0.34 * g) * (1 + 0.15 * lit) * (1 - 0.35 * shrink) * (1 + 0.015 * Math.sin(t * 3));
+      const h = SL.h * sc, w = (h * im.naturalWidth) / im.naturalHeight, by = SL.y + h / 2;
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(SL.x, by); ctx.scale(1 + sq, 1 - sq); ctx.translate(-SL.x, -by);
+      drawArtDragon(ctx, tinted(im, "#000", 0.55 * (1 - lit)), SL.x, SL.y, h, false);
+      // the swallowed light, from the bottom up to the gauge
+      const fh = h * (awaken.res === false ? g * (1 - shrink) : g);
+      if (fh > 1) {
+        // inside the body only (an ellipse: the picture's aura is cut square at its edges)
+        ctx.beginPath(); ctx.rect(SL.x - w, by - fh, 2 * w, fh); ctx.clip();
+        ctx.beginPath(); ctx.ellipse(SL.x, SL.y + h * 0.06, w * 0.34, h * 0.4, 0, 0, TAU); ctx.clip();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = fade * (0.55 + 0.25 * Math.sin(t * 6));
+        drawArtDragon(ctx, tinted(im, "rgb(" + EM + ")", 0.85), SL.x, SL.y, h, false);
+      }
+      ctx.restore();
+      ctx.globalCompositeOperation = "lighter";
+      drawGlow(ctx, EM, SL.x, by - h * 0.4, w * (0.5 + 0.5 * g), (0.15 + 0.35 * g) * fade + 0.6 * lit);
+      if (lit) drawGlow(ctx, C.white, SL.x, by - h * 0.4, w * 0.6, 0.5 * lit);
+      ctx.globalCompositeOperation = "source-over";
+      // the gauge as a number over its head
+      if (live || awaken.res === true) {
+        ctx.globalAlpha = fade;
+        ctx.font = "900 26px " + FONT_POP; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.fillStyle = "rgb(" + EM + ")";
+        const txt = Math.round(100 * g) + "%";
+        ctx.strokeText(txt, SL.x, 108); ctx.fillText(txt, SL.x, 108);   // under the challenge's title
+      }
+    }
+    ctx.restore();
+  }
   function drawAwaken(ctx) {
+    if (STEEL) { drawAwakenSlime(ctx); return; }
     const t = clk.t, im = goldDragon();
     if (awaken.res == null) awaken.g = Math.min(0.92, awaken.g + 0.0025);   // creeps up a little each frame
     const lit = awaken.res === true ? Math.min(1, (t - awaken.resT) / 0.4) : awaken.res === false ? 0 : awaken.g * 0.35;
@@ -3734,9 +3805,10 @@
     if (ok) {
       flash(C.white, 1, 2); shake(12);
       burst("front", AW.x, AW.y, 60, { cols: [C.gold, C.white, C.orange], v0: 160, v1: 520, s0: 1.4, s1: 3.4, len: 28 });
+      if (STEEL) burst("front", SL.x, SL.y, 50, { cols: [EM, C.white], v0: 200, v1: 600, s0: 1.4, s1: 3.4, len: 28 });
       if (VID.awaken) {   // the 神龍 wakes on film: white in, the clip, white out onto the title
         white(1, 0.12); await wait(0.14);
-        const film = playClipToEnd("awaken", AWAKEN_CLIP_END);
+        const film = playClipToEnd("awaken", STEEL ? 2.6 : AWAKEN_CLIP_END);   // machine 3's clip is good throughout
         white(0, 0.3);
         await film;
         white(1, 0.1); await wait(0.12); white(0, 0.5);

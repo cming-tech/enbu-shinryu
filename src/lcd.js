@@ -553,13 +553,16 @@
   function buildBrassLogo(c, g, K, w, h, variant, stage) {
     const P = PAL.fire;
     g.save(); g.globalCompositeOperation = "lighter";   // a furnace glow behind the letters
-    const hz = g.createRadialGradient(150, 50, 4, 150, 50, 130);
+    // an ellipse that fades out inside the canvas: a round glow was cut square by its edges
+    g.translate(150, 46); g.scale(1, 0.29);
+    const hz = g.createRadialGradient(0, 0, 4, 0, 0, 144);
     hz.addColorStop(0, "rgba(255,160,50,0.35)"); hz.addColorStop(1, "rgba(255,160,50,0)");
-    g.fillStyle = hz; g.fillRect(0, 0, w, h);
+    g.fillStyle = hz; g.fillRect(-150, -160, 300, 320);
     g.restore();
-    brassGear(g, 150, 50, 46, 16, "rgba(0,0,0,0.55)", 9);   // the great gear behind the title
-    brassGear(g, 150, 50, 46, 16, "#c8963c", 5);
-    brassGear(g, 150, 50, 46, 16, "rgba(255,240,200,0.6)", 1.2);
+    // the great gear behind the title, whole inside the 86-high canvas (at r 46 its lower teeth were cut off)
+    brassGear(g, 150, 43, 37, 16, "rgba(0,0,0,0.55)", 9);
+    brassGear(g, 150, 43, 37, 16, "#c8963c", 5);
+    brassGear(g, 150, 43, 37, 16, "rgba(255,240,200,0.6)", 1.2);
     if (variant === "rush") {
       const st = RUSH_STAGES[stage || 0], rp = PAL[st.pal];
       fancyText(g, T(st.name), 150, 34, { K, size: 26, font: FONT_BRUSH, align: "center", face: P.face, rim: P.rim, inner: P.inner, ext: P.ext, glow: P.glow, outline: 0.14 });
@@ -2013,9 +2016,19 @@
 .g-fire{--gr:linear-gradient(180deg,#ffffff 0%,#d8ffec 22%,#5af0b0 44%,#0e9a5a 64%,#04502c 82%,#b0ffd8 100%);--bk:#002412;--bk2:#000e06;--gl:rgba(42,216,144,.9);--hl:#f0fff8;}
 .g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#eef4fa 22%,#b8c6d4 46%,#4a5664 62%,#c8d4e0 82%,#ffffff 100%);--bk:#141a20;--bk2:#06080a;--gl:rgba(200,225,240,.85);--hl:#ffffff;}
 .pkl-aim{background:linear-gradient(180deg,#2ad890,#06603a);border-color:#c8ffe4;box-shadow:0 0 12px rgba(42,216,144,.9);}`;
+  // 蒸氣巨神's: the boxes are riveted iron plates with a brass rim, blue numbers turn steel with a furnace glow,
+  // and the 右打ち sign is a brass plate (machine 1's were blue boxes and a red sign)
+  const CSS_BRASS = `
+.g-blue{--gr:linear-gradient(180deg,#ffffff 0%,#f4ecdc 22%,#c8b898 46%,#5a4a30 62%,#d8c8a8 82%,#fff8e8 100%);--bk:#1a1006;--bk2:#080402;--gl:rgba(255,170,60,.8);--hl:#fffaf0;}
+.pkl-box{background:radial-gradient(circle at 6px 6px,#e8c070 1.6px,transparent 2.2px),radial-gradient(circle at calc(100% - 6px) 6px,#e8c070 1.6px,transparent 2.2px),
+  radial-gradient(circle at 6px calc(100% - 6px),#e8c070 1.6px,transparent 2.2px),radial-gradient(circle at calc(100% - 6px) calc(100% - 6px),#e8c070 1.6px,transparent 2.2px),
+  linear-gradient(180deg,rgba(42,26,10,.9),rgba(14,8,2,.92));border:2px solid #d8a048;border-radius:6px;
+  box-shadow:0 0 10px rgba(255,150,40,.55),inset 0 0 10px rgba(255,140,30,.35);}
+.pkl-box .g-cyan{--gr:linear-gradient(180deg,#ffffff 0%,#fff0c8 24%,#f0b84a 48%,#8a5010 64%,#ffd890 84%,#fff4d8 100%);--bk:#1a0e02;--bk2:#080400;--gl:rgba(255,160,40,.85);--hl:#fffaf0;}
+.pkl-aim{background:linear-gradient(180deg,#f0cc78,#8a5418 60%,#4a2a08);border-color:#fff0c8;border-radius:5px;box-shadow:0 0 12px rgba(255,160,50,.85);text-shadow:0 2px 0 #2a1404,0 0 6px rgba(255,230,180,.6);}`;
   function injectCss() {
     if (document.getElementById("pkl-css")) return;
-    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : STEEL ? CSS_STEEL : "");
+    const st = document.createElement("style"); st.id = "pkl-css"; st.textContent = CSS + (THEME === "neon" ? CSS_NEON : STEEL ? CSS_STEEL : BRASS ? CSS_BRASS : "");
     document.head.appendChild(st);
   }
   function mkText(text, cls, size, font, stat) {
@@ -2753,7 +2766,8 @@
       }
     }, { seq: true });
     fireBurst(CX, 168, 30, 260, "front");
-    telop(T("lcd.kokuchi"), { x: CX, y: 168, size: 88, cls: "kokuchi", font: FONT_POP, anim: "slam", inD: 0.16, dur: 1.4, jitter: 6 });
+    const kt = T("lcd.kokuchi"), kem = [...kt].reduce((n, ch) => n + (ch.charCodeAt(0) < 256 ? 0.5 : 1), 0);   // fit a longer word (巨神起動!!) on the screen
+    telop(kt, { x: CX, y: 168, size: Math.min(88, Math.floor((W - 24) / Math.max(1, kem))), cls: "kokuchi", font: FONT_POP, anim: "slam", inD: 0.16, dur: 1.4, jitter: 6 });
     ctxs.emit("kokuchi");
   }
   function holdChangeFx(to, ctxs) {
@@ -3781,11 +3795,12 @@
   function awakenStart() {
     Object.assign(awaken, { on: true, g: 0, t0: clk.t, res: null, resT: 0 });
     telop(T("lcd.awakenTitle"), { x: CX, y: 70, size: 26, cls: "rainbow", anim: "slam", stay: true });
-    telop(T("lcd.awakenHint"), { x: CX, y: 262, size: 18, cls: "gold", anim: "pop", dur: 3, inD: 0.5 });
+    telop(T("lcd.awakenHint"), { x: CX, y: BRASS ? 100 : 262, size: 18, cls: "gold", anim: "pop", dur: 3, inD: 0.5 });
   }
   function awakenTap() {
     awaken.g = Math.min(0.92, awaken.g + 0.05);   // the last bit is the reveal's
     if (STEEL) { prey(); soulSpawn(true); shake(1.2); return "awaken"; }
+    if (BRASS) { steamPuff(CX - 70, 196, -1, 6); steamPuff(CX + 70, 196, 1, 6); TA.kick = 1; shake(1.4); return "awaken"; }
     const a = -Math.PI / 2 + awaken.g * TAU;
     burst("front", AW.x + Math.cos(a) * AW.r, AW.y + Math.sin(a) * AW.r, 8, { cols: [C.gold, C.white], v0: 60, v1: 180, s0: 1, s1: 2.2, len: 12 });
     shake(1.2);
@@ -3829,13 +3844,13 @@
     for (let i = 0; i < CMD.names.length; i++) {
       const pop = i === CMD.popI ? Math.max(0, 1 - (clk.t - CMD.popT) / 0.6) : 0;
       const r = 13 * (1 + 0.5 * Math.sin(pop * Math.PI));
-      drawCmdSlot(ctx, i, 24 + i * 30, 28, r, i < CMD.n, fx.logoA);   // clear of the logo
+      drawCmdSlot(ctx, i, 34 + i * 30, 46, r, i < CMD.n, fx.logoA);   // clear of the logo and inside the window arc (ui.css clips the LCD to it)
     }
     ctx.globalAlpha = fx.logoA;
     ctx.font = "700 13px " + FONT_POP; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.fillStyle = "#cfeee0";
     const lb = T("lcd.cmdLabel", { n: CMD.n });
-    ctx.strokeText(lb, 10, 56); ctx.fillText(lb, 10, 56);
+    ctx.strokeText(lb, 22, 74); ctx.fillText(lb, 22, 74);
     ctx.restore();
   }
   // A recruit: a dark band, the portrait sliding in, the name, the four slots.
@@ -4003,8 +4018,72 @@
     }
     ctx.restore();
   }
+  // 蒸氣巨神's challenge: the colossus stands dark, its chest furnace burning brighter with the gauge, a brass
+  // pressure gauge on the left whose needle climbs to the red, steam from both sides at each PUSH.
+  const TA = { kick: 0, puffT: 0, gx: 74, gy: 176, gr: 50 };
+  function steamPuff(x, y, dir, n) {
+    for (let i = 0; i < n; i++) emit("front", { x, y, vx: dir * rand(60, 170), vy: rand(-70, -20), drag: 2.2, ay: -30, life: rand(0.6, 1.2),
+      s0: rand(6, 10), s1: rand(22, 34), type: "smoke", col: "255,240,225", a0: 0.5, add: false });
+  }
+  function drawAwakenTitan(ctx) {
+    const t = clk.t, im = IMG.hero, live = awaken.res == null;
+    if (live) awaken.g = Math.min(0.92, awaken.g + 0.0025);
+    const g = awaken.res === true ? 1 : awaken.g;
+    const lit = awaken.res === true ? Math.min(1, (t - awaken.resT) / 0.4) : 0;
+    const fade = awaken.res === false ? Math.max(0, 1 - (t - awaken.resT) / 1.4) : 1;
+    const cool = awaken.res === false ? Math.min(1, (t - awaken.resT) / 0.8) : 0;
+    if (live && t - TA.puffT > 0.9) { TA.puffT = t; steamPuff(CX + (rng() < 0.5 ? -60 : 60), 220, rng() < 0.5 ? -1 : 1, 3); }
+    TA.kick *= 0.88;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0," + (0.62 * (1 - lit)).toFixed(3) + ")"; ctx.fillRect(0, 0, W, H);
+    const heat = g * (1 - cool), fl = 0.85 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3);
+    const h = H * 0.92 * (1 + 0.012 * Math.sin(t * 2.2)), cy = H / 2 + 14, chestY = cy - h * 0.08;
+    ctx.globalCompositeOperation = "lighter";   // the furnace light behind it, so its outline shows against the dark
+    drawGlow(ctx, C.ember, CX, chestY, 120 + 120 * heat, (0.12 + 0.4 * heat) * fl * fade + 0.5 * lit);
+    ctx.globalCompositeOperation = "source-over";
+    if (im) {
+      ctx.globalAlpha = fade;
+      drawArtDragon(ctx, tinted(im, "#000", Math.round(13.2 * (1 - lit) * (1 - 0.4 * heat)) / 20), CX, cy, h, false);
+      if (lit > 0) { ctx.globalAlpha = lit; drawArtDragon(ctx, im, CX, cy, h, false); }
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = "lighter";   // the core itself: an ember that turns white-hot
+    drawGlow(ctx, C.orange, CX, chestY, 26 + 40 * heat, (0.3 + 0.6 * heat) * fl * fade);
+    drawGlow(ctx, C.yellow, CX, chestY, 10 + 22 * heat, (0.2 + 0.7 * heat) * fl * fade);
+    if (lit) drawGlow(ctx, C.white, CX, chestY, 90, 0.7 * lit);
+    ctx.globalCompositeOperation = "source-over";
+    // the pressure gauge
+    const { gx, gy, gr } = TA;
+    ctx.globalAlpha = fade;
+    const rim = ctx.createLinearGradient(gx - gr, gy - gr, gx + gr, gy + gr);
+    rim.addColorStop(0, "#fff0c8"); rim.addColorStop(0.35, "#c8963c"); rim.addColorStop(0.7, "#6a4210"); rim.addColorStop(1, "#e8c070");
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.beginPath(); ctx.arc(gx + 3, gy + 4, gr + 6, 0, TAU); ctx.fill();
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(gx, gy, gr + 6, 0, TAU); ctx.fill();
+    const face = ctx.createRadialGradient(gx - 12, gy - 14, 4, gx, gy, gr);
+    face.addColorStop(0, "#fffaf0"); face.addColorStop(1, "#d8c8a0");
+    ctx.fillStyle = face; ctx.beginPath(); ctx.arc(gx, gy, gr, 0, TAU); ctx.fill();
+    const A0 = Math.PI * 0.75, SW = Math.PI * 1.5;   // 0 at lower left, 100 at lower right
+    ctx.lineWidth = 7; ctx.strokeStyle = "rgba(200,30,10,0.85)";   // the red zone
+    ctx.beginPath(); ctx.arc(gx, gy, gr - 9, A0 + SW * 0.8, A0 + SW); ctx.stroke();
+    ctx.strokeStyle = "#2a1a08";
+    for (let i = 0; i <= 20; i++) {
+      const a = A0 + SW * (i / 20), r0 = gr - (i % 5 ? 7 : 13);
+      ctx.lineWidth = i % 5 ? 1.2 : 2.4;
+      ctx.beginPath(); ctx.moveTo(gx + Math.cos(a) * r0, gy + Math.sin(a) * r0); ctx.lineTo(gx + Math.cos(a) * (gr - 2), gy + Math.sin(a) * (gr - 2)); ctx.stroke();
+    }
+    ctx.font = "900 15px " + FONT_DIGIT; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#2a1a08";
+    ctx.fillText(Math.round(100 * g) + "%", gx, gy + gr * 0.5);
+    const na = A0 + SW * Math.min(1, g + 0.03 * TA.kick + (live ? 0.006 * Math.sin(t * 31) : 0));
+    ctx.save(); ctx.translate(gx, gy); ctx.rotate(na);
+    ctx.fillStyle = "#b01a08"; ctx.beginPath(); ctx.moveTo(-8, -2.6); ctx.lineTo(gr - 8, 0); ctx.lineTo(-8, 2.6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#3a2408"; ctx.beginPath(); ctx.arc(gx, gy, 5, 0, TAU); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.beginPath(); ctx.ellipse(gx - 14, gy - 20, 20, 9, -0.6, 0, TAU); ctx.fill();   // the glass
+    ctx.restore();
+  }
   function drawAwaken(ctx) {
     if (STEEL) { drawAwakenSlime(ctx); return; }
+    if (BRASS) { drawAwakenTitan(ctx); return; }
     const t = clk.t, im = goldDragon();
     if (awaken.res == null) awaken.g = Math.min(0.92, awaken.g + 0.0025);   // creeps up a little each frame
     const lit = awaken.res === true ? Math.min(1, (t - awaken.resT) / 0.4) : awaken.res === false ? 0 : awaken.g * 0.35;
@@ -4050,7 +4129,7 @@
       if (STEEL) burst("front", SL.x, SL.y, 50, { cols: [EM, C.white], v0: 200, v1: 600, s0: 1.4, s1: 3.4, len: 28 });
       if (VID.awaken) {   // the 神龍 wakes on film: white in, the clip, white out onto the title
         white(1, 0.12); await wait(0.14);
-        const film = playClipToEnd("awaken", STEEL ? 2.6 : AWAKEN_CLIP_END);   // machine 3's clip is good throughout
+        const film = playClipToEnd("awaken", STEEL || BRASS ? 2.6 : AWAKEN_CLIP_END);   // machine 3's clip is good throughout
         white(0, 0.3);
         await film;
         white(1, 0.1); await wait(0.12); white(0, 0.5);

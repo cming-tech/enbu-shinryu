@@ -663,17 +663,20 @@
     const holes = []; // black shapes in the body mask (acrylic / window)
     const acr = []; // translucent acrylic drawings
     let deco = ""; // everything on top
-    ART.strokes = []; ART.sprites = []; ART.leds = []; ART.fills = [];
+    ART.strokes = []; ART.sprites = []; ART.leds = []; ART.fills = []; S.ringBody = "";
 
     const win0 = loopPath(0, 3);
     holes.push(`<path d="${win0}"/>`);
 
-    // --- energy ring channel s 5..17
-    const band = loopPath(17, 3) + loopPath(5, 3);
-    holes.push(`<path d="${band}" fill-rule="evenodd"/>`);
-    acr.push(`<path d="${band}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
-    acr.push(`<path d="${loopPath(14.5, 3)}" fill="none" stroke="#fff" stroke-opacity=".10" stroke-width="2"/>`);
-    ART.strokes.push({ pts: loopPts(11, 11), closed: true, w: [16, 9, 2.6], gain: 1, main: true });
+    // --- energy ring channel s 5..17 (蒸氣巨神 can swap it for a ring of its own: S.ring, buildTitanRing)
+    const RING = S.frame === "titan" && S.ring ? S.ring : "band";
+    if (RING === "band") {
+      const band = loopPath(17, 3) + loopPath(5, 3);
+      holes.push(`<path d="${band}" fill-rule="evenodd"/>`);
+      acr.push(`<path d="${band}" fill-rule="evenodd" fill="url(#pkc-acryl)"/>`);
+      acr.push(`<path d="${loopPath(14.5, 3)}" fill="none" stroke="#fff" stroke-opacity=".10" stroke-width="2"/>`);
+      ART.strokes.push({ pts: loopPts(11, 11), closed: true, w: [16, 9, 2.6], gain: 1, main: true });
+    }
     // --- energy swirl band s0..s1 (lit by drawSwirl), clipped above the console
     const swirlD = loopPath(SWIRL.s1, 3) + loopPath(SWIRL.s0, 3);
     const WINGS = S.frame === "wings", SWORD = S.frame === "sword", TITAN = S.frame === "titan", PLAIN = WINGS || SWORD || TITAN;   // PLAIN: none of 炎舞神龍's ornaments
@@ -931,9 +934,11 @@
 
     // --- frame trims (chrome lips, bevels, engraving)
     let trims = "";
-    trims += `<path d="${loopPath(23, 3)}" fill="none" stroke="#06070a" stroke-width="3"/>`;
-    trims += `<path d="${loopPath(21.2, 3)}" fill="none" stroke="#9aa3ae" stroke-opacity=".35" stroke-width="1"/>`;
-    trims += `<path d="${loopPath(18.4, 3)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="2.8"/>`;
+    if (RING === "band") {
+      trims += `<path d="${loopPath(23, 3)}" fill="none" stroke="#06070a" stroke-width="3"/>`;
+      trims += `<path d="${loopPath(21.2, 3)}" fill="none" stroke="#9aa3ae" stroke-opacity=".35" stroke-width="1"/>`;
+      trims += `<path d="${loopPath(18.4, 3)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="2.8"/>`;
+    }
     trims += `<path d="${loopPath(3.6, 3)}" fill="none" stroke="url(#pkc-chrome)" stroke-width="3.2"/>`;
     trims += `<path d="${loopPath(0.6, 3)}" fill="none" stroke="#020203" stroke-width="2.4"/>`;
     trims += `<path d="${loopPath(36, 3)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1.4"/>`;
@@ -959,6 +964,7 @@
     s += `<rect width="588" height="860" fill="url(#pkc-carbon)" opacity=".5"/>`;
     }
     s += `<path d="${loopPath(60, 4)}" fill="none" stroke="#fff" stroke-opacity=".05" stroke-width="30"/>`;
+    s += S.ringBody || "";
     s += consoleBase;
     s += `</g>`;
     s += acr.join("");
@@ -1042,10 +1048,91 @@
 
   // 蒸氣巨神's cabinet (frame: "titan"): rivets round the frame, two pressure gauges in the top corners,
   // steam pipes down the sides and a half gear over the window, where the 3D head (titan3d.js) rests.
+  // 蒸氣巨神's own rings round the window, instead of the energy band every other machine has:
+  //  hatch: a riveted iron boiler-hatch ring with hex bolts, round lamps, two hinges and a locking handwheel;
+  //  gear:  a brass gear ring with teeth outward and lit slots through it;
+  //  pipe:  two copper pipes wrapped round the window, brass flanges, glowing sight glasses in the big one.
+  function buildTitanRing(style, holes, acr) {
+    let body = "", out = `<defs><linearGradient id="pkc-ironG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a544c"/><stop offset=".45" stop-color="#2a2622"/><stop offset="1" stop-color="#121010"/></linearGradient></defs>`;
+    const band = (s0, s1) => loopPath(s1, 3) + " " + loopPath(s0, 3);
+    const clearOf = (p) => !(p[0] > 488 && p[1] > 316 && p[1] < 396) && !(p[1] < 112 && p[0] > 160 && p[0] < 428);   // the sub display; the half gear
+    const quad = (a, b, c, d) => `M${f1(a[0])},${f1(a[1])} L${f1(b[0])},${f1(b[1])} L${f1(c[0])},${f1(c[1])} L${f1(d[0])},${f1(d[1])} Z`;
+    const lamp = (p, r, k) => {
+      holes.push(`<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${r}"/>`);
+      acr.push(`<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${r}" fill="url(#pkc-ledGlass)"/>`);
+      ART.leds.push({ x: p[0], y: p[1], u: angU(p[0], p[1]), k });
+      return `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${r + 1.8}" fill="none" stroke="url(#pkc-brassG)" stroke-width="2.4"/>`;
+    };
+    if (style === "hatch") {
+      body += `<path d="${band(0, 27)}" fill-rule="evenodd" fill="url(#pkc-ironG)"/>`;
+      body += `<path d="${loopPath(27, 3)}" fill="none" stroke="url(#pkc-brassG)" stroke-width="3"/><path d="${loopPath(29, 3)}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="2"/>`;
+      body += `<path d="${loopPath(14, 3)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="1.2"/>`;   // the seam between the two plates
+      let bolts = "", k = 0;
+      for (let deg = 0; deg < 360; deg += 8) {
+        const p = fpt(deg, 13.5);
+        if (!clearOf(p)) continue;
+        if (deg % 24 === 0) { out += lamp(p, 5.2, k++); continue; }
+        let hx = "";
+        for (let j = 0; j < 6; j++) { const a = j * 60 * DEG; hx += (j ? "L" : "M") + f1(p[0] + Math.cos(a) * 4.2) + "," + f1(p[1] + Math.sin(a) * 4.2); }
+        bolts += `<path d="${hx}Z"/>`;
+      }
+      out += `<g fill="url(#pkc-brassG)" stroke="#1a1006" stroke-width=".8">${bolts}</g>`;
+      for (const deg of [206, 236]) {   // hinges on the upper left
+        const m0 = fpt(deg, 40), m1 = fpt(deg, 48);
+        out += `<path d="${quad(fpt(deg - 3.5, 20), fpt(deg + 3.5, 20), fpt(deg + 3.5, 44), fpt(deg - 3.5, 44))}" fill="url(#pkc-ironG)" stroke="url(#pkc-brassG)" stroke-width="2"/>`;
+        out += `<line x1="${f1(m0[0])}" y1="${f1(m0[1])}" x2="${f1(m1[0])}" y2="${f1(m1[1])}" stroke="url(#pkc-brassG)" stroke-width="9" stroke-linecap="round"/>`;
+      }
+      const w = fpt(322, 16), R = 24;   // the locking handwheel on the upper right
+      let sp = "";
+      for (let j = 0; j < 6; j++) { const a = (j * 60 + 15) * DEG; sp += `M${f1(w[0])},${f1(w[1])} L${f1(w[0] + Math.cos(a) * R)},${f1(w[1] + Math.sin(a) * R)}`; }
+      out += `<circle cx="${f1(w[0] + 2)}" cy="${f1(w[1] + 3)}" r="${R + 3}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="7"/>`;
+      out += `<path d="${sp}" stroke="url(#pkc-brassG)" stroke-width="4.5"/><circle cx="${f1(w[0])}" cy="${f1(w[1])}" r="${R}" fill="none" stroke="url(#pkc-brassG)" stroke-width="6"/>`;
+      out += `<circle cx="${f1(w[0])}" cy="${f1(w[1])}" r="7" fill="#2a1406" stroke="url(#pkc-brassG)" stroke-width="3"/>`;
+    } else if (style === "gear") {
+      let teeth = "";
+      for (let deg = 0; deg < 360; deg += 5) teeth += quad(fpt(deg - 1.5, 19), fpt(deg + 1.5, 19), fpt(deg + 1, 31), fpt(deg - 1, 31));
+      body += `<path d="${teeth}" fill="url(#pkc-brassG)" stroke="#2a1a08" stroke-width="1"/>`;
+      body += `<path d="${band(0, 20)}" fill-rule="evenodd" fill="url(#pkc-brassG)"/><path d="${band(0, 20)}" fill-rule="evenodd" fill="#000" fill-opacity=".25"/>`;
+      body += `<path d="${loopPath(20, 3)}" fill="none" stroke="#2a1a08" stroke-width="1.6"/><path d="${loopPath(6, 3)}" fill="none" stroke="#fff0c8" stroke-opacity=".45" stroke-width="1.2"/>`;
+      let k = 0;
+      for (let deg = 0; deg < 360; deg += 7.5) {   // slots through the rim, lit from behind
+        const p = fpt(deg, 11.5);
+        if (!clearOf(p)) continue;
+        const i0 = fpt(deg, 5), i1 = fpt(deg, 18), nx = i1[0] - i0[0], ny = i1[1] - i0[1], L0 = Math.hypot(nx, ny) || 1, tx = (-ny / L0) * 3.6, ty = (nx / L0) * 3.6;
+        const d = quad([i0[0] + tx, i0[1] + ty], [i1[0] + tx, i1[1] + ty], [i1[0] - tx, i1[1] - ty], [i0[0] - tx, i0[1] - ty]);
+        holes.push(`<path d="${d}"/>`); acr.push(`<path d="${d}" fill="url(#pkc-ledGlass)"/>`);
+        ART.leds.push({ x: p[0], y: p[1], u: angU(p[0], p[1]), k: k++ });
+      }
+    } else if (style === "pipe") {
+      const pipe = (sm, w) => `<path d="${loopPath(sm, 3)}" fill="none" stroke="#1a0a04" stroke-width="${w + 2}"/><path d="${loopPath(sm, 3)}" fill="none" stroke="#8a4a20" stroke-width="${w}"/>` +
+        `<path d="${loopPath(sm - w * 0.18, 3)}" fill="none" stroke="#e8a070" stroke-width="${f1(w * 0.3)}" stroke-opacity=".8"/><path d="${loopPath(sm - w * 0.28, 3)}" fill="none" stroke="#fff0e0" stroke-width="1.4" stroke-opacity=".55"/>`;
+      body += `<path d="${band(0, 32)}" fill-rule="evenodd" fill="#0c0806" fill-opacity=".55"/>`;
+      body += pipe(27, 7);
+      body += pipe(12, 14);
+      for (let deg = 0; deg < 360; deg += 30) {
+        // a brass flange round both pipes
+        out += `<path d="${quad(fpt(deg - 1.2, 3), fpt(deg + 1.2, 3), fpt(deg + 1.2, 32), fpt(deg - 1.2, 32))}" fill="url(#pkc-brassG)" stroke="#2a1a08" stroke-width="1"/>`;
+        // a sight glass in the big pipe between flanges: a lit slit
+        const pts = arcPts(deg + 9, deg + 21, 12, 3), mid = pts[Math.floor(pts.length / 2)];
+        if (!clearOf(mid)) continue;
+        const o = arcPts(deg + 9, deg + 21, 15, 3), i = arcPts(deg + 9, deg + 21, 9, 3), d2 = ptsPath(o.concat(i.slice().reverse()), true);
+        holes.push(`<path d="${d2}"/>`); acr.push(`<path d="${d2}" fill="url(#pkc-acryl)"/>`);
+        out += `<path d="${d2}" fill="none" stroke="url(#pkc-brassG)" stroke-width="1.6"/>`;
+        ART.strokes.push({ pts, closed: false, w: [9, 5, 1.6], gain: 0.95 });
+      }
+      for (const deg of [200, 340]) {   // valves with red handwheels
+        const v = fpt(deg, 27);
+        out += `<circle cx="${f1(v[0])}" cy="${f1(v[1])}" r="9" fill="url(#pkc-brassG)" stroke="#2a1a08"/><circle cx="${f1(v[0])}" cy="${f1(v[1] - 12)}" r="9" fill="none" stroke="#c0281a" stroke-width="3.5"/>`;
+        out += `<path d="M${f1(v[0] - 9)},${f1(v[1] - 12)} L${f1(v[0] + 9)},${f1(v[1] - 12)} M${f1(v[0])},${f1(v[1] - 21)} L${f1(v[0])},${f1(v[1] - 3)}" stroke="#c0281a" stroke-width="2.4"/>`;
+      }
+    }
+    S.ringBody = body;
+    return out;
+  }
   function buildTitanFrame(holes, acr) {
-    let out = "";
+    let out = S.ring ? buildTitanRing(S.ring, holes, acr) : "";
     let rv = "";
-    for (let deg = 0; deg < 360; deg += 5) {
+    for (let deg = 0; deg < 360 && !S.ring; deg += 5) {
       const p = fpt(deg, 30);
       if (p[0] < 6 || p[0] > 582 || p[1] < 10 || p[1] > 622) continue;
       if (p[0] > 488 && p[1] > 316 && p[1] < 396) continue;   // the sub display
@@ -1860,6 +1947,7 @@
     x.save();
     const g = x.createLinearGradient(515, 0, 541, 0);
     if (S.steel) { g.addColorStop(0, "#04301c"); g.addColorStop(0.3, "#2ad890"); g.addColorStop(0.55, "#c8ffe4"); g.addColorStop(0.8, "#108a54"); g.addColorStop(1, "#032414"); }
+    else if (S.brass) { g.addColorStop(0, "#2a1606"); g.addColorStop(0.3, "#c08030"); g.addColorStop(0.55, "#ffe0a0"); g.addColorStop(0.8, "#8a5418"); g.addColorStop(1, "#201004"); }   // 蒸氣巨神: brass
     else { g.addColorStop(0, "#5a0a06"); g.addColorStop(0.3, "#ff4a30"); g.addColorStop(0.55, "#ffb0a0"); g.addColorStop(0.8, "#c01a10"); g.addColorStop(1, "#4a0604"); }
     x.fillStyle = g; x.strokeStyle = "#1a0202"; x.lineWidth = 1.2;
     x.beginPath(); x.moveTo(515, 464); x.lineTo(541, 464); x.lineTo(539, 476); x.quadraticCurveTo(528, 484, 517, 476); x.closePath(); x.fill(); x.stroke();
@@ -2522,7 +2610,7 @@
   }
 
   function drawWisps(x) {
-    const st = ART.strokes[0];
+    const st = ART.strokes.find((k) => k.main);   // none on a frame without the energy band
     if (!st) return;
     const pts = st.pts, n = pts.length;
     const wc = (S.neon && NEON_WISP[S.theme]) || WISP[S.theme] || WISP.normal;
@@ -3060,6 +3148,8 @@
     S.brass = els.theme === "brass";
     S.gimmick = mc.gimmick || null;
     S.frame = mc.frame || "dragon";
+    S.ring = mc.ring || null;
+    try { const q = new URLSearchParams(location.search).get("ring"); if (q) S.ring = q; } catch (e) { /* ignore */ }   // dev previews
     pinLayout = mc.pins || "enbu";
     ATT_X = pinLayout === "angel" ? 294 : 432;
     SLOPE = pinLayout === "angel" ? SLOPE_ANGEL : SLOPE_ENBU;

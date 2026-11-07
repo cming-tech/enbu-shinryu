@@ -393,6 +393,9 @@
   /* its PLAY knob: a pressure gauge's glass over the furnace, a brass rim */
   #app[data-machine="titan"] #handle { background: radial-gradient(circle at 50% 42%, #fffaf0 0%, #ffe8c0 24%, #ffa040 56%, #8a3a08 80%, #1a0a02 100%);
     box-shadow: inset 0 0 0 6px #e8c070, inset 0 0 0 9px #6a4818, inset 0 0 0 11px #2a1a08, 0 6px 14px rgba(0, 0, 0, 0.6); }
+  /* the window's top is an arc (layout.js L.win), so a square LCD's top corners stick out past the ring:
+     clip it to the window ellipse, 6 inside (centre 294,380 in stage units = 190,230 in the LCD's own) */
+  #app:not([data-machine="angel"]) #lcd { clip-path: ellipse(258px 266px at 190px 230px); }   /* every square LCD (霓虹天使's is round) */
   #app[data-machine="titan"] #handle .grip { background: repeating-conic-gradient(from 0deg, rgba(42, 20, 4, 0.55) 0 3deg, rgba(255, 255, 255, 0) 3deg 27deg); }
   #app[data-machine="titan"] #handle b, #app[data-machine="titan"] #handle .lbl, #app[data-machine="titan"] #handle .pw { color: #2a1004; }
   #app[data-machine="titan"] #handle.on { box-shadow: inset 0 0 0 6px #fff0c8, inset 0 0 0 9px #6a4818, inset 0 0 0 11px #2a1a08, 0 0 26px 6px rgba(255, 160, 60, 0.8); }

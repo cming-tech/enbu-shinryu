@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 70;
+  PK.VERSION = 71;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -237,7 +237,7 @@
     tagline: "【試作中】古代機械巨神：3D 大型機關、ラッキートリガー、神域RUSH",
     odds: E.odds,
     engine: E.engine,
-    cabinet: { pins: "titan", frame: "titan", art: {} },
+    cabinet: { pins: "titan", frame: "titan", ring: "gear", art: { board: { file: "board.jpg" } } },   // ring: the brass gear rim (the user picked B of three), not the energy band
     // the 3D head (src/titan3d.js): its canvas over the stage (design units), resting in front of the half
     // gear over the window and dropping in front of the LCD's top (three.js world units, scale)
     // ラッキートリガー: a RUSH hit pulls it with `chance`; the rest of the streak (神域RUSH) runs one odds

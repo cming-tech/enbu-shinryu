@@ -692,10 +692,14 @@
   // the gold dragon on the LCD: the living 神龍, else the cabinet's statue
   const goldDragon = () => IMG.shinryu || IMG.cab_dragon;
   let imgPending = 0;
+  // slots a machine is known not to have (its config's lcdSkip: image keys, "vid:<clip>"), so the
+  // page does not ask the server for them and log a 404 each (the user saw these as errors)
+  let SKIP = new Set();
   function loadImages(base) {
     if (THEME === "neon") FACES.forEach((m) => { IMG_FILES["face_" + m] = "face_" + m + ".jpg"; });
     if (STEEL) for (let i = 1; i <= 4; i++) IMG_FILES["cmd" + i] = "cmd" + i + ".png";   // the 四大幹部
     for (const k in IMG_FILES) {
+      if (SKIP.has(k)) continue;
       imgPending++;
       const im = new Image();
       im.onload = () => { IMG[k] = im.naturalWidth > 0 ? im : null; imgPending--; };
@@ -719,6 +723,7 @@
   const VID_GAP = 2.5;   // seconds between preloads
   function loadVideos(base) {
     for (const k in VID_FILES) {
+      if (SKIP.has("vid:" + k)) continue;
       const v = document.createElement("video");
       v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "metadata";
       v.className = "pkl-vid";
@@ -4333,6 +4338,7 @@
       resize();
       window.addEventListener("resize", resize);
       document.addEventListener("visibilitychange", () => { lastTs = 0; });
+      SKIP = new Set(o.skip || []);
       loadImages(o.assetsBase == null ? "assets/" : o.assetsBase);
       loadVideos(o.assetsBase == null ? "assets/" : o.assetsBase);
       buildSprites();

@@ -10,7 +10,7 @@
   PK.MACHINES = PK.MACHINES || {};
   // The version the player sees (menu, and a toast after an update): the Artifact version this is
   // published as. Bump it on every publish; both machines' pages and the public site read it here.
-  PK.VERSION = 71;
+  PK.VERSION = 72;
 
   PK.MACHINES.enbu = {
     id: "enbu",
@@ -70,6 +70,7 @@
     crest: "天",
     serial: "2077",
     assetsBase: "assets/angel_",
+    lcdSkip: ["jackpot", "cab_dragon", "fly_head", "fly_body", "fly_tail", "vid:round4", "vid:round5", "vid:round6", "vid:jackpot2", "vid:jackpot3", "atk_rival", "atk_minion1", "atk_minion2", "atk_minion3", "atk_minion4", "atk_minion5", "atk_minion6", "vid:sp"],   // optional LCD files it does not have (no request, no 404); remove a name when its file is added
     theme: "neon",
     softMusic: true,   // the user picked 「柔和」 for these songs (src/sound.js useFiles)
     refill: 10000,
@@ -149,6 +150,7 @@
     crest: "劍",
     serial: "0666",
     assetsBase: "assets/sword_",
+    lcdSkip: ["jackpot", "cab_dragon", "fly_head", "fly_body", "fly_tail", "vid:round4", "vid:round5", "vid:round6", "vid:jackpot2", "vid:jackpot3"],   // optional LCD files it does not have (no request, no 404); remove a name when its file is added
     theme: "steel",
     refill: 10000,
     card: "jackpot_art.jpg",
@@ -229,6 +231,7 @@
     crest: "巨",
     serial: "0404",
     assetsBase: "assets/titan_",
+    lcdSkip: ["jackpot", "cab_dragon", "fly_head", "fly_body", "fly_tail", "vid:round4", "vid:round5", "vid:round6", "vid:jackpot2", "vid:jackpot3"],   // optional LCD files it does not have (no request, no 404); remove a name when its file is added
     theme: "brass",
     refill: 10000,
     card: "jackpot_art.jpg",

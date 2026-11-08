@@ -1054,6 +1054,9 @@
   // a session is never searched again.
   const LOOPS = {};
   let loopsReady = Promise.resolve();
+  // the loops file lists every song the machine has: a second or third song it does not list is not
+  // fetched (霓虹天使 has one song a bed; asking for the others logged a 404 each)
+  let loopsListed = false;
   // Files are fetched one at a time, the bed in use first, so its first notes do not wait behind
   // the rest of the music.
   const fileFetch = {};
@@ -1078,6 +1081,7 @@
     let i = bedWant ? fileQueue.indexOf(bedWant) : -1;
     if (i < 0) i = 0;
     const key = fileQueue.splice(i, 1)[0];
+    if (loopsListed && key !== bedOf(key) && !LOOPS[key]) { setTimeout(pumpFiles, 0); return; }
     fileBusy = true;
     fetchFile(key).then(() => { fileBusy = false; setTimeout(pumpFiles, 300); });
   }
@@ -1706,7 +1710,7 @@
         if (fileBase != null || typeof fetch !== "function") return;
         fileBase = String(base == null ? "assets/" : base);
         fileQueue = BGM_NAMES.concat(...ALT.map(altKeys));
-        loopsReady = fetch(fileBase + "bgm_loops.json").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) Object.assign(LOOPS, j); }, () => {});
+        loopsReady = fetch(fileBase + "bgm_loops.json").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { Object.assign(LOOPS, j); loopsListed = true; } }, () => {});
         loopsReady.then(pumpFiles);
       } catch (e) { /* never throw */ }
     },

@@ -1255,7 +1255,7 @@
     $("app").dataset.machine = M.id;   // per-machine colours in src/ui.css
     PK.Cabinet.mount({ back: $("cabBack"), field: $("field"), front: $("cabFront"), assetsBase: M.assetsBase, machine: M.cabinet, theme: M.theme });
     PK.Cabinet.onPin(() => PK.Sound.play("tick"));   // the rattle of balls on the pins
-    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme, maxHolds: eng.tables.units.maxHolds });
+    PK.LCD.mount($("lcd"), { assetsBase: M.assetsBase, theme: M.theme, maxHolds: eng.tables.units.maxHolds, skip: M.lcdSkip });
     if (M.head3d) loadHead3d();
     if (M.lt) {   // 神域RUSH: one odds preset up from the RUSH chance in use (the best stays the best)
       const cur = odds().rushN, up = ODDS.rush.filter((n) => n < cur).sort((a, b) => b - a)[0] || cur;

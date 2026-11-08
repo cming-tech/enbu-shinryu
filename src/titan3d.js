@@ -11,11 +11,14 @@
   function mount(cv, o) {
   o = o || {};
   if (!window.THREE || !cv) return false;
+  // phones (the user: the head stutters as it drops there; smooth on the PC): no multisampling and a
+  // lower pixel ratio, since a phone GPU fills the dropped head (half the LCD) on top of the LCD itself
+  const mobile = (navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) < 900;
   let renderer;
-  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, powerPreference: "low-power" }); } catch (e) { return false; }
+  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !mobile, alpha: true, powerPreference: mobile ? "default" : "low-power" }); } catch (e) { return false; }
   const stats = { fps: 0, busy: false };
   let paused = false;
-  renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));   // perf rule: ≤ 1.5
+  renderer.setPixelRatio(Math.min(mobile ? 1.25 : 1.5, window.devicePixelRatio || 1));   // perf rule: ≤ 1.5 (≤ 1.25 on a phone)
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   const scene = new THREE.Scene();
@@ -65,7 +68,12 @@
   // halves (dev/make_titan_face.py) on hinged planes that swing open like doors; behind them the
   // AI-painted furnace (titan_core.jpg) and a crown of gears turning behind the whole head.
   const base = o.base || "assets/titan_", loader = new THREE.TextureLoader();
-  const tex = (f) => { const t = loader.load(base + f, () => kick(0.3)); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
+  // when the last picture arrives, one warm-up frame with the face fully open (the user: it stutters
+  // as the head opens, on the phone only): phone drivers prepare a shader or texture the first time it
+  // actually reaches pixels (the furnace light, the doors' backs, the core); the rest frame drawn
+  // right after it is the one shown, as both run in one task
+  let texLeft = 3;
+  const tex = (f) => { const t = loader.load(base + f, () => { kick(0.3); if (--texLeft === 0) warm(); }); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
   const crown = new THREE.Group(); head.add(crown); crown.position.set(0, 0.15, -0.9);
   add(new THREE.TorusGeometry(2.05, 0.11, 10, 64), M.copper, 0, 0, 0, crown);
   for (let i = 0; i < 30; i++) { const t = add(new THREE.BoxGeometry(0.2, 0.28, 0.16), M.copper, 0, 0, 0, crown); const a = (i / 30) * Math.PI * 2; t.position.set(Math.cos(a) * 2.22, Math.sin(a) * 2.22, 0); t.rotation.z = a; }
@@ -176,6 +184,11 @@
     });
   }
 
+  function warm() {
+    const o0 = S.open, g0 = S.glow;
+    S.open = 1; S.glow = 1; draw(now(), 0); renderer.render(scene, cam);
+    S.open = o0; S.glow = g0; draw(now(), 0); renderer.render(scene, cam);
+  }
   window.addEventListener("resize", resize);
   resize();
   kick(1);
